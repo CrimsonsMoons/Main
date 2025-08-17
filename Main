@@ -154,8 +154,9 @@ local positionsByIsland = {
         Vector3.new(-7878, 135, 2901),
     },
     ["Mountain Island"] = {
-        Vector3.new(-4500, 50, -5000),
-        Vector3.new(-4600, 55, -5100),
+        Vector3.new(-6715, 276, 10),
+        Vector3.new(-6102, 349, -242),
+        Vector3.new(-6962, 304, -778),
     },
     ["Lunar Islands"] = {
         Vector3.new(-3097.42, 17.63, -3681.29),
@@ -174,7 +175,11 @@ local positionsByIsland = {
         Vector3.new(-937, 14, -3897),
         Vector3.new(244, 15, -3563),
     },
-    ["Jungle Island"] = {},
+    ["Jungle Island"] = {
+        Vector3.new(3396, 15, 1080),
+        Vector3.new(3616, 65, 2149),
+        Vector3.new(3763, 16, 3143),
+    },
     ["Volcano Island"] = {
         Vector3.new(2964.74, 108.94, -7078.36),
         Vector3.new(4134.52, 27.04, -6894.68),
@@ -184,8 +189,14 @@ local positionsByIsland = {
     ["Desert Island"] = {
         Vector3.new(1050, 15, 4095),
         Vector3.new(156, 31, 4065),
+        Vector3.new(-517, 38, 4221),
     },
-    ["Glacier Island"] = {},
+    ["Glacier Island"] = {
+        Vector3.new(2718, 115, -74),
+        Vector3.new(2438, 196, -763),
+        Vector3.new(3102, 147, -911),
+        Vector3.new(3125, 82, -74),
+    },
 }
 
 -- === Lunar/Volcano Island Teleport Function ===
