@@ -123,4 +123,220 @@ local function getAllBodies(islandName)
         if f then
             for _, model in ipairs(f:GetChildren()) do
                 if not exclusions[model.Name] then
-                    loc
+                    local body = model:FindFirstChild("Body")
+                    if isBasepart(body) then table.insert(bodies, body) end
+                end
+            end
+        end
+    end
+
+    return bodies
+end
+
+-- === Teleport toggles (state only; no per-toggle loops) ===
+local teleportToggles = {}
+for islandName in pairs(islandConfigs) do
+    teleportToggles[islandName] = false
+    TeleportSection:NewToggle("Teleport " .. islandName, "Teleport to " .. islandName, function(state)
+        teleportToggles[islandName] = state
+    end)
+end
+
+-- === Travel Buttons ===
+for islandName in pairs(islandConfigs) do
+    TravelSection:NewButton("Travel to " .. islandName, "Use teleport remote", function()
+        local args = {"\1", "Travel", islandName, 1}
+        getRemoteAndCall(args)
+    end)
+end
+
+-- === Positions for Special Islands ===
+local positionsByIsland = {
+    ["Forest Island"] = {
+        Vector3.new(-7839, 96, 4180),
+        Vector3.new(-7945, 91, 3557),
+        Vector3.new(-7878, 135, 2901),
+    },
+    ["Mountain Island"] = {
+        Vector3.new(-6715, 276, 10),
+        Vector3.new(-6102, 349, -242),
+        Vector3.new(-6962, 304, -778),
+    },
+    ["Lunar Islands"] = {
+        Vector3.new(-3097.42, 17.63, -3681.29),
+        Vector3.new(-2759.49, 6.74, -2589.20),
+        Vector3.new(-2207.14, 139.06, -1223.94),
+        Vector3.new(-3266.90, 15.43, -1436.56),
+        Vector3.new(-3357.76, 24.34, -2428.62),
+    },
+    ["Royal Island"] = {
+        Vector3.new(253.7, 94, -5399),
+        Vector3.new(-372, 156, -6136),
+        Vector3.new(617, 6.8, -6002),
+    },
+    ["Blizzard Island"] = {
+        Vector3.new(-428, 138, -3859),
+        Vector3.new(-937, 14, -3897),
+        Vector3.new(244, 15, -3563),
+    },
+    ["Jungle Island"] = {
+        Vector3.new(3396, 15, 1080),
+        Vector3.new(3616, 65, 2149),
+        Vector3.new(3763, 16, 3143),
+    },
+    ["Volcano Island"] = {
+        Vector3.new(2964.74, 108.94, -7078.36),
+        Vector3.new(4134.52, 27.04, -6894.68),
+        Vector3.new(4757.52, 26.13, -7939.00),
+        Vector3.new(3487.48, 20.99, -8586.85),
+    },
+    ["Desert Island"] = {
+        Vector3.new(1050, 15, 4095),
+        Vector3.new(156, 31, 4065),
+        Vector3.new(-517, 38, 4221),
+    },
+    ["Glacier Island"] = {
+        Vector3.new(2718, 115, -74),
+        Vector3.new(2438, 196, -763),
+        Vector3.new(3102, 147, -911),
+        Vector3.new(3125, 82, -74),
+    },
+}
+
+-- === Special island explore toggles (state only) ===
+local exploreToggles = {}
+for islandName, _ in pairs(positionsByIsland) do
+    exploreToggles[islandName] = false
+    LunarVolcanoSection:NewToggle(islandName .. " Explore", "Teleport to UUID.Body parts, then next position", function(state)
+        exploreToggles[islandName] = state
+    end)
+end
+
+-- === Volcano Lava Removal Toggle ===
+local removeLavaEnabled = false
+LunarVolcanoSection:NewToggle("Remove Volcano Lava", "Deletes Volcano Island LavaParts every 60 seconds", function(state)
+    removeLavaEnabled = state
+end)
+
+-- ========== CENTRAL SCHEDULER LOOP ==========
+local lastLavaClear = 0
+local lavaClearInterval = 60
+local bodyHoverOffset = Vector3.new(0, 5, 0)
+local islandBodyTickDelay = 0.05  -- per-body hover throttle
+local idleTick = 0.12             -- main loop tick
+
+task.spawn(function()
+    while true do
+        -- Refresh hrp if needed
+        if not hrp or not hrp.Parent then
+            local c = player.Character or player.CharacterAdded:Wait()
+            hrp = c:FindFirstChild("HumanoidRootPart") or c:WaitForChild("HumanoidRootPart")
+        end
+
+        -- 1) Main Teleport toggles: for each island, hover on bodies if toggle is on
+        for islandName, enabled in pairs(teleportToggles) do
+            if enabled then
+                local bodies = getAllBodies(islandName)
+                for _, body in ipairs(bodies) do
+                    if not teleportToggles[islandName] then break end
+                    if isBasepart(body) and body:IsDescendantOf(workspace) then
+                        safeTP(body.Position + bodyHoverOffset)
+                        task.wait(islandBodyTickDelay)
+                    end
+                end
+            end
+        end
+
+        -- 2) Explore toggles: for each special island, if on, do bodies-first else step through positions
+        for islandName, enabled in pairs(exploreToggles) do
+            if enabled then
+                local bodies = getAllBodies(islandName)
+                if #bodies > 0 then
+                    for _, body in ipairs(bodies) do
+                        if not exploreToggles[islandName] then break end
+                        if isBasepart(body) and body:IsDescendantOf(workspace) then
+                            safeTP(body.Position + bodyHoverOffset)
+                            task.wait(islandBodyTickDelay)
+                        end
+                    end
+                else
+                    local posList = positionsByIsland[islandName]
+                    for _, pos in ipairs(posList) do
+                        if not exploreToggles[islandName] then break end
+                        safeTP(pos + bodyHoverOffset)
+                        -- original waited ~11.5s; keep but break up to be responsive
+                        local t0 = tick()
+                        while tick() - t0 < 11.5 do
+                            if not exploreToggles[islandName] then break end
+                            task.wait(0.25)
+                        end
+                        if not exploreToggles[islandName] then break end
+                        -- re-check bodies after each position
+                        if #getAllBodies(islandName) > 0 then
+                            break
+                        end
+                    end
+                end
+            end
+        end
+
+        -- 3) Lava clearing (once per interval)
+        if removeLavaEnabled then
+            local now = tick()
+            if now - lastLavaClear >= lavaClearInterval then
+                lastLavaClear = now
+                local vol = islandsFolder:FindFirstChild("Volcano Island")
+                local lavaFolder = vol and vol:FindFirstChild("LavaParts")
+                if lavaFolder then
+                    for _, part in ipairs(lavaFolder:GetChildren()) do
+                        pcall(function() part:Destroy() end)
+                    end
+                end
+            end
+        end
+
+        task.wait(idleTick)
+    end
+end)
+-- ========== END SCHEDULER LOOP ==========
+
+-- === Training Buttons (unchanged except for safety) ===
+TrainSection:NewButton("Single Script", "Runs Single Route Script", function()
+    loadstring(game:HttpGet("https://raw.githubusercontent.com/CrimsonsMoons/Jasmine/refs/heads/main/Single%20tp%20v2", true))()
+end)
+
+TrainSection:NewButton("Training", "Creates a red box around your character", function()
+    loadstring(game:HttpGet("https://raw.githubusercontent.com/CrimsonsMoons/Jasmine/refs/heads/main/All%20Training", true))()
+end)
+
+TrainSection:NewButton("Hurry Scurry", "Runs Hurry Scurry Script", function()
+    local args1 = {
+        [1] = "SelectLayout";
+        [2] = workspace:WaitForChild("Islands", 9e9):WaitForChild("Training Island", 9e9):WaitForChild("Outdoor Arena", 9e9):WaitForChild("DynamicArena", 9e9);
+        [3] = 3;
+    }
+    local args2 = {
+        [1] = "TriggerInteractable";
+        [2] = workspace:WaitForChild("Islands", 9e9):WaitForChild("Training Island", 9e9):WaitForChild("Outdoor Arena", 9e9):WaitForChild("DynamicArena", 9e9):WaitForChild("_LAYOUT", 9e9):WaitForChild("CheckpointActivity", 9e9);
+    }
+    getRemoteAndCall(args1)
+    getRemoteAndCall(args2)
+end)
+
+-- Example extra Train loop you had — keep as-is or remove if not needed
+-- (Your other Auto/Shop toggles can remain unchanged)
+AutoSection:NewToggle("Islands 1,2,3", "Auto Catch Script", function(state)
+    if state then
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/CrimsonsMoons/Jasmine/refs/heads/main/Auto%20Catch%201"))()
+    end
+end)
+AutoSection:NewToggle("4,5,6", "Auto Catch Script 2", function(state)
+    if state then
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/CrimsonsMoons/Jasmine/refs/heads/main/Auto%20Catch%202", true))()
+    end
+end)
+AutoSection:NewToggle("7,8,9", "Auto Catch Script 3", function(state)
+    if state then
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/CrimsonsMoons/Jasmine/refs/heads/main/Auto%20Catch%203", true))()
+    end
+end)
