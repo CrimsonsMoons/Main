@@ -500,13 +500,17 @@ AutoSection:NewToggle("Islands 1,2,3", "Auto Catch Script", function(state)
     end
 end)
 
+local autoCatch2Enabled = false
 AutoSection:NewToggle("4,5,6", "Auto Catch Script 2", function(state)
+    autoCatc2hEnabled = state
     if state then
         loadstring(game:HttpGet("https://raw.githubusercontent.com/CrimsonsMoons/Jasmine/refs/heads/main/Auto%20Catch%202", true))()
     end
 end)
 
+local autoCatch3Enabled = false
 AutoSection:NewToggle("7,8,9", "Auto Catch Script 3", function(state)
+    autoCatch3Enabled = state
     if state then
         loadstring(game:HttpGet("https://raw.githubusercontent.com/CrimsonsMoons/Jasmine/refs/heads/main/Auto%20Catch%203", true))()
     end
