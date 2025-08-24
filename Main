@@ -129,7 +129,7 @@ for islandName, _ in pairs(islandConfigs) do
                         end
                     end
                 end
-                task.wait(0.1)
+                task.wait(0.7)
             else
                 task.wait(0.5)
             end
@@ -224,7 +224,7 @@ local function exploreIsland(islandName, positions, toggleVar)
                     end
                 end
             else
-                task.wait(0.5)
+                task.wait(0.8)
             end
         end
     end)
@@ -253,7 +253,7 @@ LunarVolcanoSection:NewToggle("Remove Volcano Lava", "Deletes Volcano Island Lav
                 if lavaFolder then
                     lavaFolder:Destroy()
                 end
-                task.wait(60)
+                task.wait(200)
             end
         end)
     end
