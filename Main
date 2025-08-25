@@ -1,4 +1,4 @@
------- === GUI Library Setup ===
+----- === GUI Library Setup ===
 local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/xHeptc/Kavo-UI-Library/main/source.lua"))()
 local Window = Library.CreateLib("All Islands Teleport", "DarkTheme")
 
@@ -125,13 +125,13 @@ for islandName, _ in pairs(islandConfigs) do
                     for _, body in ipairs(bodies) do
                         while teleportToggles[islandName] and body:IsDescendantOf(workspace) do
                             hrp.CFrame = CFrame.new(body.Position + Vector3.new(0,5,0))
-                            task.wait(0.05)
+                            task.wait(0.06)
                         end
                     end
                 end
-                task.wait(0.7)
+                task.wait(0.8)
             else
-                task.wait(0.5)
+                task.wait(1)
             end
         end
     end)
@@ -215,7 +215,7 @@ local function exploreIsland(islandName, positions, toggleVar)
                         for _, body in ipairs(bodies) do
                             while toggleVar.value and body:IsDescendantOf(workspace) do
                                 hrp.CFrame = CFrame.new(body.Position + Vector3.new(0,5,0))
-                                task.wait(0.05)
+                                task.wait(0.08)
                             end
                         end
                     else
@@ -224,7 +224,7 @@ local function exploreIsland(islandName, positions, toggleVar)
                     end
                 end
             else
-                task.wait(0.8)
+                task.wait(1)
             end
         end
     end)
