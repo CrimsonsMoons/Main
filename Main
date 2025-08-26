@@ -131,7 +131,7 @@ for islandName, _ in pairs(islandConfigs) do
                 end
                 task.wait(1)
             else
-                task.wait(1.5)
+                task.wait(1)
             end
         end
     end)
@@ -224,7 +224,7 @@ local function exploreIsland(islandName, positions, toggleVar)
                     end
                 end
             else
-                task.wait(1.6)
+                task.wait(1.1)
             end
         end
     end)
