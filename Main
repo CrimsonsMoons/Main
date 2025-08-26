@@ -129,7 +129,7 @@ for islandName, _ in pairs(islandConfigs) do
                         end
                     end
                 end
-                task.wait(.8)
+                task.wait(0.8)
             else
                 task.wait(1)
             end
