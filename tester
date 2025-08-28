@@ -1,12 +1,27 @@
 repeat task.wait() until game:IsLoaded()
 
----// Services
+--// Services
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local lp = Players.LocalPlayer
+local vu = game:GetService("VirtualUser")
 
---// UI Creation
+-- Workspace refs
+local chests = workspace:WaitForChild("Chests")
+local ores = workspace:WaitForChild("Ores")
+local npcs = workspace:WaitForChild("NPCs")
+local mobs = workspace:WaitForChild("Mobs")
+
+-- Vars
+local autofish = false
+local showChests = false
+local showOre = false
+local showShop = false
+local meteorNotify = false
+
+--// GUI Creation
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "CustomPilgrammedGUI"
 ScreenGui.Parent = game.CoreGui
@@ -37,7 +52,7 @@ TabHolder.Position = UDim2.new(0, 5, 0, 45)
 TabHolder.BackgroundTransparency = 1
 TabHolder.Parent = MainFrame
 
--- Simple tab system
+-- Tab system
 local function CreateTab(name)
     local Tab = Instance.new("ScrollingFrame")
     Tab.Name = name
@@ -91,7 +106,7 @@ AddTabButton("Auto")
 AddTabButton("Settings")
 Tabs.Esp.Visible = true -- default
 
--- Example: add toggle
+-- Helper: toggles
 local function AddToggle(tab, text, callback)
     local Button = Instance.new("TextButton")
     Button.Size = UDim2.new(1, -10, 0, 30)
@@ -110,18 +125,26 @@ local function AddToggle(tab, text, callback)
     end)
 end
 
--- Example: ESP toggles
+-- ESP toggles
 AddToggle(Tabs.Esp, "Show Chests", function(val)
-    print("Show Chests:", val)
+    showChests = val
 end)
 
 AddToggle(Tabs.Esp, "Show Ore Title", function(val)
-    print("Show Ore Title:", val)
+    showOre = val
 end)
 
--- Example: Autofarm toggles
+AddToggle(Tabs.Esp, "Show Traveling Shop", function(val)
+    showShop = val
+end)
+
+AddToggle(Tabs.Esp, "Meteor Notify", function(val)
+    meteorNotify = val
+end)
+
+-- Auto toggles
 AddToggle(Tabs.Auto, "Auto Fish", function(val)
-    print("Auto Fish:", val)
+    autofish = val
 end)
 
 -- Settings
@@ -138,9 +161,40 @@ CloseBtn.MouseButton1Click:Connect(function()
 end)
 
 -- Toggle GUI visibility with V
-local UIS = game:GetService("UserInputService")
-UIS.InputBegan:Connect(function(input, gpe)
+UserInputService.InputBegan:Connect(function(input, gpe)
     if not gpe and input.KeyCode == Enum.KeyCode.V then
         MainFrame.Visible = not MainFrame.Visible
+    end
+end)
+
+----------------------------------------------------------------------------------
+-- === Logic wiring ===
+
+-- Meteor notifications
+workspace.ChildAdded:Connect(function(child)
+    if child.Name == "Meteor" and meteorNotify then
+        game.StarterGui:SetCore("SendNotification", {
+            Title = "Meteor!",
+            Text = "A meteor has spawned!",
+            Duration = 5
+        })
+    end
+end)
+
+-- Autofish loop
+task.spawn(function()
+    while task.wait() do
+        if autofish then
+            for i,v in pairs(workspace:GetChildren()) do
+                if v.Name == "Bobber" then
+                    if v:FindFirstChild("Attachment") and v.Attachment:FindFirstChild("Hooked") then
+                        if v.Attachment.Hooked.Enabled then
+                            vu:Button1Down(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
+                            vu:Button1Up(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
+                        end
+                    end
+                end
+            end
+        end
     end
 end)
