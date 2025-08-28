@@ -1,182 +1,474 @@
---- // Pilgrmageddon Automation GUI (Standalone with Toggle Keybind) // --
+repeat task.wait() until game:IsLoaded()
 
--- Services
-local UIS = game:GetService("UserInputService")
+--[------------------------------[ Libraries ]---------------------------------]--
+local repo = 'https://raw.githubusercontent.com/wally-rblx/LinoriaLib/main/'
+local lib = loadstring(game:HttpGet(repo .. 'Library.lua'))() --local lib = loadstring(game:HttpGet("https://raw.githubusercontent.com/wally-rblx/LinoriaLib/main/Library.lua"))()
+local ThemeManager = loadstring(game:HttpGet(repo .. 'addons/ThemeManager.lua'))()
+local SaveManager = loadstring(game:HttpGet(repo .. 'addons/SaveManager.lua'))()
+local zlib = loadstring(game:HttpGet("https://raw.githubusercontent.com/Zet-a/RobIox/main/LibrarySnippetRework.lua"))()
 
--- ScreenGui
-local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "PilgrmageddonGUI"
-ScreenGui.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
-ScreenGui.ResetOnSpawn = false
+--[------------------------------[ Variables ]---------------------------------]--
+local vu = game:GetService("VirtualUser")
+local plrs = game:GetService("Players")
+local lp = plrs.LocalPlayer
+local chr = lp.Character
+local chests = workspace.Chests
+local goldchests = workspace.GoldChests
+local ores = workspace.Ores
+local oreslidervalue = 500
+local selectedore = "Copper"
+local autofish = false
+local farmchest = false
+local farmores = false
+local nowepcd = false
+local norollcd = false
+local meteornotif = false
+local npcs = workspace.NPCs
+local mobs = workspace.Mobs
+local backpack = lp.Backpack
+--local gversion = 21344
+local originalpos
+-- rbxassetid://7042732937 is the hooked effect texture
+--[-------------------------------[ tables ]-----------------------------------]--
+local storage = {}
 
--- Main Frame
-local Frame = Instance.new("Frame")
-Frame.Size = UDim2.new(0, 300, 0, 350)
-Frame.Position = UDim2.new(0.3, 0, 0.2, 0)
-Frame.BackgroundColor3 = Color3.fromRGB(30,30,30)
-Frame.Parent = ScreenGui
-
--- Title
-local Title = Instance.new("TextLabel")
-Title.Size = UDim2.new(1, 0, 0, 40)
-Title.BackgroundColor3 = Color3.fromRGB(45,45,45)
-Title.Text = "Pilgrmageddon Automation"
-Title.TextColor3 = Color3.fromRGB(255,255,255)
-Title.Font = Enum.Font.SourceSansBold
-Title.TextSize = 18
-Title.Parent = Frame
-
--- Draggable system
-local dragging, dragInput, dragStart, startPos
-
-Frame.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        dragging = true
-        dragStart = input.Position
-        startPos = Frame.Position
-
-        input.Changed:Connect(function()
-            if input.UserInputState == Enum.UserInputState.End then
-                dragging = false
-            end
-        end)
-    end
-end)
-
-Frame.InputChanged:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-        dragInput = input
-    end
-end)
-
-UIS.InputChanged:Connect(function(input)
-    if input == dragInput and dragging then
-        local delta = input.Position - dragStart
-        Frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-    end
-end)
-
--- Keybind to toggle GUI (V)
-local guiVisible = true
-UIS.InputBegan:Connect(function(input, gpe)
-    if not gpe and input.KeyCode == Enum.KeyCode.V then
-        guiVisible = not guiVisible
-        Frame.Visible = guiVisible
-    end
-end)
-
--- Button Maker
-local function createButton(name, yPos, callback)
-    local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(1, -20, 0, 30)
-    btn.Position = UDim2.new(0, 10, 0, yPos)
-    btn.BackgroundColor3 = Color3.fromRGB(60,60,60)
-    btn.Text = name
-    btn.TextColor3 = Color3.fromRGB(255,255,255)
-    btn.Font = Enum.Font.SourceSans
-    btn.TextSize = 16
-    btn.Parent = Frame
-    btn.MouseButton1Click:Connect(callback)
+Variables["MeteorMob"] = {
+    ["Toggle"] = false,
+    ["HaveSlider"] = false,
+    ["Slider"] = 0,
+    ["Box"] = false,
+    ["Title"] = false,
+}
+--[------------------------------[ Functions ]---------------------------------]--
+local function updatelist(list)
+	list:SetValues()
+	list:Display()
 end
 
--- Toggle Maker
-local function createToggle(name, yPos, stateVar, toggleFunc)
-    local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(1, -20, 0, 30)
-    btn.Position = UDim2.new(0, 10, 0, yPos)
-    btn.BackgroundColor3 = Color3.fromRGB(60,60,60)
-    btn.Text = name .. " [OFF]"
-    btn.TextColor3 = Color3.fromRGB(255,255,255)
-    btn.Font = Enum.Font.SourceSans
-    btn.TextSize = 16
-    btn.Parent = Frame
-    
-    btn.MouseButton1Click:Connect(function()
-        _G[stateVar] = not _G[stateVar]
-        btn.Text = name .. (_G[stateVar] and " [ON]" or " [OFF]")
-        if _G[stateVar] then
-            task.spawn(toggleFunc)
+local function addore(ore)
+    if ore:IsA("Part") and ore.Name == "Part" then
+        for i,v in pairs(ore:GetChildren()) do
+            zlib:text(v,-2,0,v.Name,{
+                Text = v.Name,
+                Visible = false,
+                Outline = true,
+                OutlineColor = Color3.fromRGB(0, 0, 0),
+                Color = v.Color,
+                Center = true,
+                Font = 2,
+            })
         end
-    end)
-end
-
--- === Player Setup ===
-local player = game.Players.LocalPlayer
-local character = player.Character or player.CharacterAdded:Wait()
-player.CharacterAdded:Connect(function(char) character = char end)
-
--- === Functions ===
-local function enableGodMode()
-    local humanoid = character:FindFirstChildOfClass("Humanoid")
-    if humanoid then
-        humanoid:GetPropertyChangedSignal("Health"):Connect(function()
-            humanoid.Health = humanoid.MaxHealth
-        end)
-        humanoid.MaxHealth = math.huge
-        humanoid.Health = math.huge
     end
 end
+-------------------------------------Calls----------------------------------------
 
-local function setInfiniteMana()
-    local mana = character:FindFirstChild("Mana")
-    if mana then
-        mana.Changed:Connect(function() mana.Value = math.huge end)
-        mana.Value = math.huge
+-------------------------------------Code-----------------------------------------
+--[[
+if game.PlaceVersion >= gversion then
+    if game.PlaceVersion == gversion then
+        
+    else
+        lib:Notify("Warning! Exploit not updated to latest game version.")
+        lib:Notify("Use unsafe menu features with caution.")
     end
 end
+]]--
 
-local function deleteNametags()
-    for _, otherPlayer in pairs(game.Players:GetPlayers()) do
-        local nametag = otherPlayer:FindFirstChild("PlayerGui") and otherPlayer.PlayerGui:FindFirstChild("Nametag")
-        if nametag then nametag:Destroy() end
-    end
-end
+local window = lib:CreateWindow({
+	Title = "★ | Pilgrammed",
+	Center = true,
+	AutoShow = true,
+})
 
-_G.ChestRunning = false
-local function autoChests()
-    while _G.ChestRunning do
-        for _, chest in pairs(workspace:GetDescendants()) do
-            if chest.Name == "Chest" and chest:IsA("Model") and character:FindFirstChild("HumanoidRootPart") then
-                character.HumanoidRootPart.CFrame = chest:GetModelCFrame() + Vector3.new(0,3,0)
-                task.wait(0.5)
-                if chest:FindFirstChild("ClickDetector") then
-                    fireclickdetector(chest.ClickDetector)
+local Tabs = {
+    esptab = window:AddTab("Esp"),
+    autotab = window:AddTab("Autofarms"),
+    --unsafetab = window:AddTab("Unsafe"),
+    settingtab = window:AddTab("Settings"),
+}
+
+local chestgroup = Tabs.esptab:AddLeftGroupbox("Chest")
+chestgroup:AddToggle("ShowChests",{
+    Text = "Show Chests",
+    Default = false,
+    Tooltip = "Shows regular chests",
+})
+
+chestgroup:AddToggle("ShowChestBox",{
+    Text = "Box",
+    Default = false,
+    Tooltip = "Shows chests' box"
+})
+
+chestgroup:AddToggle("ShowChestTitle",{
+    Text = "Title",
+    Default = false,
+    Tooltip = "Shows chests' title"
+})
+
+chestgroup:AddSlider("ChestSlider",{
+    Text = "Distance",
+    Default = 500,
+    Min = 500,
+    Max = 7000,
+    Rounding = 1,
+    Compact = false,
+})
+
+local oregroup = Tabs.esptab:AddRightGroupbox("Mining")
+
+oregroup:AddDropdown("SelectOre",{
+    Values = {"Copper","Tin","Zinc","Iron","Sulfur","Emerald","Ruby","Sapphire","Mithril","Demetal","Diamond","Darksteel"},
+    Default = 1,
+	Multi = false,
+	Text = "Ores",
+	Tooltip = "Click ore to show & edit its title visibility.",
+})
+
+oregroup:AddToggle("ShowOreTitle",{
+    Text = "Show Title",
+    Default = false,
+    Tooltip = "Shows selected ore title",
+})
+
+local miscespgroup = Tabs.esptab:AddRightGroupbox("Misc")
+
+miscespgroup:AddToggle("ShowGemShop",{
+    Text = "Show Traveling Shop",
+    Default = false,
+    Tooltip = "Shows gem shop",
+})
+
+local meteorgroup = Tabs.esptab:AddLeftGroupbox("Meteor")
+
+meteorgroup:AddToggle("MeteorNotify",{
+    Text = 'Meteor Notification',
+    Default = false,
+    Tooltip = "Makes a notification in the top left corner"
+})
+
+meteorgroup:AddToggle("MeteorMob",{
+    Text = "Show Meteor Mobs",
+    Default = false,
+    Tooltip = "Shows meteor mobs",
+})
+
+local meteorlabel = meteorgroup:AddLabel("test")
+
+local fishgroup = Tabs.autotab:AddLeftGroupbox("AutoFish (Beta)")
+
+fishgroup:AddToggle("AutoFish",{
+    Text = "Toggle",
+    Default = false,
+    Tooltip = "Toggles autofish"
+}):AddKeyPicker("AutoFishKeybind",{
+    Default = 'H',
+    SyncToggleState = true, 
+    Mode = 'Toggle',
+    Text = 'Auto Fish',
+    NoUI = false,
+})
+
+fishgroup:AddLabel("Have water on the btm right corner")
+fishgroup:AddLabel("This obviously requires")
+fishgroup:AddLabel("a fishing rod")
+--[[
+local cooldowngroup = Tabs.exploittab:AddLeftGroupbox("Cooldowns")
+
+cooldowngroup:AddToggle("NoWeaponCooldown",{
+    Text = "No Weapon Cooldown",
+    Default = false,
+    Tooltip = "Self explanatory",
+})
+
+cooldowngroup:AddToggle("NoRoolCooldown",{
+    Text = "No Roll Cooldown",
+    Default = false,
+    Tooltip = "Self explanatory",
+})
+
+local stackgroup = Tabs.exploittab:AddRightGroupbox("Weapon Stacker") -- This is all marked out because it doesn't work at all
+
+stackgroup:AddDropdown("StackSelection",{
+    Values = {},
+    Default = 1,
+    Multi = true,
+    Text = "Selection",
+    Tooltip = "Select weapons to stack",
+})
+
+stackgroup:AddButton("Stack Weapons",function()
+    if Options.StackSelection.Value ~= nil then
+        for i,v in pairs(storage) do
+            for a,b in pairs(Options.StackSelection.Value) do
+                if v.Name == a then
+                    v.Parent = chr
+                    task.wait(1)
                 end
             end
         end
-        task.wait(5)
+    end
+end)
+]]--
+--local unsafeleftgroup = Tabs.unsafetab:AddLeftGroupbox("Auto")
+--unsafeleftgroup:AddLabel("Use this stuff at your own risk!")
+
+
+for i,v in pairs(chests:GetChildren()) do
+    if v:FindFirstChild("Root") then
+        local root = v.Root
+        zlib:box(root,"Chest",{
+            Color = Color3.fromRGB(126, 91, 52),
+        },{
+            ["HaveSlider"] = true
+        })
+        zlib:text(root,-2, 0,"Chest",{
+            Text = "Chest",
+            Color = Color3.fromRGB(138, 138, 138),
+            Visible = false,
+            Outline = true,
+            OutlineColor = Color3.fromRGB(0, 0, 0),
+            Center = true,
+            Font = 2,
+        },{
+            ["HaveSlider"] = true
+        })
     end
 end
 
-_G.MirrorRunning = false
-local function autoMirrors()
-    while _G.MirrorRunning do
-        for _, mirror in pairs(workspace:GetDescendants()) do
-            if mirror.Name == "Mirror" and character:FindFirstChild("HumanoidRootPart") then
-                character.HumanoidRootPart.CFrame = mirror.CFrame + Vector3.new(0,3,0)
-                task.wait(0.5)
-                if mirror:FindFirstChild("ClickDetector") then
-                    fireclickdetector(mirror.ClickDetector)
+for i,v in pairs(goldchests:GetChildren()) do
+    if v:FindFirstChild("Root",true) then
+        local root = v.Root
+        zlib:box(root,"Chest",{
+            Color = Color3.fromRGB(233, 218, 12),
+        },{
+            ["HaveSlider"] = true
+        })
+        zlib:text(root,-2, 0,"Chest",{
+            Text = "Premium Chest",
+            Color = Color3.fromRGB(0, 255, 189),
+            Visible = false,
+            Outline = true,
+            OutlineColor = Color3.fromRGB(0, 0, 0),
+            Center = true,
+            Font = 2,
+        },{
+            ["HaveSlider"] = true
+        })
+    end
+end
+
+if npcs:FindFirstChild("Mela") then
+    zlib:text(npcs.Mela.HumanoidRootPart,-2,0,"Mela",{
+        Text = "Traveling Shop",
+        Color = npcs.Mela.Head.Color,
+        Visible = false,
+        Outline = true,
+        OutlineColor = Color3.fromRGB(0, 0, 0),
+        Center = true,
+        Font = 2,
+    })
+end
+
+for i,v in pairs(ores:GetChildren()) do
+    for a,b in pairs(v:GetChildren()) do
+        if b:FindFirstChild("Part") then
+            addore(b.Part)
+        end
+    end
+end
+
+Toggles.ShowChests:OnChanged(function()
+    Variables["Chest"].Toggle = Toggles.ShowChests.Value
+end)
+
+Toggles.ShowChestBox:OnChanged(function()
+    Variables["Chest"].Box = Toggles.ShowChestBox.Value
+end)
+
+Toggles.ShowChestTitle:OnChanged(function()
+    Variables["Chest"].Title = Toggles.ShowChestTitle.Value
+end)
+
+Options.ChestSlider:OnChanged(function()
+    Variables["Chest"].Slider = Options.ChestSlider.Value
+end)
+
+Options.SelectOre:OnChanged(function()
+    selectedore = Options.SelectOre.Value
+    local title = Variables[selectedore].Title
+    Toggles.ShowOreTitle:SetValue(title)
+end)
+
+Toggles.ShowOreTitle:OnChanged(function()
+    Variables[selectedore].Toggle = Toggles.ShowOreTitle.Value -- would do box esp as well but its too laggy
+    Variables[selectedore].Title = Toggles.ShowOreTitle.Value
+end)
+
+Toggles.AutoFish:OnChanged(function()
+    autofish = Toggles.AutoFish.Value
+end)
+
+Toggles.ShowGemShop:OnChanged(function()
+    Variables["Mela"].Toggle = Toggles.ShowGemShop.Value
+    Variables["Mela"].Title = Toggles.ShowGemShop.Value
+end)
+
+Toggles.MeteorNotify:OnChanged(function()
+    meteornotif = Toggles.MeteorNotify.Value
+end)
+
+Toggles.MeteorMob:OnChanged(function()
+    Variables["MeteorMob"].Toggle = Toggles.MeteorMob.Value
+    Variables["MeteorMob"].Title = Toggles.MeteorMob.Value
+end)
+--[[
+Toggles.NoWeaponCooldown:OnChanged(function()
+    nowepcd = Toggles.NoWeaponCooldown.Value
+end)
+
+Toggles.NoRoolCooldown:OnChanged(function()
+    norollcd = Toggles.NoRoolCooldown.Value
+end)
+]]--
+ores.DescendantAdded:Connect(function(v)
+    addore(v)
+end)
+
+--[[
+for i,v in pairs(backpack:GetChildren()) do 
+    table.insert(Options.StackSelection.Values,v.Name)
+    table.insert(storage,v)
+    updatelist(Options.StackSelection)
+end
+
+backpack.ChildAdded:Connect(function(child)
+    table.insert(Options.StackSelection.Values,child.Name)
+    table.insert(storage,child)
+    updatelist(Options.StackSelection)
+end)
+backpack.ChildRemoved:Connect(function(child)
+    table.remove(Options.StackSelection.Values, table.find(Options.StackSelection.Values, child.Name))
+    table.insert(storage,child)
+    updatelist(Options.StackSelection)
+end)
+]]--
+
+mobs.ChildAdded:Connect(function(child)
+    repeat task.wait() until child:FindFirstChild("HumanoidRootPart")
+    if child:GetAttribute("Meteor") or string.find(child:GetAttribute("Nickname"), "Meteor") then
+        zlib:text(child.HumanoidRootPart,-2,0,"MeteorMob",{
+            Text = tostring(child:GetAttribute("Nickname")),
+            Color = child:GetAttribute("Meteor"),
+            Visible = false,
+            Outline = true,
+            OutlineColor = Color3.fromRGB(0,0,0),
+            Center = true,
+            Font = 2,
+        })
+    end
+end)
+
+chests.ChildAdded:Connect(function(v)
+    if v:WaitForChild("Root",5) then
+        local root = v.Root
+        zlib:box(root,"Chest",{
+            Color = Color3.fromRGB(126, 91, 52),
+        },{
+            ["HaveSlider"] = true
+        })
+        zlib:text(root,-2, 0,"Chest",{
+            Text = "Chest",
+            Color = Color3.fromRGB(126, 91, 52),
+            Visible = false,
+            Outline = true,
+            OutlineColor = Color3.fromRGB(0, 0, 0),
+            Center = true,
+            Font = 2,
+        },{
+            ["HaveSlider"] = true
+        })
+    end
+end)
+
+workspace.ChildAdded:Connect(function(child)
+    if child.Name == "Meteor" and meteornotif == true then
+        lib:Notify("A meteor has spawned!",7)
+    end
+end)
+
+meteorlabel.TextLabel.Text = "Meteor spawns in "..tostring((game:GetService("ReplicatedStorage").GameInfo.Meteor.Value * 4)).." seconds."
+game:GetService("ReplicatedStorage").GameInfo.Meteor.Changed:Connect(function()
+    meteorlabel.TextLabel.Text = "Meteor spawns in "..tostring((game:GetService("ReplicatedStorage").GameInfo.Meteor.Value * 4)).." seconds."
+end)
+
+local clickdb = false
+local initiateautofish = false
+local ancestrydb = false -- fix attempt
+task.spawn(function()
+    while task.wait() do
+        if autofish == true then
+
+            if initiateautofish == true then
+                vu:Button1Down(Vector2.new(0,0),zlib.__Tools.camera.CFrame)
+                vu:Button1Up(Vector2.new(0,0),zlib.__Tools.camera.CFrame)
+            end
+            initiateautofish = false
+            for i,v in pairs(chests:GetChildren()) do
+                if v.Name == "Fishing" and v:FindFirstChildWhichIsA("ProximityPrompt") and v:FindFirstChild("Root") then
+                    local mag = (v.Root.Position - lp.Character.HumanoidRootPart.Position).magnitude
+                    if mag <= 20 then
+                        fireproximityprompt(v.ProximityPrompt,2)
+                    end
                 end
             end
+            for i,v in pairs(workspace:GetChildren()) do
+                if v.Name == "Bobber" then
+                    local bob = v
+                    local mag = (bob.Position - lp.Character.HumanoidRootPart.Position).magnitude
+                    if mag <= 30 then
+                        if bob:WaitForChild("Attachment",5) and bob.Attachment:WaitForChild("Hooked") then
+                            if bob.Attachment.Hooked.Enabled == true then
+                                if clickdb == false then
+                                    clickdb = true
+                                    vu:Button1Down(Vector2.new(0,0),zlib.__Tools.camera.CFrame)
+                                    vu:Button1Up(Vector2.new(0,0),zlib.__Tools.camera.CFrame)
+                                    task.wait(0.1)
+                                clickdb = false
+                                end
+                            end
+                        end
+                    end
+                    bob.AncestryChanged:Connect(function()
+                        if not bob:IsDescendantOf(game) then
+                            if ancestrydb == false then
+                                ancestrydb = true
+                                vu:Button1Down(Vector2.new(0,0),zlib.__Tools.camera.CFrame)
+                                vu:Button1Up(Vector2.new(0,0),zlib.__Tools.camera.CFrame)
+                                task.wait(1)
+                                ancestrydb = false
+                            end
+                        end
+                    end)
+                end
+            end
+        else
+            initiateautofish = true
         end
-        task.wait(5)
     end
-end
+end)
+----------------------------------------------------------------------------------
+local settingsgroup = Tabs.settingtab:AddLeftGroupbox("Menu")
+settingsgroup:AddButton('Unload', function() lib:Unload() end)
+settingsgroup:AddLabel('Menu bind'):AddKeyPicker('MenuKeybind', { Default = 'RightShift', NoUI = true, Text = 'Menu keybind' })
+lib.ToggleKeybind = Options.MenuKeybind
 
-local function setHighDamage()
-    for _, tool in pairs(character:GetChildren()) do
-        if tool:IsA("Tool") and tool:FindFirstChild("Handle") then
-            local damageValue = tool:FindFirstChild("Damage")
-            if damageValue then damageValue.Value = 99999 end
-        end
-    end
-end
-
--- === GUI Buttons ===
-createButton("Enable God Mode", 50, enableGodMode)
-createButton("Set Infinite Mana", 90, setInfiniteMana)
-createButton("Delete Nametags", 130, deleteNametags)
-createToggle("Auto Chests", 170, "ChestRunning", autoChests)
-createToggle("Auto Mirrors", 210, "MirrorRunning", autoMirrors)
-createButton("Set High Damage", 250, setHighDamage)
+ThemeManager:SetLibrary(lib)
+SaveManager:SetLibrary(lib)
+SaveManager:IgnoreThemeSettings()
+SaveManager:SetIgnoreIndexes({ 'MenuKeybind' })
+ThemeManager:SetFolder('Obsidian')
+SaveManager:SetFolder('Obsidian/'..tostring(game.PlaceId))
+SaveManager:BuildConfigSection(Tabs.settingtab)
+ThemeManager:ApplyToTab(Tabs.settingtab)
+lib:Notify("Made by zell#1337") -- For Credits (Don't remove)
