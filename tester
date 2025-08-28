@@ -1,35 +1,35 @@
---- Load the Orion library
-local OrionLib = loadstring(game:HttpGet("https://raw.githubusercontent.com/shlexware/Orion/main/source"))()
- 
--- Create the main window
-local Window = OrionLib:MakeWindow({
-    Name = "Pilgrmageddon Automation",
-    HidePremium = true,
-    IntroText = "Pilgrmageddon Script"
-})
- 
--- Get the player and character
+-- === GUI Library Setup ===
+local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/xHeptc/Kavo-UI-Library/main/source.lua"))()
+local Window = Library.CreateLib("Pilgrmageddon Automation", "DarkTheme")
+
+-- === Tabs ===
+local AutoTab = Window:NewTab("Automation")
+local AutoSection = AutoTab:NewSection("Main Controls")
+
+-- === Player / Character Setup ===
 local player = game.Players.LocalPlayer
 local character = player.Character or player.CharacterAdded:Wait()
- 
--- Function to enable God Mode
+
+-- === Functions ===
+
+-- God Mode
 local function enableGodMode()
     local humanoid = character:FindFirstChildOfClass("Humanoid")
     if humanoid then
         humanoid:GetPropertyChangedSignal("Health"):Connect(function()
-            humanoid.Health = humanoid.MaxHealth -- Prevents health from dropping
+            humanoid.Health = humanoid.MaxHealth
         end)
         humanoid.MaxHealth = math.huge
         humanoid.Health = math.huge
         print("God Mode Enabled")
     else
-        print("Humanoid not found")
+        warn("Humanoid not found")
     end
 end
- 
--- Function to set infinite mana
+
+-- Infinite Mana
 local function setInfiniteMana()
-    local mana = character:FindFirstChild("Mana") -- Update with the actual mana object name if different
+    local mana = character:FindFirstChild("Mana")
     if mana then
         mana.Changed:Connect(function()
             mana.Value = math.huge
@@ -37,129 +37,92 @@ local function setInfiniteMana()
         mana.Value = math.huge
         print("Infinite Mana Enabled")
     else
-        print("Mana object not found")
+        warn("Mana object not found")
     end
- 
-    -- Optional: Removing cooldown
+
     for _, skill in pairs(character:GetChildren()) do
-        if skill:IsA("Tool") or skill:IsA("ModuleScript") then -- Assuming skills are tools or modules
-            skill.Cooldown = 0 -- Set cooldown to zero if such a property exists
+        if skill:IsA("Tool") or skill:IsA("ModuleScript") then
+            if skill:FindFirstChild("Cooldown") then
+                skill.Cooldown.Value = 0
+            end
         end
     end
 end
- 
--- Function to delete nametags
+
+-- Delete Nametags
 local function deleteNametags()
     for _, otherPlayer in pairs(game.Players:GetPlayers()) do
         local nametag = otherPlayer:FindFirstChild("PlayerGui") and otherPlayer.PlayerGui:FindFirstChild("Nametag")
         if nametag then
             nametag:Destroy()
-            print("Nametag removed for player: " .. otherPlayer.Name)
+            print("Removed nametag for " .. otherPlayer.Name)
         end
     end
 end
- 
--- Function to auto-find and open chests
+
+-- Auto Chest Finder
 local function findAndOpenChests()
     while true do
         for _, chest in pairs(workspace:GetDescendants()) do
             if chest.Name == "Chest" then
-                -- Teleport to chest
-                character.HumanoidRootPart.CFrame = chest.CFrame + Vector3.new(0, 3, 0) -- Slight offset above chest
-                wait(0.5)
-                -- Interact with chest (Replace with the actual interaction method)
+                character.HumanoidRootPart.CFrame = chest.CFrame + Vector3.new(0, 3, 0)
+                task.wait(0.5)
                 if chest:FindFirstChild("ClickDetector") then
                     fireclickdetector(chest.ClickDetector)
-                    print("Opened chest at position: " .. tostring(chest.Position))
-                    wait(1)
+                    print("Opened chest at " .. tostring(chest.Position))
+                    task.wait(1)
                 end
             end
         end
-        wait(5) -- Wait before searching again
+        task.wait(5)
     end
 end
- 
--- Function to find and interact with mirrors
+
+-- Auto Mirror Finder
 local function findMirrors()
     while true do
         for _, mirror in pairs(workspace:GetDescendants()) do
             if mirror.Name == "Mirror" then
-                -- Teleport to mirror
-                character.HumanoidRootPart.CFrame = mirror.CFrame + Vector3.new(0, 3, 0) -- Slight offset above mirror
-                wait(0.5)
-                -- Interact with mirror (Replace with the actual interaction method)
+                character.HumanoidRootPart.CFrame = mirror.CFrame + Vector3.new(0, 3, 0)
+                task.wait(0.5)
                 if mirror:FindFirstChild("ClickDetector") then
                     fireclickdetector(mirror.ClickDetector)
-                    print("Interacted with mirror at position: " .. tostring(mirror.Position))
-                    wait(1)
+                    print("Interacted with mirror at " .. tostring(mirror.Position))
+                    task.wait(1)
                 end
             end
         end
-        wait(5) -- Wait before searching again
+        task.wait(5)
     end
 end
- 
--- Function to set high damage
+
+-- High Damage
 local function setHighDamage()
     for _, tool in pairs(character:GetChildren()) do
         if tool:IsA("Tool") and tool:FindFirstChild("Handle") then
-            local damageScript = tool:FindFirstChildOfClass("Script") -- Assuming there's a script controlling damage
+            local damageScript = tool:FindFirstChildOfClass("Script")
             if damageScript then
-                local damageValue = damageScript:FindFirstChild("Damage") -- Look for the damage variable
+                local damageValue = damageScript:FindFirstChild("Damage")
                 if damageValue then
-                    damageValue.Value = 99999 -- Set to a very high value
-                    print("Damage set to 99999 for tool: " .. tool.Name)
+                    damageValue.Value = 99999
+                    print("Damage boosted for tool: " .. tool.Name)
                 end
             end
         end
     end
 end
- 
--- Add Orion UI elements
-local tab = Window:MakeTab({
-    Name = "Automation",
-    Icon = "rbxassetid://4483345998",
-    PremiumOnly = false
-})
- 
-tab:AddButton({
-    Name = "Enable God Mode",
-    Callback = enableGodMode
-})
- 
-tab:AddButton({
-    Name = "Set Infinite Mana",
-    Callback = setInfiniteMana
-})
- 
-tab:AddButton({
-    Name = "Delete Nametags",
-    Callback = deleteNametags
-})
- 
-tab:AddButton({
-    Name = "Start Auto-Finding Chests",
-    Callback = function()
-        task.spawn(findAndOpenChests)
-    end
-})
- 
-tab:AddButton({
-    Name = "Start Finding Mirrors",
-    Callback = function()
-        task.spawn(findMirrors)
-    end
-})
- 
-tab:AddButton({
-    Name = "Set High Damage",
-    Callback = setHighDamage
-})
- 
--- Optional: Add a UI toggle to hide/show the Orion window
-OrionLib:MakeNotification({
-    Name = "Script Loaded",
-    Content = "Automation script is ready to use.",
-    Image = "rbxassetid://4483345998",
-    Time = 5
-})
+
+-- === GUI Buttons ===
+AutoSection:NewButton("Enable God Mode", "Prevents dying", enableGodMode)
+AutoSection:NewButton("Set Infinite Mana", "Gives unlimited mana", setInfiniteMana)
+AutoSection:NewButton("Delete Nametags", "Removes player nametags", deleteNametags)
+
+AutoSection:NewButton("Start Auto Chests", "Finds and opens all chests", function()
+    task.spawn(findAndOpenChests)
+end)
+
+AutoSection:NewButton("Start Auto Mirrors", "Finds and interacts with mirrors", function()
+    task.spawn(findMirrors)
+end)
+
+AutoSection:NewButton("Set High Damage", "Boosts weapon/tool damage", setHighDamage)
