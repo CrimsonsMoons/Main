@@ -1,4 +1,4 @@
--- // Pilgrmageddon Automation GUI (Standalone) // --
+--- // Pilgrmageddon Automation GUI (Standalone) // --
 
 -- ScreenGui
 local ScreenGui = Instance.new("ScreenGui")
