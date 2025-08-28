@@ -1,19 +1,71 @@
----- === GUI Library Setup ===
-local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/xHeptc/Kavo-UI-Library/main/source.lua"))()
-local Window = Library.CreateLib("Pilgrmageddon Automation", "DarkTheme")
+-- // Pilgrmageddon Automation GUI (Standalone) // --
 
--- === Tabs ===
-local AutoTab = Window:NewTab("Automation")
-local AutoSection = AutoTab:NewSection("Main Controls")
+-- ScreenGui
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "PilgrmageddonGUI"
+ScreenGui.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
+ScreenGui.ResetOnSpawn = false
 
--- === Player / Character Setup ===
+-- Main Frame
+local Frame = Instance.new("Frame")
+Frame.Size = UDim2.new(0, 300, 0, 350)
+Frame.Position = UDim2.new(0.3, 0, 0.2, 0)
+Frame.BackgroundColor3 = Color3.fromRGB(30,30,30)
+Frame.Active = true
+Frame.Draggable = true
+Frame.Parent = ScreenGui
+
+-- Title
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1, 0, 0, 40)
+Title.BackgroundColor3 = Color3.fromRGB(45,45,45)
+Title.Text = "Pilgrmageddon Automation"
+Title.TextColor3 = Color3.fromRGB(255,255,255)
+Title.Font = Enum.Font.SourceSansBold
+Title.TextSize = 18
+Title.Parent = Frame
+
+-- Button Maker
+local function createButton(name, yPos, callback)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(1, -20, 0, 30)
+    btn.Position = UDim2.new(0, 10, 0, yPos)
+    btn.BackgroundColor3 = Color3.fromRGB(60,60,60)
+    btn.Text = name
+    btn.TextColor3 = Color3.fromRGB(255,255,255)
+    btn.Font = Enum.Font.SourceSans
+    btn.TextSize = 16
+    btn.Parent = Frame
+    btn.MouseButton1Click:Connect(callback)
+end
+
+-- Toggle Maker
+local function createToggle(name, yPos, stateVar, toggleFunc)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(1, -20, 0, 30)
+    btn.Position = UDim2.new(0, 10, 0, yPos)
+    btn.BackgroundColor3 = Color3.fromRGB(60,60,60)
+    btn.Text = name .. " [OFF]"
+    btn.TextColor3 = Color3.fromRGB(255,255,255)
+    btn.Font = Enum.Font.SourceSans
+    btn.TextSize = 16
+    btn.Parent = Frame
+    
+    btn.MouseButton1Click:Connect(function()
+        _G[stateVar] = not _G[stateVar]
+        btn.Text = name .. (_G[stateVar] and " [ON]" or " [OFF]")
+        if _G[stateVar] then
+            task.spawn(toggleFunc)
+        end
+    end)
+end
+
+-- === Player Setup ===
 local player = game.Players.LocalPlayer
 local character = player.Character or player.CharacterAdded:Wait()
 player.CharacterAdded:Connect(function(char) character = char end)
 
 -- === Functions ===
-
--- God Mode
 local function enableGodMode()
     local humanoid = character:FindFirstChildOfClass("Humanoid")
     if humanoid then
@@ -22,37 +74,27 @@ local function enableGodMode()
         end)
         humanoid.MaxHealth = math.huge
         humanoid.Health = math.huge
-        print("God Mode Enabled")
     end
 end
 
--- Infinite Mana
 local function setInfiniteMana()
     local mana = character:FindFirstChild("Mana")
     if mana then
-        mana.Changed:Connect(function()
-            mana.Value = math.huge
-        end)
+        mana.Changed:Connect(function() mana.Value = math.huge end)
         mana.Value = math.huge
-        print("Infinite Mana Enabled")
     end
 end
 
--- Delete Nametags
 local function deleteNametags()
     for _, otherPlayer in pairs(game.Players:GetPlayers()) do
         local nametag = otherPlayer:FindFirstChild("PlayerGui") and otherPlayer.PlayerGui:FindFirstChild("Nametag")
-        if nametag then
-            nametag:Destroy()
-        end
+        if nametag then nametag:Destroy() end
     end
 end
 
--- Auto Chest Finder (toggleable)
-local chestRunning = false
-local function findAndOpenChests()
-    chestRunning = not chestRunning
-    while chestRunning do
+_G.ChestRunning = false
+local function autoChests()
+    while _G.ChestRunning do
         for _, chest in pairs(workspace:GetDescendants()) do
             if chest.Name == "Chest" and chest:IsA("Model") and character:FindFirstChild("HumanoidRootPart") then
                 character.HumanoidRootPart.CFrame = chest:GetModelCFrame() + Vector3.new(0,3,0)
@@ -66,11 +108,9 @@ local function findAndOpenChests()
     end
 end
 
--- Auto Mirror Finder (toggleable)
-local mirrorRunning = false
-local function findMirrors()
-    mirrorRunning = not mirrorRunning
-    while mirrorRunning do
+_G.MirrorRunning = false
+local function autoMirrors()
+    while _G.MirrorRunning do
         for _, mirror in pairs(workspace:GetDescendants()) do
             if mirror.Name == "Mirror" and character:FindFirstChild("HumanoidRootPart") then
                 character.HumanoidRootPart.CFrame = mirror.CFrame + Vector3.new(0,3,0)
@@ -84,37 +124,19 @@ local function findMirrors()
     end
 end
 
--- High Damage
 local function setHighDamage()
     for _, tool in pairs(character:GetChildren()) do
         if tool:IsA("Tool") and tool:FindFirstChild("Handle") then
             local damageValue = tool:FindFirstChild("Damage")
-            if damageValue then
-                damageValue.Value = 99999
-            end
+            if damageValue then damageValue.Value = 99999 end
         end
     end
 end
 
--- === GUI Buttons/Toggles ===
-AutoSection:NewButton("Enable God Mode", "Prevents dying", enableGodMode)
-AutoSection:NewButton("Set Infinite Mana", "Gives unlimited mana", setInfiniteMana)
-AutoSection:NewButton("Delete Nametags", "Removes player nametags", deleteNametags)
-
-AutoSection:NewToggle("Auto Chests", "Find and open all chests", function(state)
-    if state then
-        task.spawn(findAndOpenChests)
-    else
-        chestRunning = false
-    end
-end)
-
-AutoSection:NewToggle("Auto Mirrors", "Find and interact with mirrors", function(state)
-    if state then
-        task.spawn(findMirrors)
-    else
-        mirrorRunning = false
-    end
-end)
-
-AutoSection:NewButton("Set High Damage", "Boosts weapon/tool damage", setHighDamage)
+-- === GUI Buttons ===
+createButton("Enable God Mode", 50, enableGodMode)
+createButton("Set Infinite Mana", 90, setInfiniteMana)
+createButton("Delete Nametags", 130, deleteNametags)
+createToggle("Auto Chests", 170, "ChestRunning", autoChests)
+createToggle("Auto Mirrors", 210, "MirrorRunning", autoMirrors)
+createButton("Set High Damage", 250, setHighDamage)
