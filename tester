@@ -1,4 +1,7 @@
---- // Pilgrmageddon Automation GUI (Standalone) // --
+-- // Pilgrmageddon Automation GUI (Standalone with Toggle Keybind) // --
+
+-- Services
+local UIS = game:GetService("UserInputService")
 
 -- ScreenGui
 local ScreenGui = Instance.new("ScreenGui")
@@ -11,8 +14,6 @@ local Frame = Instance.new("Frame")
 Frame.Size = UDim2.new(0, 300, 0, 350)
 Frame.Position = UDim2.new(0.3, 0, 0.2, 0)
 Frame.BackgroundColor3 = Color3.fromRGB(30,30,30)
-Frame.Active = true
-Frame.Draggable = true
 Frame.Parent = ScreenGui
 
 -- Title
@@ -24,6 +25,45 @@ Title.TextColor3 = Color3.fromRGB(255,255,255)
 Title.Font = Enum.Font.SourceSansBold
 Title.TextSize = 18
 Title.Parent = Frame
+
+-- Draggable system
+local dragging, dragInput, dragStart, startPos
+
+Frame.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStart = input.Position
+        startPos = Frame.Position
+
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                dragging = false
+            end
+        end)
+    end
+end)
+
+Frame.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+        dragInput = input
+    end
+end)
+
+UIS.InputChanged:Connect(function(input)
+    if input == dragInput and dragging then
+        local delta = input.Position - dragStart
+        Frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+end)
+
+-- Keybind to toggle GUI (V)
+local guiVisible = true
+UIS.InputBegan:Connect(function(input, gpe)
+    if not gpe and input.KeyCode == Enum.KeyCode.V then
+        guiVisible = not guiVisible
+        Frame.Visible = guiVisible
+    end
+end)
 
 -- Button Maker
 local function createButton(name, yPos, callback)
