@@ -1,4 +1,4 @@
--- // Pilgrmageddon Automation GUI (Standalone with Toggle Keybind) // --
+--- // Pilgrmageddon Automation GUI (Standalone with Toggle Keybind) // --
 
 -- Services
 local UIS = game:GetService("UserInputService")
