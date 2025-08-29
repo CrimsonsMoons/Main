@@ -1,23 +1,13 @@
---- === GUI Setup ===
+-- === GUI Setup ===
 local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/xHeptc/Kavo-UI-Library/main/source.lua"))()
 local Window = Library.CreateLib("Auto Catch Test", "DarkTheme")
 
 local MainTab = Window:NewTab("Main")
-local MainSection = MainTab:NewSection("Auto Catch Toggles")
+local MainSection = MainTab:NewSection("Auto Catch")
 
--- Toggle states
-local autoCatch1Enabled, autoCatch2Enabled, autoCatch3Enabled = false, false, false
-
+local autoCatchEnabled = false
 MainSection:NewToggle("Auto Catch 1", "Enable Auto Catch 1", function(state)
-    autoCatch1Enabled = state
-end)
-
-MainSection:NewToggle("Auto Catch 2", "Enable Auto Catch 2", function(state)
-    autoCatch2Enabled = state
-end)
-
-MainSection:NewToggle("Auto Catch 3", "Enable Auto Catch 3", function(state)
-    autoCatch3Enabled = state
+    autoCatchEnabled = state
 end)
 
 -- === Services ===
@@ -29,107 +19,95 @@ local LocalPlayer = Players.LocalPlayer
 local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 local HumanoidRootPart = Character:WaitForChild("HumanoidRootPart")
 
--- === Settings ===
-local CATCH_RADIUS = 15
-local CATCH_COOLDOWN = 1
-local lastCaught = {}
-
--- === Tool UUIDs (these should correspond to actual tools in your Backpack/Character) ===
-local TOOL_UUIDS_1 = {"{4ba69e17-8de2-43a2-ac9a-f1d1e425be9b}", "{634dc3c2-1694-4273-92d2-adf8f7ade91f}"}
-local TOOL_UUIDS_2 = {"{b3766c24-da18-40f0-be56-66dba5e882d8}", "{cd4c34c5-99a6-4f28-ac73-bfad7c8e1ca2}"}
-local TOOL_UUIDS_3 = {"{634dc3c2-1694-4273-92d2-adf8f7ade91f}", "{06905d54-7826-417e-bfc7-82d326a30885}"}
-
--- === Exclusions ===
-local EXCLUSIONS = {
-    ["Horse"]=true, ["Travel Boat"]=true
+-- === Tool UUIDs ===
+local TOOL_UUIDS = {
+    "{4ba69e17-8de2-43a2-ac9a-f1d1e425be9b}",
+    "{634dc3c2-1694-4273-92d2-adf8f7ade91f}",
+    "{51ba4466-f758-4d1c-970d-aad27326dbaf}",
+    "{06905d54-7826-417e-bfc7-82d326a30885}",
+    "{7138d7c4-9482-4257-868c-4bd1fd99f529}",
+    "{5dab28e4-4bfb-430b-86fe-530bafa237b5}",
+    "{838c92de-e5a1-440a-8904-d2ccb1ff62e3}",
+    "{cd4c34c5-99a6-4f28-ac73-bfad7c8e1ca2}",
 }
 
--- === Islands to scan per auto-catch ===
-local ISLANDS_1 = {"Mainland","Forest Island","Mountain Island","Lunar Islands","Royal Island","Blizzard Island","Jungle Island","Volcano Island","Desert Island"}
-local ISLANDS_2 = {"Mountain Island","Royal Island","Desert Island","Glacier Island"}
-local ISLANDS_3 = {"Lunar Islands","Jungle Island","Volcano Island"}
+-- === Exclusions ===
+local exclusions = {
+    ["{84b93b68-b932-4db8-b765-d1bd9ef8aae9}"] = true,
+    ["{c5769905-aecf-4d7a-ada9-064802b0cae9}"] = true,
+    ["{d2227f02-c482-4911-b201-7e842b31c47c}"] = true,
+    ["{6b019e60-21c6-4536-9a06-4cbfee80d88f}"] = true,
+    ["{12916ad6-7fd9-46d5-8bc1-e69671249721}"] = true,
+    ["{c91d0e3a-e8c6-4e70-b274-9b7304ffbb28}"] = true,
+    ["{2c0549c7-f2d0-4828-bc2a-6d484e792cdd}"] = true,
+    ["{de31ac95-029b-4c26-b9f8-4b61faed7335}"] = true,
+    ["{fd489389-537f-40e1-bd1a-c048522d23bc}"] = true,
+    ["{f1f04024-ba69-4d0f-9fee-4f93758c1bfc}"] = true,
+    ["{980efa15-9598-4070-b1c2-344bd80cce25}"] = true,
+    ["Horse"] = true,
+    ["Travel Boat"] = true,
+}
 
--- === Find RemoteEvent dynamically ===
-local Communication = ReplicatedStorage:WaitForChild("Communication")
-local EventsFolder = Communication:WaitForChild("Events")
-local remote = nil
-for _, ev in ipairs(EventsFolder:GetChildren()) do
-    if ev:IsA("RemoteEvent") then
-        remote = ev
-        print("Using RemoteEvent:", ev.Name)
-        break
-    end
-end
-if not remote then
-    warn("RemoteEvent not found!")
-    return
-end
+-- === Island folders to check ===
+local islandFolders = {
+    "Mainland",
+    "Forest Island",
+    "Mountain Island",
+    "Lunar Islands",
+    "Royal Island",
+    "Blizzard Island",
+    "Jungle Island",
+    "Volcano Island",
+    "Desert Island"
+}
+
+-- === Remote ===
+local remote = ReplicatedStorage:WaitForChild("Communication"):WaitForChild("Events"):GetChildren()[13]
 
 -- === Utility ===
 local function isUUID(name)
     return typeof(name) == "string" and name:match("^%b{}$") ~= nil
 end
 
--- Get tool instances by UUID strings
-local function getToolByUUID(uuid)
-    local tool = LocalPlayer.Backpack:FindFirstChild(uuid) or Character:FindFirstChild(uuid)
-    return tool
-end
-
-local function tryCatch(enabled, toolList, islands)
-    if not enabled then return end
-    local playerPos = HumanoidRootPart.Position
-
-    -- Check islands
-    for _, islandName in ipairs(islands) do
-        local islandFolder = Workspace:FindFirstChild("Islands") and Workspace.Islands:FindFirstChild(islandName)
-        if islandFolder then
-            for _, model in ipairs(islandFolder:GetChildren()) do
-                local body = model:FindFirstChild("Body")
-                if body and isUUID(model.Name) and not EXCLUSIONS[model.Name] then
-                    local dist = (body.Position - playerPos).Magnitude
-                    local now = os.clock()
-                    if dist <= CATCH_RADIUS and (not lastCaught[model] or now - lastCaught[model] > CATCH_COOLDOWN) then
-                        for _, uuid in ipairs(toolList) do
-                            local tool = getToolByUUID(uuid)
-                            if tool then
-                                remote:FireServer(tool.Name, "Activate", model)
-                                print("Fired remote on:", model.Name, "with tool:", tool.Name, "Dist:", math.floor(dist))
-                            end
-                        end
-                        lastCaught[model] = now
-                    end
-                end
-            end
-        end
-    end
-
-    -- Top-level Workspace
-    for _, model in ipairs(Workspace:GetChildren()) do
-        local body = model:FindFirstChild("Body")
-        if body and isUUID(model.Name) and not EXCLUSIONS[model.Name] then
-            local dist = (body.Position - playerPos).Magnitude
-            local now = os.clock()
-            if dist <= CATCH_RADIUS and (not lastCaught[model] or now - lastCaught[model] > CATCH_COOLDOWN) then
-                for _, uuid in ipairs(toolList) do
-                    local tool = getToolByUUID(uuid)
-                    if tool then
-                        remote:FireServer(tool.Name, "Activate", model)
-                        print("Fired remote on top-level:", model.Name, "with tool:", tool.Name, "Dist:", math.floor(dist))
-                    end
-                end
-                lastCaught[model] = now
-            end
-        end
-    end
-end
-
 -- === Main Loop ===
 spawn(function()
     while true do
-        tryCatch(autoCatch1Enabled, TOOL_UUIDS_1, ISLANDS_1)
-        tryCatch(autoCatch2Enabled, TOOL_UUIDS_2, ISLANDS_2)
-        tryCatch(autoCatch3Enabled, TOOL_UUIDS_3, ISLANDS_3)
+        if autoCatchEnabled then
+            local playerPos = HumanoidRootPart.Position
+
+            -- Check islands
+            for _, islandName in ipairs(islandFolders) do
+                local islandFolder = Workspace:FindFirstChild("Islands") and Workspace.Islands:FindFirstChild(islandName)
+                if islandFolder then
+                    for _, child in ipairs(islandFolder:GetChildren()) do
+                        local body = child:FindFirstChild("Body")
+                        if body and isUUID(child.Name) and not exclusions[child.Name] then
+                            local dist = (body.Position - playerPos).Magnitude
+                            if dist <= 15 then
+                                for _, tool in ipairs(TOOL_UUIDS) do
+                                    remote:FireServer(tool, "Activate", child)
+                                end
+                                print("Fired at", child.Name, "from", islandName, "Distance:", math.floor(dist))
+                            end
+                        end
+                    end
+                end
+            end
+
+            -- Check top-level Workspace
+            for _, child in ipairs(Workspace:GetChildren()) do
+                local body = child:FindFirstChild("Body")
+                if body and isUUID(child.Name) and not exclusions[child.Name] then
+                    local dist = (body.Position - playerPos).Magnitude
+                    if dist <= 15 then
+                        for _, tool in ipairs(TOOL_UUIDS) do
+                            remote:FireServer(tool, "Activate", child)
+                        end
+                        print("Fired at top-level:", child.Name, "Distance:", math.floor(dist))
+                    end
+                end
+            end
+        end
         task.wait(0.05)
     end
 end)
