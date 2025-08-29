@@ -1,4 +1,4 @@
---- Load Kavo UI Library
+-- Load Kavo UI Library
 local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/xHeptc/Kavo-UI-Library/main/source.lua"))()
 local Window = Library.CreateLib("Mob Teleport GUI", "DarkTheme")
 
@@ -15,71 +15,42 @@ player.CharacterAdded:Connect(function(newChar)
     hrp = character:WaitForChild("HumanoidRootPart")
 end)
 
--- Patterns to detect mobs
+-- Name patterns for mobs
 local mobPatterns = {
-    "Glutto",  -- matches Glutto1, Glutto2, Glutto3, etc.
-    "Twigface" -- matches Twigface in Berry Catacombs
+    "Glutto",
+    "Twigface"
 }
 
--- Function to find all mobs matching patterns dynamically
-local function getTargets()
-    local targets = {}
-
-    -- Search inside Mobs folder
-    local mobsFolder = workspace:WaitForChild("Mobs")
-    for _, mobModel in pairs(mobsFolder:GetChildren()) do
+-- Recursive function to find all matching BaseParts
+local function findMobParts(parent)
+    local parts = {}
+    for _, child in pairs(parent:GetDescendants()) do
         for _, pattern in ipairs(mobPatterns) do
-            if mobModel.Name:find(pattern) then
-                -- Try PrimaryPart first
-                local part
-                if mobModel.PrimaryPart then
-                    part = mobModel.PrimaryPart
-                else
-                    part = mobModel:FindFirstChildWhichIsA("BasePart")
-                end
-                if part then
-                    table.insert(targets, part)
-                end
-            end
-        end
-
-        -- Check deeper children (like BerryCatacombs1.Twigface)
-        for _, subChild in pairs(mobModel:GetChildren()) do
-            for _, pattern in ipairs(mobPatterns) do
-                if subChild.Name:find(pattern) then
-                    local part
-                    if subChild.PrimaryPart then
-                        part = subChild.PrimaryPart
-                    else
-                        part = subChild:FindFirstChildWhichIsA("BasePart")
-                    end
-                    if part then
-                        table.insert(targets, part)
-                    end
-                end
+            if child:IsA("BasePart") and child.Name:find(pattern) then
+                table.insert(parts, child)
             end
         end
     end
-
-    return targets
+    return parts
 end
 
 -- === Universal toggle ===
 local teleporting = false
-TeleportSection:NewToggle("Auto Teleport Behind Mobs", "Teleports behind any Glutto or Twigface mob", function(state)
+TeleportSection:NewToggle("Auto Teleport Behind Mobs", "Teleports behind all matching mobs", function(state)
     teleporting = state
     if teleporting then
         task.spawn(function()
             while teleporting do
-                if hrp then
-                    for _, mobPart in ipairs(getTargets()) do
-                        if mobPart and mobPart:IsDescendantOf(workspace) then
-                            hrp.CFrame = mobPart.CFrame * CFrame.new(0, 0, 5) -- behind mob
-                            task.wait(0.3)
+                if hrp and workspace:FindFirstChild("Mobs") then
+                    local targets = findMobParts(workspace.Mobs)
+                    for _, part in ipairs(targets) do
+                        if part and part:IsDescendantOf(workspace) then
+                            hrp.CFrame = part.CFrame * CFrame.new(0, 0, 5)
+                            task.wait(0.2) -- small delay between mobs
                         end
                     end
                 end
-                task.wait(0.5) -- refresh rate for respawns
+                task.wait(0.5) -- refresh for respawns
             end
         end)
     end
