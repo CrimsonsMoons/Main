@@ -549,7 +549,7 @@ local islandFolders = {
     "Jungle Island",
     "Volcano Island",
     "Desert Island",
-    "The Magical Forest"
+    "The Magical Forest",
 }
 
 -- === Remote ===
