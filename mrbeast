@@ -1,11 +1,12 @@
----- Load Kavo UI Library
+-- Load Kavo UI Library
 local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/xHeptc/Kavo-UI-Library/main/source.lua"))()
 local Window = Library.CreateLib("Mob Teleport GUI", "DarkTheme")
 
+-- Create tab + section
 local TeleportTab = Window:NewTab("Teleport")
 local TeleportSection = TeleportTab:NewSection("Mob Teleport")
 
--- Player refs
+-- Player reference
 local player = game.Players.LocalPlayer
 local character = player.Character or player.CharacterAdded:Wait()
 local hrp = character:WaitForChild("HumanoidRootPart")
@@ -15,7 +16,7 @@ player.CharacterAdded:Connect(function(newChar)
     hrp = character:WaitForChild("HumanoidRootPart")
 end)
 
--- Mob paths (functions so they refresh if mob respawns)
+-- Function that refreshes mob targets
 local function getTargets()
     local targets = {}
 
@@ -55,7 +56,7 @@ local function getTargets()
     return targets
 end
 
--- One universal toggle
+-- === ONE TOGGLE BUTTON ===
 local teleporting = false
 TeleportSection:NewToggle("Auto Teleport Behind Mobs", "Keeps teleporting behind all listed mobs", function(state)
     teleporting = state
@@ -65,13 +66,12 @@ TeleportSection:NewToggle("Auto Teleport Behind Mobs", "Keeps teleporting behind
                 if hrp then
                     for _, mob in ipairs(getTargets()) do
                         if mob and mob:IsDescendantOf(workspace) then
-                            -- Teleport behind mob
-                            hrp.CFrame = mob.CFrame * CFrame.new(0, 0, 5)
-                            task.wait(0.3) -- short delay between each mob
+                            hrp.CFrame = mob.CFrame * CFrame.new(0, 0, 5) -- behind mob
+                            task.wait(0.3) -- short delay between mobs
                         end
                     end
                 end
-                task.wait(0.5) -- refresh rate (keeps scanning for respawns)
+                task.wait(0.5) -- refresh rate
             end
         end)
     end
