@@ -494,145 +494,30 @@ TrainSection:NewToggle("Cross Country", "Auto Catch Script", function(state)
 end)
 
 -- === Auto Catch Toggles ===
--- === Auto Catch Toggle ===
 local autoCatchEnabled = false
-
-AutoSection:NewToggle("Auto Catch", "Automatically catch nearby bodies", function(state)
+AutoSection:NewToggle("Islands 1,2,3", "Auto Catch Script", function(state)
     autoCatchEnabled = state
     if state then
-        task.spawn(function()
-            while autoCatchEnabled do
-                local playerPos = hrp.Position
-
-                -- Check island folders
-                for _, islandName in ipairs(islandFolders) do
-                    local islandFolder = islandsFolder:FindFirstChild(islandName)
-                    if islandFolder then
-                        for _, child in ipairs(islandFolder:GetChildren()) do
-                            if isUUID(child.Name) and not exclusions[child.Name] and child:FindFirstChild("Body") then
-                                local dist = (child.Body.Position - playerPos).Magnitude
-                                if dist <= 15 then
-                                    for _, tool in ipairs(TOOL_UUIDS) do
-                                        remote:FireServer(tool, "Activate", child)
-                                    end
-                                end
-                            end
-                        end
-                    end
-                end
-
-                -- Check top-level Workspace UUID models
-                for _, child in ipairs(workspace:GetChildren()) do
-                    if isUUID(child.Name) and not exclusions[child.Name] and child:FindFirstChild("Body") then
-                        local dist = (child.Body.Position - playerPos).Magnitude
-                        if dist <= 15 then
-                            for _, tool in ipairs(TOOL_UUIDS) do
-                                remote:FireServer(tool, "Activate", child)
-                            end
-                        end
-                    end
-                end
-
-                task.wait(0.05)
-            end
-        end)
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/CrimsonsMoons/Jasmine/refs/heads/main/Auto%20Catch%201"))()
     end
 end)
 
-
--- === Auto Catch (4,5,6) Toggle ===
-local autoCatch456Enabled = false
-
-AutoSection:NewToggle("Auto Catch 4,5,6", "Auto catch for Mountain, Royal, Desert, Glacier", function(state)
-    autoCatch456Enabled = state
+local autoCatch2Enabled = false
+AutoSection:NewToggle("4,5,6", "Auto Catch Script 2", function(state)
+    autoCatc2hEnabled = state
     if state then
-        task.spawn(function()
-            while autoCatch456Enabled do
-                local playerPos = hrp.Position
-
-                -- Search island folders
-                for _, islandName in ipairs(ISLAND_NAMES) do
-                    local island = islandsFolder:FindFirstChild(islandName)
-                    if island then
-                        for _, model in ipairs(island:GetChildren()) do
-                            if isUUID(model.Name) and not EXCLUSIONS[model.Name] and model:FindFirstChild("Body") then
-                                local dist = (model.Body.Position - playerPos).Magnitude
-                                if dist <= 15 then
-                                    for _, tool in ipairs(TOOL_UUIDS) do
-                                        remote:FireServer(tool, "Activate", model)
-                                    end
-                                end
-                            end
-                        end
-                    end
-                end
-
-                -- Search top-level Workspace UUID models
-                for _, model in ipairs(workspace:GetChildren()) do
-                    if isUUID(model.Name) and not EXCLUSIONS[model.Name] and model:FindFirstChild("Body") then
-                        local dist = (model.Body.Position - playerPos).Magnitude
-                        if dist <= 15 then
-                            for _, tool in ipairs(TOOL_UUIDS) do
-                                remote:FireServer(tool, "Activate", model)
-                            end
-                        end
-                    end
-                end
-
-                task.wait(0.9) -- less intense than 0.05s
-            end
-        end)
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/CrimsonsMoons/Jasmine/refs/heads/main/Auto%20Catch%202", true))()
     end
 end)
 
-
--- === Auto Catch Toggle (7,8,9) ===
-local AutoCatchEnabled = false
-local AutoCatchConnection
-
-AutoSection:NewToggle("Auto Catch (7,8,9)", "Auto catches mobs in Lunar, Jungle, Volcano", function(state)
-    AutoCatchEnabled = state
-
+local autoCatch3Enabled = false
+AutoSection:NewToggle("7,8,9", "Auto Catch Script 3", function(state)
+    autoCatch3Enabled = state
     if state then
-        AutoCatchConnection = game:GetService("RunService").Heartbeat:Connect(function()
-            local playerPos = HumanoidRootPart.Position
-
-            -- Check islands
-            for _, islandName in ipairs(ISLAND_NAMES) do
-                local islandFolder = Workspace:FindFirstChild("Islands") and Workspace.Islands:FindFirstChild(islandName)
-                if islandFolder then
-                    for _, model in ipairs(islandFolder:GetChildren()) do
-                        if isUUID(model.Name) and not EXCLUSIONS[model.Name] and model:FindFirstChild("Body") then
-                            local dist = (model.Body.Position - playerPos).Magnitude
-                            if dist <= 15 then
-                                for _, tool in ipairs(TOOL_UUIDS) do
-                                    remote:FireServer(tool, "Activate", model)
-                                end
-                            end
-                        end
-                    end
-                end
-            end
-
-            -- Check top-level Workspace UUIDs
-            for _, model in ipairs(Workspace:GetChildren()) do
-                if isUUID(model.Name) and not EXCLUSIONS[model.Name] and model:FindFirstChild("Body") then
-                    local dist = (model.Body.Position - playerPos).Magnitude
-                    if dist <= 15 then
-                        for _, tool in ipairs(TOOL_UUIDS) do
-                            remote:FireServer(tool, "Activate", model)
-                        end
-                    end
-                end
-            end
-        end)
-    else
-        if AutoCatchConnection then
-            AutoCatchConnection:Disconnect()
-            AutoCatchConnection = nil
-        end
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/CrimsonsMoons/Jasmine/refs/heads/main/Auto%20Catch%203", true))()
     end
 end)
+
 
 -- === Sell Toggles ===
 local sellSpecials = false
