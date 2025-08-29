@@ -2,69 +2,76 @@
 local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/xHeptc/Kavo-UI-Library/main/source.lua"))()
 local Window = Library.CreateLib("Mob Teleport GUI", "DarkTheme")
 
--- Create tab + section
 local TeleportTab = Window:NewTab("Teleport")
 local TeleportSection = TeleportTab:NewSection("Mob Teleport")
 
--- Player reference
+-- Player refs
 local player = game.Players.LocalPlayer
 local character = player.Character or player.CharacterAdded:Wait()
 local hrp = character:WaitForChild("HumanoidRootPart")
 
--- Update HRP on respawn
 player.CharacterAdded:Connect(function(newChar)
     character = newChar
     hrp = character:WaitForChild("HumanoidRootPart")
 end)
 
--- === Mob References ===
-local mob1 = workspace:WaitForChild("Mobs"):WaitForChild("Glutto2"):WaitForChild("Glutto"):WaitForChild("Berry")
-local mob2 = workspace:WaitForChild("Mobs"):WaitForChild("Glutto3"):WaitForChild("Glutto"):WaitForChild("Body")
-local mob3 = workspace:WaitForChild("Mobs"):WaitForChild("Clerick2"):WaitForChild("Clerick"):WaitForChild("HumanoidRootPart")
+-- Mob paths (functions so they refresh if mob respawns)
+local function getTargets()
+    local targets = {}
 
--- === Toggle 1: Glutto2.Berry ===
-local teleporting1 = false
-TeleportSection:NewToggle("Teleport Behind Glutto2 (Berry)", "Keeps teleporting behind Glutto2 Berry", function(state)
-    teleporting1 = state
-    if teleporting1 then
-        task.spawn(function()
-            while teleporting1 do
-                if hrp and mob1 and mob1:IsDescendantOf(workspace) then
-                    hrp.CFrame = mob1.CFrame * CFrame.new(0, 0, 5) -- 5 studs behind
-                end
-                task.wait(0.2)
-            end
-        end)
+    -- Glutto2 Berry
+    local ok1, mob1 = pcall(function()
+        return workspace.Mobs.Glutto2.Glutto.Berry
+    end)
+    if ok1 and mob1 then table.insert(targets, mob1) end
+
+    -- Glutto3 Body
+    local ok2, mob2 = pcall(function()
+        return workspace.Mobs.Glutto3.Glutto.Body
+    end)
+    if ok2 and mob2 then table.insert(targets, mob2) end
+
+    -- Clerick2 HRP
+    local ok3, mob3 = pcall(function()
+        return workspace.Mobs.Clerick2.Clerick.HumanoidRootPart
+    end)
+    if ok3 and mob3 then table.insert(targets, mob3) end
+
+    -- Glutto3 Berry child[3]
+    local ok4, mob4parent = pcall(function()
+        return workspace.Mobs.Glutto3.Glutto.Berry
+    end)
+    if ok4 and mob4parent then
+        local kids = mob4parent:GetChildren()
+        if kids[3] then table.insert(targets, kids[3]) end
     end
-end)
 
--- === Toggle 2: Glutto3.Body ===
-local teleporting2 = false
-TeleportSection:NewToggle("Teleport Behind Glutto3 (Body)", "Keeps teleporting behind Glutto3 Body", function(state)
-    teleporting2 = state
-    if teleporting2 then
-        task.spawn(function()
-            while teleporting2 do
-                if hrp and mob2 and mob2:IsDescendantOf(workspace) then
-                    hrp.CFrame = mob2.CFrame * CFrame.new(0, 0, 5) -- 5 studs behind
-                end
-                task.wait(0.2)
-            end
-        end)
-    end
-end)
+    -- Twigface Gardener Alert
+    local ok5, mob5 = pcall(function()
+        return workspace.Mobs.TwigfaceGardener4["Twigface Gardener"].Alert
+    end)
+    if ok5 and mob5 then table.insert(targets, mob5) end
 
--- === Toggle 3: Clerick2.HumanoidRootPart ===
-local teleporting3 = false
-TeleportSection:NewToggle("Teleport Behind Clerick2", "Keeps teleporting behind Clerick2", function(state)
-    teleporting3 = state
-    if teleporting3 then
+    return targets
+end
+
+-- One universal toggle
+local teleporting = false
+TeleportSection:NewToggle("Auto Teleport Behind Mobs", "Keeps teleporting behind all listed mobs", function(state)
+    teleporting = state
+    if teleporting then
         task.spawn(function()
-            while teleporting3 do
-                if hrp and mob3 and mob3:IsDescendantOf(workspace) then
-                    hrp.CFrame = mob3.CFrame * CFrame.new(0, 0, 5) -- 5 studs behind
+            while teleporting do
+                if hrp then
+                    for _, mob in ipairs(getTargets()) do
+                        if mob and mob:IsDescendantOf(workspace) then
+                            -- Teleport behind mob
+                            hrp.CFrame = mob.CFrame * CFrame.new(0, 0, 5)
+                            task.wait(0.3) -- short delay between each mob
+                        end
+                    end
                 end
-                task.wait(0.2)
+                task.wait(0.5) -- refresh rate (keeps scanning for respawns)
             end
         end)
     end
