@@ -495,10 +495,64 @@ end)
 
 -- === Auto Catch Toggles ===
 local autoCatchEnabled = false
+
 AutoSection:NewToggle("Islands 1,2,3", "Auto Catch Script", function(state)
     autoCatchEnabled = state
-    if state then
-        loadstring(game:HttpGet("https://raw.githubusercontent.com/CrimsonsMoons/Jasmine/refs/heads/main/Auto%20Catch%201"))()
+end)
+
+-- === Auto Catch Loop ===
+spawn(function()
+    local CATCH_RADIUS = 15
+    local CATCH_COOLDOWN = 1
+    local lastCaught = {}
+
+    local function isUUID(name)
+        return typeof(name) == "string" and name:match("^%b{}$") ~= nil
+    end
+
+    while task.wait(0.05) do
+        if not autoCatchEnabled then
+            continue
+        end
+
+        local playerPos = HumanoidRootPart.Position
+
+        -- Check island folders
+        for _, islandName in ipairs(islandFolders) do
+            local islandFolder = Workspace:FindFirstChild("Islands"):FindFirstChild(islandName)
+            if islandFolder then
+                for _, child in ipairs(islandFolder:GetChildren()) do
+                    local body = child:FindFirstChild("Body")
+                    if body and isUUID(child.Name) and not exclusions[child.Name] then
+                        local dist = (body.Position - playerPos).Magnitude
+                        local now = os.clock()
+                        if dist <= CATCH_RADIUS and (not lastCaught[child] or now - lastCaught[child] > CATCH_COOLDOWN) then
+                            for _, tool in ipairs(TOOL_UUIDS) do
+                                remote:FireServer(tool, "Activate", child)
+                            end
+                            lastCaught[child] = now
+                            print("Caught:", child.Name, "at", islandName, "Distance:", math.floor(dist))
+                        end
+                    end
+                end
+            end
+        end
+
+        -- Check top-level Workspace UUID models
+        for _, child in ipairs(Workspace:GetChildren()) do
+            local body = child:FindFirstChild("Body")
+            if body and isUUID(child.Name) and not exclusions[child.Name] then
+                local dist = (body.Position - playerPos).Magnitude
+                local now = os.clock()
+                if dist <= CATCH_RADIUS and (not lastCaught[child] or now - lastCaught[child] > CATCH_COOLDOWN) then
+                    for _, tool in ipairs(TOOL_UUIDS) do
+                        remote:FireServer(tool, "Activate", child)
+                    end
+                    lastCaught[child] = now
+                    print("Caught top-level:", child.Name, "Distance:", math.floor(dist))
+                end
+            end
+        end
     end
 end)
 
