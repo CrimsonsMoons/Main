@@ -64,12 +64,14 @@ local exclusions = {
 }
 
 -- === Function to get all UUID Body parts ===
+-- === Function to get all UUID Body parts ===
 local function getAllBodies(islandName)
     local bodies = {}
 
-    -- Workspace direct children
+    -- Workspace direct children (only UUIDs)
     for _, model in ipairs(workspace:GetChildren()) do
-        if not exclusions[model.Name] then
+        -- Check if name looks like a UUID (starts with "{" and ends with "}")
+        if model:IsA("Model") and model.Name:match("^%b{}$") and not exclusions[model.Name] then
             local body = model:FindFirstChild("Body")
             if body and body:IsA("BasePart") then
                 table.insert(bodies, body)
