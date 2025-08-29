@@ -20,6 +20,7 @@ end)
 -- === Mob References ===
 local mob1 = workspace:WaitForChild("Mobs"):WaitForChild("Glutto2"):WaitForChild("Glutto"):WaitForChild("Berry")
 local mob2 = workspace:WaitForChild("Mobs"):WaitForChild("Glutto3"):WaitForChild("Glutto"):WaitForChild("Body")
+local mob3 = workspace:WaitForChild("Mobs"):WaitForChild("Clerick2"):WaitForChild("Clerick"):WaitForChild("HumanoidRootPart")
 
 -- === Toggle 1: Glutto2.Berry ===
 local teleporting1 = false
@@ -46,6 +47,22 @@ TeleportSection:NewToggle("Teleport Behind Glutto3 (Body)", "Keeps teleporting b
             while teleporting2 do
                 if hrp and mob2 and mob2:IsDescendantOf(workspace) then
                     hrp.CFrame = mob2.CFrame * CFrame.new(0, 0, 5) -- 5 studs behind
+                end
+                task.wait(0.2)
+            end
+        end)
+    end
+end)
+
+-- === Toggle 3: Clerick2.HumanoidRootPart ===
+local teleporting3 = false
+TeleportSection:NewToggle("Teleport Behind Clerick2", "Keeps teleporting behind Clerick2", function(state)
+    teleporting3 = state
+    if teleporting3 then
+        task.spawn(function()
+            while teleporting3 do
+                if hrp and mob3 and mob3:IsDescendantOf(workspace) then
+                    hrp.CFrame = mob3.CFrame * CFrame.new(0, 0, 5) -- 5 studs behind
                 end
                 task.wait(0.2)
             end
