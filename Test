@@ -6,7 +6,7 @@ local LocalPlayer = Players.LocalPlayer
 local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 local HumanoidRootPart = Character:WaitForChild("HumanoidRootPart")
 
---- === Tools and exclusions ===
+-- Tools and exclusions
 local TOOL_UUIDS = {
     "{4ba69e17-8de2-43a2-ac9a-f1d1e425be9b}",
     "{634dc3c2-1694-4273-92d2-adf8f7ade91f}",
@@ -80,7 +80,7 @@ while task.wait(0.05) do
         end
     end
 
-    -- Check top-level Workspace models
+    -- Check top-level Workspace UUID models
     for _, child in ipairs(Workspace:GetChildren()) do
         local body = child:FindFirstChild("Body")
         if body and isUUID(child.Name) and not exclusions[child.Name] then
