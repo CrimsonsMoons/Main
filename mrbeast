@@ -1,6 +1,6 @@
---- Load Kavo UI Library
+-- Load Kavo UI Library
 local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/xHeptc/Kavo-UI-Library/main/source.lua"))()
-local Window = Library.CreateLib("Mob Teleport GUI", "DarkTheme")
+local Window = Library.CreateLib("All Mobs Teleport", "DarkTheme")
 
 local TeleportTab = Window:NewTab("Teleport")
 local TeleportSection = TeleportTab:NewSection("Mob Teleport")
@@ -15,19 +15,20 @@ player.CharacterAdded:Connect(function(newChar)
     hrp = character:WaitForChild("HumanoidRootPart")
 end)
 
--- Name patterns for mobs
-local mobPatterns = {
-    "Glutto",
-    "Twigface"
-}
-
--- Recursive function to find all matching BaseParts
-local function findMobParts(parent)
+-- Function to get all BaseParts in workspace.Mobs
+local function getMobParts()
     local parts = {}
-    for _, child in pairs(parent:GetDescendants()) do
-        for _, pattern in ipairs(mobPatterns) do
-            if child:IsA("BasePart") and child.Name:find(pattern) then
-                table.insert(parts, child)
+    local mobsFolder = workspace:FindFirstChild("Mobs")
+    if mobsFolder then
+        for _, mob in pairs(mobsFolder:GetChildren()) do
+            -- Grab the PrimaryPart if exists, else any BasePart inside the mob
+            if mob.PrimaryPart then
+                table.insert(parts, mob.PrimaryPart)
+            else
+                local basePart = mob:FindFirstChildWhichIsA("BasePart")
+                if basePart then
+                    table.insert(parts, basePart)
+                end
             end
         end
     end
@@ -36,21 +37,21 @@ end
 
 -- === Universal toggle ===
 local teleporting = false
-TeleportSection:NewToggle("Auto Teleport Behind Mobs", "Teleports behind all matching mobs", function(state)
+TeleportSection:NewToggle("Auto Teleport Behind All Mobs", "Teleports behind every mob in workspace.Mobs", function(state)
     teleporting = state
     if teleporting then
         task.spawn(function()
             while teleporting do
-                if hrp and workspace:FindFirstChild("Mobs") then
-                    local targets = findMobParts(workspace.Mobs)
+                if hrp then
+                    local targets = getMobParts()
                     for _, part in ipairs(targets) do
                         if part and part:IsDescendantOf(workspace) then
-                            hrp.CFrame = part.CFrame * CFrame.new(0, 0, 5)
+                            hrp.CFrame = part.CFrame * CFrame.new(0, 0, 5) -- behind mob
                             task.wait(0.2) -- small delay between mobs
                         end
                     end
                 end
-                task.wait(0.5) -- refresh for respawns
+                task.wait(0.5) -- refresh rate for respawns
             end
         end)
     end
