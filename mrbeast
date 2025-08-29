@@ -1,8 +1,7 @@
---- Load Kavo UI Library
+-- Load Kavo UI Library
 local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/xHeptc/Kavo-UI-Library/main/source.lua"))()
 local Window = Library.CreateLib("Mob Teleport GUI", "DarkTheme")
 
--- Create tab + section
 local TeleportTab = Window:NewTab("Teleport")
 local TeleportSection = TeleportTab:NewSection("Mob Teleport")
 
@@ -16,62 +15,52 @@ player.CharacterAdded:Connect(function(newChar)
     hrp = character:WaitForChild("HumanoidRootPart")
 end)
 
--- Function that refreshes mob targets
+-- List of mob name patterns you want to track
+local mobNamePatterns = {
+    "Glutto2",
+    "Glutto3",
+    "Clerick2",
+    "TwigfaceGardener4"
+}
+
+-- Function to find all matching mobs dynamically
 local function getTargets()
     local targets = {}
-
-    -- Glutto2 Berry
-    local ok1, mob1 = pcall(function()
-        return workspace.Mobs.Glutto2.Glutto.Berry
-    end)
-    if ok1 and mob1 then table.insert(targets, mob1) end
-
-    -- Glutto3 Body
-    local ok2, mob2 = pcall(function()
-        return workspace.Mobs.Glutto3.Glutto.Body
-    end)
-    if ok2 and mob2 then table.insert(targets, mob2) end
-
-    -- Clerick2 HRP
-    local ok3, mob3 = pcall(function()
-        return workspace.Mobs.Clerick2.Clerick.HumanoidRootPart
-    end)
-    if ok3 and mob3 then table.insert(targets, mob3) end
-
-    -- Glutto3 Berry child[3]
-    local ok4, mob4parent = pcall(function()
-        return workspace.Mobs.Glutto3.Glutto.Berry
-    end)
-    if ok4 and mob4parent then
-        local kids = mob4parent:GetChildren()
-        if kids[3] then table.insert(targets, kids[3]) end
+    for _, mobModel in pairs(workspace:WaitForChild("Mobs"):GetChildren()) do
+        for _, pattern in ipairs(mobNamePatterns) do
+            if mobModel.Name:find(pattern) then
+                -- Try to pick PrimaryPart or first BasePart
+                local part
+                if mobModel.PrimaryPart then
+                    part = mobModel.PrimaryPart
+                else
+                    part = mobModel:FindFirstChildWhichIsA("BasePart")
+                end
+                if part then
+                    table.insert(targets, part)
+                end
+            end
+        end
     end
-
-    -- Twigface Gardener Alert
-    local ok5, mob5 = pcall(function()
-        return workspace.Mobs.TwigfaceGardener4["Twigface Gardener"].Alert
-    end)
-    if ok5 and mob5 then table.insert(targets, mob5) end
-
     return targets
 end
 
--- === ONE TOGGLE BUTTON ===
+-- === Universal toggle ===
 local teleporting = false
-TeleportSection:NewToggle("Auto Teleport Behind Mobs", "Keeps teleporting behind all listed mobs", function(state)
+TeleportSection:NewToggle("Auto Teleport Behind Mobs", "Teleports behind any mob with matching names", function(state)
     teleporting = state
     if teleporting then
         task.spawn(function()
             while teleporting do
                 if hrp then
-                    for _, mob in ipairs(getTargets()) do
-                        if mob and mob:IsDescendantOf(workspace) then
-                            hrp.CFrame = mob.CFrame * CFrame.new(0, 0, 5) -- behind mob
-                            task.wait(0.3) -- short delay between mobs
+                    for _, mobPart in ipairs(getTargets()) do
+                        if mobPart and mobPart:IsDescendantOf(workspace) then
+                            hrp.CFrame = mobPart.CFrame * CFrame.new(0, 0, 5) -- behind mob
+                            task.wait(0.3) -- small delay between each mob
                         end
                     end
                 end
-                task.wait(0.5) -- refresh rate
+                task.wait(0.5) -- refresh rate to catch respawns
             end
         end)
     end
