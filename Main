@@ -134,7 +134,7 @@ for islandName, _ in pairs(islandConfigs) do
                 end
                 task.wait(0.8)
             else
-                task.wait(1.5)
+                task.wait(2)
             end
         end
     end)
@@ -227,7 +227,7 @@ local function exploreIsland(islandName, positions, toggleVar)
                     end
                 end
             else
-                task.wait(1.5)
+                task.wait(2)
             end
         end
     end)
@@ -571,7 +571,7 @@ AutoSection:NewToggle("Islands 1,2,3", "Auto Catch Script", function(state)
     if state then
         task.spawn(function()
             while autoCatchEnabled do
-                task.wait(0.05)
+                task.wait(0.1)
 
                 if not HumanoidRootPart or not HumanoidRootPart.Parent then
                     continue
@@ -719,7 +719,7 @@ AutoSection:NewToggle("4,5,6", "Auto Catch Script 2", function(state)
                     end
                 end
 
-                task.wait(0.05)
+                task.wait(0.1)
             end
         end)
     end
@@ -825,7 +825,7 @@ AutoSection:NewToggle("7,8,9", "Auto Catch Script 3", function(state)
                     end
                 end
 
-                task.wait(0.05)
+                task.wait(0.1)
             end
         end)
     end
