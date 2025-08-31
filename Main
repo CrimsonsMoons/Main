@@ -728,6 +728,7 @@ AutoSection:NewToggle("4,5,6", "Auto Catch Script 2", function(state)
         end)
     end
 end)
+
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
