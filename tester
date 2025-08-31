@@ -1,4 +1,4 @@
---- === GUI Library Setup ===
+-- === GUI Library Setup ===
 local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/xHeptc/Kavo-UI-Library/main/source.lua"))()
 local Window = Library.CreateLib("All Islands Teleport", "DarkTheme")
 
@@ -77,21 +77,22 @@ local function getAllBodies(islandName)
     return bodies
 end
 
-local function followBody(body)
+-- Step 1: Teleport above body
+-- Step 2: Tween the body itself
+local function teleportThenTweenBody(body, targetCFrame)
     if not body or not body:IsDescendantOf(workspace) then return end
     local forwardOffset = body.CFrame.LookVector * 3
     local aboveOffset = Vector3.new(0,5,0)
 
-    -- Step 1: Instant teleport above body
+    -- Instant teleport above the body
     hrp.CFrame = CFrame.new(body.Position + forwardOffset + aboveOffset)
 
-    -- Step 2: Tween to follow body
-    while body:IsDescendantOf(workspace) do
-        local targetCFrame = CFrame.new(body.Position + forwardOffset + aboveOffset)
-        local tween = TweenService:Create(hrp, TweenInfo.new(0.2, Enum.EasingStyle.Linear), {CFrame = targetCFrame})
-        tween:Play()
-        tween.Completed:Wait()
-    end
+    -- Tween the body
+    local tweenInfo = TweenInfo.new(1, Enum.EasingStyle.Linear)
+    local tweenGoal = {CFrame = targetCFrame}
+    local tween = TweenService:Create(body, tweenInfo, tweenGoal)
+    tween:Play()
+    tween.Completed:Wait()
 end
 
 -- === Main Tab Teleports ===
@@ -108,7 +109,9 @@ for islandName,_ in pairs(islandConfigs) do
                 local bodies = getAllBodies(islandName)
                 for _, body in ipairs(bodies) do
                     if teleportToggles[islandName] then
-                        followBody(body)
+                        -- Tween body 3 studs forward as an example
+                        local targetCFrame = body.CFrame * CFrame.new(0,0,3)
+                        teleportThenTweenBody(body, targetCFrame)
                     end
                 end
                 task.wait(1)
@@ -159,7 +162,9 @@ for islandName,positions in pairs(positionsByIsland) do
                     if #bodies>0 then
                         for _,body in ipairs(bodies) do
                             if toggleVar.value then
-                                followBody(body)
+                                -- Tween body forward 3 studs as an example
+                                local targetCFrame = body.CFrame * CFrame.new(0,0,3)
+                                teleportThenTweenBody(body, targetCFrame)
                             end
                         end
                     else
