@@ -557,7 +557,7 @@ local remote = ReplicatedStorage:WaitForChild("Communication"):WaitForChild("Eve
 
 -- === Settings ===
 local CATCH_RADIUS = 15
-local CATCH_COOLDOWN = 1
+local CATCH_COOLDOWN = .5
 local lastCaught = {}
 
 local function isUUID(name)
@@ -665,7 +665,7 @@ local remote = ReplicatedStorage:WaitForChild("Communication"):WaitForChild("Eve
 
 -- === Settings ===
 local CATCH_RADIUS = 15
-local CATCH_COOLDOWN = 0.9
+local CATCH_COOLDOWN = 0.5
 local lastCaught = {}
 
 -- === Utility ===
@@ -770,7 +770,7 @@ local remote = ReplicatedStorage:WaitForChild("Communication"):WaitForChild("Eve
 
 -- === Settings ===
 local CATCH_RADIUS = 15
-local CATCH_COOLDOWN = 0.9
+local CATCH_COOLDOWN = 0.5
 local lastCaught = {}
 
 -- === Utility ===
