@@ -695,7 +695,6 @@ AutoSection:NewToggle("4,5,6", "Auto Catch Script 2", function(state)
                                         remote:FireServer(tool, "Activate", child)
                                     end
                                     lastCaught[child] = now
-                                    print("Caught:", child.Name, "at", islandName, "Distance:", math.floor(dist))
                                 end
                             end
                         end
@@ -713,7 +712,6 @@ AutoSection:NewToggle("4,5,6", "Auto Catch Script 2", function(state)
                                 remote:FireServer(tool, "Activate", child)
                             end
                             lastCaught[child] = now
-                            print("Caught top-level:", child.Name, "Distance:", math.floor(dist))
                         end
                     end
                 end
@@ -723,7 +721,6 @@ AutoSection:NewToggle("4,5,6", "Auto Catch Script 2", function(state)
         end)
     end
 end)
-
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
@@ -804,7 +801,6 @@ AutoSection:NewToggle("7,8,9", "Auto Catch Script 3", function(state)
                                         remote:FireServer(tool, "Activate", child)
                                     end
                                     lastCaught[child] = now
-                                    print("Caught:", child.Name, "at", islandName, "Distance:", math.floor(dist))
                                 end
                             end
                         end
@@ -822,7 +818,6 @@ AutoSection:NewToggle("7,8,9", "Auto Catch Script 3", function(state)
                                 remote:FireServer(tool, "Activate", child)
                             end
                             lastCaught[child] = now
-                            print("Caught top-level:", child.Name, "Distance:", math.floor(dist))
                         end
                     end
                 end
