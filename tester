@@ -1,4 +1,4 @@
---- === GUI Library Setup ===
+-- === GUI Library Setup ===
 local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/xHeptc/Kavo-UI-Library/main/source.lua"))()
 local Window = Library.CreateLib("All Islands Teleport", "DarkTheme")
 
@@ -41,7 +41,7 @@ local exclusions = {
     ["c21e5cba-8957-4d65-9e54-1aaa2411a71c"]=true,
 }
 
--- === Helper Functions ===
+-- === Helper Function to Get All Bodies ===
 local function getAllBodies(islandName)
     local bodies = {}
     -- Workspace
@@ -76,60 +76,34 @@ local function getAllBodies(islandName)
     return bodies
 end
 
--- === Safe Follow In Front of Body ===
-local activeFollows = {} -- track connections
+-- === Main Teleport Loops ===
+local mainLoops = {} -- track heartbeat per island toggle
 
-local function followBodyInFrontSafe(body, toggleVar)
-    if not body or not body:IsDescendantOf(workspace) then return end
-
-    -- Disconnect previous connection if exists
-    if activeFollows[body] then
-        activeFollows[body]:Disconnect()
-        activeFollows[body] = nil
-    end
-
-    local forwardOffset = body.CFrame.LookVector * 5
-    local aboveOffset = Vector3.new(0,3,0)
-
-    -- Instantly teleport in front
-    hrp.CFrame = CFrame.new(body.Position + forwardOffset + aboveOffset)
-
-    -- Heartbeat loop
-    local conn
-    conn = game:GetService("RunService").Heartbeat:Connect(function()
-        if not toggleVar.value or not body:IsDescendantOf(workspace) then
-            conn:Disconnect()
-            activeFollows[body] = nil
-            return
-        end
-        hrp.CFrame = CFrame.new(body.Position + forwardOffset + aboveOffset)
-    end)
-
-    activeFollows[body] = conn
-end
-
--- === Main Tab Teleports ===
-local teleportToggles = {}
 for islandName,_ in pairs(islandConfigs) do
-    teleportToggles[islandName] = {value=false}
-    TeleportSection:NewToggle("Teleport "..islandName,"Teleport to "..islandName,function(state)
-        teleportToggles[islandName].value = state
-    end)
+    local toggleVar = {value=false}
+    mainLoops[islandName] = nil
 
-    task.spawn(function()
-        while true do
-            local toggleVar = teleportToggles[islandName]
-            if toggleVar.value then
+    TeleportSection:NewToggle("Teleport "..islandName,"Teleport to "..islandName",function(state)
+        toggleVar.value = state
+
+        -- Stop loop if toggle turned off
+        if not state and mainLoops[islandName] then
+            mainLoops[islandName]:Disconnect()
+            mainLoops[islandName] = nil
+        elseif state and not mainLoops[islandName] then
+            -- Start loop if toggle turned on
+            mainLoops[islandName] = game:GetService("RunService").Heartbeat:Connect(function()
+                if not toggleVar.value then return end
                 local bodies = getAllBodies(islandName)
                 for _, body in ipairs(bodies) do
-                    if toggleVar.value then
-                        followBodyInFrontSafe(body, toggleVar)
+                    if body:IsDescendantOf(workspace) then
+                        local forwardOffset = body.CFrame.LookVector * 5
+                        local aboveOffset = Vector3.new(0,3,0)
+                        hrp.CFrame = CFrame.new(body.Position + forwardOffset + aboveOffset)
+                        break -- follow only one body at a time
                     end
                 end
-                task.wait(1)
-            else
-                task.wait(2.4)
-            end
+            end)
         end
     end)
 end
@@ -143,7 +117,7 @@ for islandName in pairs(islandConfigs) do
     end)
 end
 
--- === Special Positions ===
+-- === Positions for Lunar/Volcano Islands ===
 local positionsByIsland = {
     ["Forest Island"]={Vector3.new(-7839,96,4180),Vector3.new(-7945,91,3557),Vector3.new(-7878,135,2901)},
     ["Mountain Island"]={Vector3.new(-6715,276,10),Vector3.new(-6102,349,-242),Vector3.new(-6962,304,-778)},
@@ -156,25 +130,33 @@ local positionsByIsland = {
     ["Glacier Island"]={Vector3.new(2718,115,-74),Vector3.new(2438,196,-763),Vector3.new(3102,147,-911),Vector3.new(3125,82,-74")},
 }
 
--- === Lunar/Volcano Teleports ===
-local lunarVolcanoToggles = {}
-for islandName,positions in pairs(positionsByIsland) do
-    lunarVolcanoToggles[islandName]={value=false}
-    LunarVolcanoSection:NewToggle("Explore "..islandName,"Teleport through positions and bodies",function(state)
-        lunarVolcanoToggles[islandName].value = state
-    end)
+-- === Lunar/Volcano Toggles ===
+local lunarLoops = {}
 
-    task.spawn(function()
-        while true do
-            local toggleVar = lunarVolcanoToggles[islandName]
-            if toggleVar.value then
+for islandName, positions in pairs(positionsByIsland) do
+    local toggleVar = {value=false}
+    lunarLoops[islandName] = nil
+
+    LunarVolcanoSection:NewToggle("Explore "..islandName,"Teleport through positions and bodies",function(state)
+        toggleVar.value = state
+
+        -- Stop loop if toggle turned off
+        if not state and lunarLoops[islandName] then
+            lunarLoops[islandName]:Disconnect()
+            lunarLoops[islandName] = nil
+        elseif state and not lunarLoops[islandName] then
+            lunarLoops[islandName] = game:GetService("RunService").Heartbeat:Connect(function()
+                if not toggleVar.value then return end
                 for _, pos in ipairs(positions) do
                     if not toggleVar.value then break end
                     local bodies = getAllBodies(islandName)
-                    if #bodies>0 then
-                        for _,body in ipairs(bodies) do
-                            if toggleVar.value then
-                                followBodyInFrontSafe(body, toggleVar)
+                    if #bodies > 0 then
+                        for _, body in ipairs(bodies) do
+                            if body:IsDescendantOf(workspace) then
+                                local forwardOffset = body.CFrame.LookVector * 5
+                                local aboveOffset = Vector3.new(0,3,0)
+                                hrp.CFrame = CFrame.new(body.Position + forwardOffset + aboveOffset)
+                                break
                             end
                         end
                     else
@@ -182,9 +164,7 @@ for islandName,positions in pairs(positionsByIsland) do
                         task.wait(15)
                     end
                 end
-            else
-                task.wait(2.4)
-            end
+            end)
         end
     end)
 end
