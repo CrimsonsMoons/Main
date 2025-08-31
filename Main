@@ -207,7 +207,7 @@ local function exploreIsland(islandName, positions, toggleVar)
         while true do
             if toggleVar.value then
                 local folder = islandsFolder:FindFirstChild(islandName) or (explorerFolder and explorerFolder:FindFirstChild(islandName))
-                if not folder then task.wait(2) continue end
+                if not folder then task.wait(2.1) continue end
 
                 for _, pos in ipairs(positions) do
                     if not toggleVar.value then break end
@@ -718,7 +718,7 @@ AutoSection:NewToggle("4,5,6", "Auto Catch Script 2", function(state)
                     end
                 end
 
-                task.wait(0.2)
+                task.wait(0.3)
             end
         end)
     end
@@ -827,7 +827,7 @@ AutoSection:NewToggle("7,8,9", "Auto Catch Script 3", function(state)
                     end
                 end
 
-                task.wait(0.1)
+                task.wait(0.3)
             end
         end)
     end
