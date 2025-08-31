@@ -1,4 +1,4 @@
-------------- === GUI Library Setup ===
+------------ === GUI Library Setup ===
 local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/xHeptc/Kavo-UI-Library/main/source.lua"))()
 local Window = Library.CreateLib("All Islands Teleport", "DarkTheme")
 
@@ -74,46 +74,18 @@ local function getBodies(islandName)
     return bodies
 end
 
--- === Smooth Follow Using BodyPosition & BodyGyro ===
-local function followBody(body, distance)
+-- === Instant Teleport Function ===
+local function teleportToBody(body, distance)
     distance = distance or 5
-
-    -- Remove old movers
-    for _, child in ipairs(hrp:GetChildren()) do
-        if child:IsA("BodyPosition") or child:IsA("BodyGyro") then
-            child:Destroy()
-        end
-    end
-
-    local bp = Instance.new("BodyPosition")
-    bp.MaxForce = Vector3.new(1e5,1e5,1e5)
-    bp.P = 1e4
-    bp.D = 100
-    bp.Position = body.Position + body.CFrame.LookVector * distance + Vector3.new(0, hrp.Size.Y/2,0)
-    bp.Parent = hrp
-
-    local bg = Instance.new("BodyGyro")
-    bg.MaxTorque = Vector3.new(1e5,1e5,1e5)
-    bg.P = 1e4
-    bg.CFrame = CFrame.new(hrp.Position, body.Position)
-    bg.Parent = hrp
-
-    task.spawn(function()
-        while body and body:IsDescendantOf(workspace) do
-            bp.Position = body.Position + body.CFrame.LookVector * distance + Vector3.new(0, hrp.Size.Y/2,0)
-            bg.CFrame = CFrame.new(hrp.Position, body.Position)
-            task.wait(0.05)
-        end
-        bp:Destroy()
-        bg:Destroy()
-    end)
+    local targetCFrame = body.CFrame * CFrame.new(0, hrp.Size.Y/2, -distance)
+    hrp.CFrame = targetCFrame
 end
 
 -- === Main Tab Teleport Toggles ===
 local teleportToggles = {}
 for islandName,_ in pairs(islandConfigs) do
     teleportToggles[islandName] = false
-    TeleportSection:NewToggle("Teleport "..islandName, "Follow first Body in "..islandName, function(state)
+    TeleportSection:NewToggle("Teleport "..islandName, "Teleport to each Body in "..islandName, function(state)
         teleportToggles[islandName] = state
     end)
 end
@@ -123,16 +95,13 @@ task.spawn(function()
     while true do
         for islandName, active in pairs(teleportToggles) do
             if active then
-                repeat
-                    local bodies = getBodies(islandName)
-                    local body = bodies[1]
-                    if body then
-                        followBody(body, 5)
-                        repeat task.wait(0.5) until not body or not body:IsDescendantOf(workspace) or not active
-                    else
-                        task.wait(1)
+                local bodies = getBodies(islandName)
+                for _, body in ipairs(bodies) do
+                    while body and body:IsDescendantOf(workspace) and active do
+                        teleportToBody(body, 5)
+                        task.wait(0.1)
                     end
-                until not active or #getBodies(islandName)==0
+                end
             end
         end
         task.wait(0.5)
@@ -156,7 +125,7 @@ local positionsByIsland = {
 local islandToggles = {}
 for islandName, positions in pairs(positionsByIsland) do
     islandToggles[islandName] = {value=false}
-    LunarVolcanoSection:NewToggle(islandName.." Explore", "Follow Body or move to position", function(state)
+    LunarVolcanoSection:NewToggle(islandName.." Explore", "Teleport to each Body or position", function(state)
         islandToggles[islandName].value = state
     end)
 end
@@ -169,18 +138,17 @@ task.spawn(function()
                 local positions = positionsByIsland[islandName]
                 for _, pos in ipairs(positions) do
                     if not toggle.value then break end
-
                     repeat
                         local bodies = getBodies(islandName)
                         local body = bodies[1]
                         if body then
-                            followBody(body, 5)
-                            repeat task.wait(0.5) until not body or not body:IsDescendantOf(workspace) or not toggle.value
+                            teleportToBody(body, 5)
                         else
                             hrp.CFrame = CFrame.new(pos)
                             task.wait(11.5)
                         end
-                    until not toggle.value or #getBodies(islandName)==0
+                        task.wait(0.1)
+                    until not toggle.value or #getBodies(islandName) == 0
                 end
             end
         end
