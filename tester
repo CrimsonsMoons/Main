@@ -1,4 +1,4 @@
--------------- === GUI Library Setup ===
+------------ === GUI Library Setup ===
 local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/xHeptc/Kavo-UI-Library/main/source.lua"))()
 local Window = Library.CreateLib("All Islands Teleport", "DarkTheme")
 
@@ -11,7 +11,6 @@ local LunarVolcanoSection = LunarVolcanoTab:NewSection("Special Teleports & Lava
 
 -- === Initialization ===
 local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
 local player = Players.LocalPlayer
 local character = player.Character or player.CharacterAdded:Wait()
 local hrp = character:WaitForChild("HumanoidRootPart")
@@ -43,7 +42,6 @@ local exclusions = {
 local function getBodies(islandName)
     local bodies = {}
 
-    -- Workspace direct children
     for _, model in ipairs(workspace:GetChildren()) do
         if model:IsA("Model") and model.Name:match("^%b{}$") and not exclusions[model.Name] then
             local body = model:FindFirstChild("Body")
@@ -51,7 +49,6 @@ local function getBodies(islandName)
         end
     end
 
-    -- Islands folder
     local folder = islandsFolder:FindFirstChild(islandName)
     if folder then
         for _, model in ipairs(folder:GetChildren()) do
@@ -62,7 +59,6 @@ local function getBodies(islandName)
         end
     end
 
-    -- Explorer folder
     if explorerFolder then
         local folder = explorerFolder:FindFirstChild(islandName)
         if folder then
@@ -78,29 +74,31 @@ local function getBodies(islandName)
     return bodies
 end
 
--- === Follow Body Function ===
-local function followBody(body)
-    local offset = Vector3.new(0,5,0)
-    local connection
-    connection = RunService.Heartbeat:Connect(function()
-        if body and body:IsDescendantOf(workspace) and hrp.Parent then
-            hrp.CFrame = CFrame.new(body.Position + offset)
-        else
-            connection:Disconnect()
-        end
-    end)
+-- === Weld to Body Function ===
+local function attachToBody(body)
+    -- Remove previous weld
+    if hrp:FindFirstChild("BodyWeld") then
+        hrp.BodyWeld:Destroy()
+    end
+
+    local weld = Instance.new("Weld")
+    weld.Name = "BodyWeld"
+    weld.Part0 = hrp
+    weld.Part1 = body
+    weld.C0 = CFrame.new(0,5,0) -- stand 5 studs above the body
+    weld.Parent = hrp
 end
 
 -- === Main Tab Teleport Toggles ===
 local teleportToggles = {}
 for islandName, _ in pairs(islandConfigs) do
     teleportToggles[islandName] = false
-    TeleportSection:NewToggle("Teleport "..islandName, "Follow a Body in "..islandName, function(state)
+    TeleportSection:NewToggle("Teleport "..islandName, "Attach to first Body in "..islandName, function(state)
         teleportToggles[islandName] = state
     end)
 end
 
--- === Main Tab Loop (follow first body until gone) ===
+-- === Main Tab Loop (attach to first body until gone) ===
 task.spawn(function()
     while true do
         for islandName, active in pairs(teleportToggles) do
@@ -109,9 +107,8 @@ task.spawn(function()
                     local bodies = getBodies(islandName)
                     local body = bodies[1]
                     if body then
-                        followBody(body)
-                        -- wait until body disappears
-                        repeat task.wait(0.3) until not body or not body:IsDescendantOf(workspace) or not active
+                        attachToBody(body)
+                        repeat task.wait(0.5) until not body or not body:IsDescendantOf(workspace) or not active
                     else
                         task.wait(1)
                     end
@@ -139,12 +136,12 @@ local positionsByIsland = {
 local islandToggles = {}
 for islandName, positions in pairs(positionsByIsland) do
     islandToggles[islandName] = {value=false}
-    LunarVolcanoSection:NewToggle(islandName.." Explore", "Follow a Body, then move to next position", function(state)
+    LunarVolcanoSection:NewToggle(islandName.." Explore", "Attach to Body or move to next position", function(state)
         islandToggles[islandName].value = state
     end)
 end
 
--- === Lunar/Volcano Loop (follow first body until gone) ===
+-- === Lunar/Volcano Loop (attach to first body until gone) ===
 task.spawn(function()
     while true do
         for islandName, toggle in pairs(islandToggles) do
@@ -157,9 +154,10 @@ task.spawn(function()
                         local bodies = getBodies(islandName)
                         local body = bodies[1]
                         if body then
-                            followBody(body)
-                            repeat task.wait(0.3) until not body or not body:IsDescendantOf(workspace) or not toggle.value
+                            attachToBody(body)
+                            repeat task.wait(0.5) until not body or not body:IsDescendantOf(workspace) or not toggle.value
                         else
+                            -- no body found, move to position
                             hrp.CFrame = CFrame.new(pos + Vector3.new(0,5,0))
                             task.wait(11.5)
                         end
