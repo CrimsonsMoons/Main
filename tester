@@ -1,4 +1,4 @@
-------------- === GUI Library Setup ===
+------------ === GUI Library Setup ===
 local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/xHeptc/Kavo-UI-Library/main/source.lua"))()
 local Window = Library.CreateLib("All Islands Teleport", "DarkTheme")
 
@@ -86,13 +86,16 @@ for islandName, _ in pairs(islandConfigs) do
     end)
 end
 
+-- === Main Tab Loop (stay on each body until gone) ===
 task.spawn(function()
     while true do
         for islandName, active in pairs(teleportToggles) do
             if active then
                 local bodies = getBodies(islandName)
-                for _, body in ipairs(bodies) do
-                    while active and body:IsDescendantOf(workspace) do
+                local bodiesCopy = {}
+                for _, b in ipairs(bodies) do table.insert(bodiesCopy, b) end
+                for _, body in ipairs(bodiesCopy) do
+                    while active and body and body:IsDescendantOf(workspace) do
                         hrp.CFrame = CFrame.new(body.Position + Vector3.new(0,5,0))
                         task.wait(0.12)
                     end
@@ -103,7 +106,7 @@ task.spawn(function()
     end
 end)
 
--- === Special Island Positions ===
+-- === Special Island Positions for Lunar/Volcano ===
 local positionsByIsland = {
     ["Forest Island"] = {Vector3.new(-7839,96,4180), Vector3.new(-7945,91,3557), Vector3.new(-7878,135,2901)},
     ["Mountain Island"] = {Vector3.new(-6715,276,10), Vector3.new(-6102,349,-242), Vector3.new(-6962,304,-778)},
@@ -125,7 +128,7 @@ for islandName, positions in pairs(positionsByIsland) do
     end)
 end
 
--- === Lunar/Volcano Master Loop ===
+-- === Lunar/Volcano Loop (stay on each body until gone) ===
 task.spawn(function()
     while true do
         for islandName, toggle in pairs(islandToggles) do
@@ -133,14 +136,18 @@ task.spawn(function()
                 local positions = positionsByIsland[islandName]
                 for _, pos in ipairs(positions) do
                     local bodies = getBodies(islandName)
-                    if #bodies > 0 then
-                        for _, body in ipairs(bodies) do
-                            while toggle.value and body:IsDescendantOf(workspace) do
+                    local bodiesCopy = {}
+                    for _, b in ipairs(bodies) do table.insert(bodiesCopy, b) end
+
+                    if #bodiesCopy > 0 then
+                        for _, body in ipairs(bodiesCopy) do
+                            while toggle.value and body and body:IsDescendantOf(workspace) do
                                 hrp.CFrame = CFrame.new(body.Position + Vector3.new(0,5,0))
                                 task.wait(0.12)
                             end
                         end
                     else
+                        -- No bodies, teleport to position
                         hrp.CFrame = CFrame.new(pos + Vector3.new(0,5,0))
                         task.wait(11.5)
                     end
