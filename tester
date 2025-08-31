@@ -1,106 +1,177 @@
------- === GUI Library Setup ===
+-- === Services & Player Setup ===
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
+
+local LocalPlayer = Players.LocalPlayer
+local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+local HumanoidRootPart = Character:WaitForChild("HumanoidRootPart")
+
+-- Keep HRP updated after respawn
+LocalPlayer.CharacterAdded:Connect(function(newChar)
+    Character = newChar
+    HumanoidRootPart = Character:WaitForChild("HumanoidRootPart")
+end)
+
+-- === Global Exclusions ===
+local exclusions = {
+    "Explorer", "LavaParts", "Lava", "SafeZone", "Barrier",
+    "Border", "Water", "Void", "NPCs"
+}
+
+local function isExcluded(name)
+    for _, ex in ipairs(exclusions) do
+        if string.find(name, ex) then
+            return true
+        end
+    end
+    return false
+end
+
+-- === GUI Setup ===
 local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/xHeptc/Kavo-UI-Library/main/source.lua"))()
 local Window = Library.CreateLib("All Islands Teleport", "DarkTheme")
 
--- === Services ===
-local player = game.Players.LocalPlayer
-local character = player.Character or player.CharacterAdded:Wait()
-local hrp = character:WaitForChild("HumanoidRootPart")
+-- Tabs
+local MainTab = Window:NewTab("Main")
+local TravelTab = Window:NewTab("Island Travel")
+local TrainTab = Window:NewTab("Train")
+local AutoTab = Window:NewTab("Auto")
+local ShopTab = Window:NewTab("Shop")
+local LunarVolcanoTab = Window:NewTab("Lunar/Volcano")
 
--- === Float Above Body Function ===
-local function floatAbove(part)
-    if not part or not part:IsDescendantOf(workspace) then return end
+-- Sections
+local TeleportSection = MainTab:NewSection("Teleport Controls")
+local TravelSection = TravelTab:NewSection("Travel")
+local TrainSection = TrainTab:NewSection("Train")
+local AutoSection = AutoTab:NewSection("Auto Features")
+local ShopSection = ShopTab:NewSection("Shop")
+local LunarVolcanoSection = LunarVolcanoTab:NewSection("Special Islands")
 
-    -- Move above once
-    hrp.CFrame = part.CFrame + Vector3.new(0, 6, 0)
-
-    -- Hover effect
-    local bv = Instance.new("BodyVelocity")
-    bv.Velocity = Vector3.new(0, 0, 0)
-    bv.MaxForce = Vector3.new(4000, 4000, 4000)
-    bv.Parent = hrp
-
-    -- Stay until body disappears
-    repeat
-        task.wait(0.25)
-    until not part:IsDescendantOf(workspace)
-
-    bv:Destroy()
-end
-
--- === Scan For Bodies ===
-local function getBodies()
+-- === Helper: collect all Bodies ===
+local function getAllBodies(islandName)
     local bodies = {}
-
     -- 1. Direct children of workspace
-    for _, obj in ipairs(workspace:GetChildren()) do
-        if obj:IsA("BasePart") and obj.Name == "Body" then
+    for _, obj in ipairs(Workspace:GetChildren()) do
+        if obj:IsA("BasePart") and obj.Name == "Body" and not isExcluded(obj.Parent.Name) then
             table.insert(bodies, obj)
         end
     end
-
-    -- 2. Explorer folder
-    local explorer = workspace:FindFirstChild("Explorer")
-    if explorer then
-        for _, obj in ipairs(explorer:GetDescendants()) do
-            if obj:IsA("BasePart") and obj.Name == "Body" then
+    -- 2. Inside Explorer
+    local explorerFolder = Workspace:FindFirstChild("Explorer")
+    if explorerFolder then
+        for _, obj in ipairs(explorerFolder:GetDescendants()) do
+            if obj:IsA("BasePart") and obj.Name == "Body" and not isExcluded(obj.Parent.Name) then
                 table.insert(bodies, obj)
             end
         end
     end
-
-    -- 3. UUID body folder
-    local uuidFolder = workspace:FindFirstChild("{ab1a3def-0d9e-4ba6-809c-5235f6bb3610}")
+    -- 3. Inside special UUID Body folder
+    local uuidFolder = Workspace:FindFirstChild("{ab1a3def-0d9e-4ba6-809c-5235f6bb3610}")
     if uuidFolder and uuidFolder:FindFirstChild("Body") then
-        for _, obj in ipairs(uuidFolder.Body:GetDescendants()) do
+        for _, obj in ipairs(uuidFolder.Body:GetChildren()) do
             if obj:IsA("BasePart") and obj.Name == "Body" then
                 table.insert(bodies, obj)
             end
         end
     end
-
     return bodies
 end
 
--- === Float Loop Handler ===
-local function makeFloatToggle(section, name, desc)
-    local active = false
+-- === Teleport Loop ===
+local function teleportToBodies(bodies, toggleTable, toggleName)
+    for _, body in ipairs(bodies) do
+        while toggleTable[toggleName] 
+            and body:IsDescendantOf(Workspace) 
+            and HumanoidRootPart 
+            and HumanoidRootPart.Parent do
 
-    local function loop()
-        while active do
-            local bodies = getBodies()
-            if #bodies > 0 then
-                for _, body in ipairs(bodies) do
-                    if not active then break end
-                    floatAbove(body)
-                end
-            else
-                task.wait(10) -- wait before scanning again
-            end
+            HumanoidRootPart.CFrame = body.CFrame + Vector3.new(0, 3, 0)
+            task.wait(0.15) -- safer wait
         end
     end
-
-    section:NewToggle(name, desc, function(state)
-        active = state
-        if state then
-            task.spawn(loop)
-        end
-    end)
 end
 
--- === Tabs ===
-local TeleportTab = Window:NewTab("Main")
-local TeleportSection = TeleportTab:NewSection("Island Teleports")
+-- === Toggle Storage ===
+local teleportToggles = {}
 
-local TravelTab = Window:NewTab("Island Travel")
-local TravelSection = TravelTab:NewSection("Travel Controls")
+-- === Example Main Tab Toggle ===
+TeleportSection:NewToggle("Jungle Island", "Teleport to Jungle Island", function(state)
+    teleportToggles["Jungle Island"] = state
+    if state then
+        task.spawn(function()
+            while teleportToggles["Jungle Island"] do
+                local bodies = getAllBodies("Jungle Island")
+                if #bodies > 0 then
+                    teleportToBodies(bodies, teleportToggles, "Jungle Island")
+                end
+                task.wait(0.3) -- reduced lag
+            end
+        end)
+    end
+end)
 
-local LunarTab = Window:NewTab("Lunar/Volcano")
-local LunarSection = LunarTab:NewSection("Special Islands")
+-- === Auto Section Example ===
+AutoSection:NewToggle("Auto-Sell", "Automatically sell items", function(state)
+    if state then
+        task.spawn(function()
+            while state do
+                local sellEvent = ReplicatedStorage:FindFirstChild("SellEvent")
+                if sellEvent then
+                    sellEvent:FireServer()
+                end
+                task.wait(5) -- adjusted
+            end
+        end)
+    end
+end)
 
--- === Toggles (examples, add more as needed) ===
-makeFloatToggle(TeleportSection, "Mainland Float", "Float above Bodies on Mainland")
-makeFloatToggle(TeleportSection, "Jungle Island Float", "Float above Bodies on Jungle Island")
-makeFloatToggle(TravelSection, "Travel Float", "Float above Bodies while Traveling")
-makeFloatToggle(LunarSection, "Lunar Island Float", "Float above Bodies on Lunar Island")
-makeFloatToggle(LunarSection, "Volcano Island Float", "Float above Bodies on Volcano Island")
+-- === Lava Removal (every 5 sec) ===
+local function removeLava()
+    for _, obj in ipairs(Workspace:GetDescendants()) do
+        if obj:IsA("BasePart") and string.find(obj.Name:lower(), "lava") then
+            obj:Destroy()
+        end
+    end
+end
+task.spawn(function()
+    while task.wait(5) do
+        removeLava()
+    end
+end)
+
+-- === Lunar/Volcano Special Teleport ===
+local specialToggles = {}
+local specialPositions = {
+    Lunar = {Vector3.new(100,50,100), Vector3.new(200,60,200)}, -- example
+    Volcano = {Vector3.new(300,80,300), Vector3.new(400,100,400)}
+}
+
+local function teleportSpecial(island)
+    while specialToggles[island] do
+        for _, pos in ipairs(specialPositions[island]) do
+            if not specialToggles[island] then break end
+            local foundBody = false
+            for _, body in ipairs(getAllBodies(island)) do
+                HumanoidRootPart.CFrame = body.CFrame + Vector3.new(0, 3, 0)
+                task.wait(0.15)
+                foundBody = true
+            end
+            if not foundBody then
+                HumanoidRootPart.CFrame = CFrame.new(pos)
+                task.wait(15)
+            end
+        end
+        task.wait(0.3)
+    end
+end
+
+LunarVolcanoSection:NewToggle("Lunar Island", "Teleport + scan", function(state)
+    specialToggles["Lunar"] = state
+    if state then task.spawn(function() teleportSpecial("Lunar") end) end
+end)
+
+LunarVolcanoSection:NewToggle("Volcano Island", "Teleport + scan", function(state)
+    specialToggles["Volcano"] = state
+    if state then task.spawn(function() teleportSpecial("Volcano") end) end
+end)
