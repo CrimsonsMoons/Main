@@ -1,4 +1,4 @@
-------------- === GUI Library Setup ===
+------------ === GUI Library Setup ===
 local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/xHeptc/Kavo-UI-Library/main/source.lua"))()
 local Window = Library.CreateLib("All Islands Teleport", "DarkTheme")
 
@@ -11,6 +11,7 @@ local LunarVolcanoSection = LunarVolcanoTab:NewSection("Special Teleports & Lava
 
 -- === Initialization ===
 local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
 local player = Players.LocalPlayer
 local character = player.Character or player.CharacterAdded:Wait()
 local hrp = character:WaitForChild("HumanoidRootPart")
@@ -77,28 +78,40 @@ local function getBodies(islandName)
     return bodies
 end
 
+-- === Follow Body Function ===
+local function followBody(body)
+    local offset = Vector3.new(0,5,0)
+    local connection
+    connection = RunService.Heartbeat:Connect(function()
+        if body and body:IsDescendantOf(workspace) and hrp.Parent then
+            hrp.CFrame = CFrame.new(body.Position + offset)
+        else
+            connection:Disconnect()
+        end
+    end)
+end
+
 -- === Main Tab Teleport Toggles ===
 local teleportToggles = {}
 for islandName, _ in pairs(islandConfigs) do
     teleportToggles[islandName] = false
-    TeleportSection:NewToggle("Teleport "..islandName, "Teleport to "..islandName, function(state)
+    TeleportSection:NewToggle("Teleport "..islandName, "Follow a Body in "..islandName, function(state)
         teleportToggles[islandName] = state
     end)
 end
 
--- === Main Tab Loop (stay on first body until gone) ===
+-- === Main Tab Loop (follow first body until gone) ===
 task.spawn(function()
     while true do
         for islandName, active in pairs(teleportToggles) do
             if active then
                 repeat
                     local bodies = getBodies(islandName)
-                    local body = bodies[1] -- pick only the first body
+                    local body = bodies[1]
                     if body then
-                        while active and body and body:IsDescendantOf(workspace) do
-                            hrp.CFrame = CFrame.new(body.Position + Vector3.new(0,5,0))
-                            task.wait(0.12)
-                        end
+                        followBody(body)
+                        -- wait until body disappears
+                        repeat task.wait(0.3) until not body or not body:IsDescendantOf(workspace) or not active
                     else
                         task.wait(1)
                     end
@@ -126,12 +139,12 @@ local positionsByIsland = {
 local islandToggles = {}
 for islandName, positions in pairs(positionsByIsland) do
     islandToggles[islandName] = {value=false}
-    LunarVolcanoSection:NewToggle(islandName.." Explore", "Teleport to UUID.Body parts, then next position", function(state)
+    LunarVolcanoSection:NewToggle(islandName.." Explore", "Follow a Body, then move to next position", function(state)
         islandToggles[islandName].value = state
     end)
 end
 
--- === Lunar/Volcano Loop (stay on first body until gone) ===
+-- === Lunar/Volcano Loop (follow first body until gone) ===
 task.spawn(function()
     while true do
         for islandName, toggle in pairs(islandToggles) do
@@ -142,12 +155,10 @@ task.spawn(function()
 
                     repeat
                         local bodies = getBodies(islandName)
-                        local body = bodies[1] -- only first body
+                        local body = bodies[1]
                         if body then
-                            while toggle.value and body and body:IsDescendantOf(workspace) do
-                                hrp.CFrame = CFrame.new(body.Position + Vector3.new(0,5,0))
-                                task.wait(0.12)
-                            end
+                            followBody(body)
+                            repeat task.wait(0.3) until not body or not body:IsDescendantOf(workspace) or not toggle.value
                         else
                             hrp.CFrame = CFrame.new(pos + Vector3.new(0,5,0))
                             task.wait(11.5)
