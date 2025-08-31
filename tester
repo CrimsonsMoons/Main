@@ -1,200 +1,106 @@
-repeat task.wait() until game:IsLoaded()
+----- === GUI Library Setup ===
+local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/xHeptc/Kavo-UI-Library/main/source.lua"))()
+local Window = Library.CreateLib("All Islands Teleport", "DarkTheme")
 
-----// Services
-local Players = game:GetService("Players")
-local UserInputService = game:GetService("UserInputService")
-local RunService = game:GetService("RunService")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local lp = Players.LocalPlayer
-local vu = game:GetService("VirtualUser")
+-- === Services ===
+local player = game.Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local hrp = character:WaitForChild("HumanoidRootPart")
 
--- Workspace refs
-local chests = workspace:WaitForChild("Chests")
-local ores = workspace:WaitForChild("Ores")
-local npcs = workspace:WaitForChild("NPCs")
-local mobs = workspace:WaitForChild("Mobs")
+-- === Float Above Body Function ===
+local function floatAbove(part)
+    if not part or not part:IsDescendantOf(workspace) then return end
 
--- Vars
-local autofish = false
-local showChests = false
-local showOre = false
-local showShop = false
-local meteorNotify = false
+    -- Move above once
+    hrp.CFrame = part.CFrame + Vector3.new(0, 6, 0)
 
---// GUI Creation
-local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "CustomPilgrammedGUI"
-ScreenGui.Parent = game.CoreGui
-ScreenGui.ResetOnSpawn = false
+    -- Hover effect
+    local bv = Instance.new("BodyVelocity")
+    bv.Velocity = Vector3.new(0, 0, 0)
+    bv.MaxForce = Vector3.new(4000, 4000, 4000)
+    bv.Parent = hrp
 
-local MainFrame = Instance.new("Frame")
-MainFrame.Size = UDim2.new(0, 350, 0, 400)
-MainFrame.Position = UDim2.new(0.3, 0, 0.2, 0)
-MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
-MainFrame.BorderSizePixel = 0
-MainFrame.Active = true
-MainFrame.Draggable = true
-MainFrame.Parent = ScreenGui
+    -- Stay until body disappears
+    repeat
+        task.wait(0.25)
+    until not part:IsDescendantOf(workspace)
 
-local Title = Instance.new("TextLabel")
-Title.Size = UDim2.new(1, 0, 0, 40)
-Title.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-Title.Text = "★ | Pilgrammed - Custom GUI"
-Title.Font = Enum.Font.GothamBold
-Title.TextSize = 16
-Title.TextColor3 = Color3.fromRGB(255, 255, 255)
-Title.Parent = MainFrame
-
--- Tab container
-local TabHolder = Instance.new("Frame")
-TabHolder.Size = UDim2.new(1, -10, 1, -50)
-TabHolder.Position = UDim2.new(0, 5, 0, 45)
-TabHolder.BackgroundTransparency = 1
-TabHolder.Parent = MainFrame
-
--- Tab system
-local function CreateTab(name)
-    local Tab = Instance.new("ScrollingFrame")
-    Tab.Name = name
-    Tab.Size = UDim2.new(1, 0, 1, 0)
-    Tab.BackgroundTransparency = 1
-    Tab.ScrollBarThickness = 3
-    Tab.Visible = false
-    Tab.Parent = TabHolder
-
-    local Layout = Instance.new("UIListLayout")
-    Layout.Padding = UDim.new(0, 5)
-    Layout.FillDirection = Enum.FillDirection.Vertical
-    Layout.Parent = Tab
-
-    return Tab
+    bv:Destroy()
 end
 
-local Tabs = {
-    Esp = CreateTab("Esp"),
-    Auto = CreateTab("AutoFarms"),
-    Settings = CreateTab("Settings"),
-}
+-- === Scan For Bodies ===
+local function getBodies()
+    local bodies = {}
 
--- Tab buttons
-local TabButtons = Instance.new("Frame")
-TabButtons.Size = UDim2.new(1, 0, 0, 25)
-TabButtons.Position = UDim2.new(0, 0, 0, 45)
-TabButtons.BackgroundTransparency = 1
-TabButtons.Parent = MainFrame
-
-local function AddTabButton(tabName)
-    local Button = Instance.new("TextButton")
-    Button.Size = UDim2.new(0, 100, 1, 0)
-    Button.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-    Button.Text = tabName
-    Button.Font = Enum.Font.Gotham
-    Button.TextColor3 = Color3.fromRGB(255, 255, 255)
-    Button.TextSize = 14
-    Button.Parent = TabButtons
-
-    Button.MouseButton1Click:Connect(function()
-        for _, tab in pairs(Tabs) do
-            tab.Visible = false
+    -- 1. Direct children of workspace
+    for _, obj in ipairs(workspace:GetChildren()) do
+        if obj:IsA("BasePart") and obj.Name == "Body" then
+            table.insert(bodies, obj)
         end
-        Tabs[tabName].Visible = true
-    end)
-end
-
-AddTabButton("Esp")
-AddTabButton("Auto")
-AddTabButton("Settings")
-Tabs.Esp.Visible = true -- default
-
--- Helper: toggles
-local function AddToggle(tab, text, callback)
-    local Button = Instance.new("TextButton")
-    Button.Size = UDim2.new(1, -10, 0, 30)
-    Button.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-    Button.Text = "[OFF] " .. text
-    Button.TextColor3 = Color3.fromRGB(255, 255, 255)
-    Button.Font = Enum.Font.Gotham
-    Button.TextSize = 14
-    Button.Parent = tab
-
-    local state = false
-    Button.MouseButton1Click:Connect(function()
-        state = not state
-        Button.Text = (state and "[ON] " or "[OFF] ") .. text
-        callback(state)
-    end)
-end
-
--- ESP toggles
-AddToggle(Tabs.Esp, "Show Chests", function(val)
-    showChests = val
-end)
-
-AddToggle(Tabs.Esp, "Show Ore Title", function(val)
-    showOre = val
-end)
-
-AddToggle(Tabs.Esp, "Show Traveling Shop", function(val)
-    showShop = val
-end)
-
-AddToggle(Tabs.Esp, "Meteor Notify", function(val)
-    meteorNotify = val
-end)
-
--- Auto toggles
-AddToggle(Tabs.Auto, "Auto Fish", function(val)
-    autofish = val
-end)
-
--- Settings
-local CloseBtn = Instance.new("TextButton")
-CloseBtn.Size = UDim2.new(1, -10, 0, 30)
-CloseBtn.BackgroundColor3 = Color3.fromRGB(150, 50, 50)
-CloseBtn.Text = "Unload GUI"
-CloseBtn.Font = Enum.Font.GothamBold
-CloseBtn.TextSize = 14
-CloseBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-CloseBtn.Parent = Tabs.Settings
-CloseBtn.MouseButton1Click:Connect(function()
-    ScreenGui:Destroy()
-end)
-
--- Toggle GUI visibility with V
-UserInputService.InputBegan:Connect(function(input, gpe)
-    if not gpe and input.KeyCode == Enum.KeyCode.V then
-        MainFrame.Visible = not MainFrame.Visible
     end
-end)
 
-----------------------------------------------------------------------------------
--- === Logic wiring ===
-
--- Meteor notifications
-workspace.ChildAdded:Connect(function(child)
-    if child.Name == "Meteor" and meteorNotify then
-        game.StarterGui:SetCore("SendNotification", {
-            Title = "Meteor!",
-            Text = "A meteor has spawned!",
-            Duration = 5
-        })
-    end
-end)
-
--- Autofish loop
-task.spawn(function()
-    while task.wait() do
-        if autofish then
-            for i,v in pairs(workspace:GetChildren()) do
-                if v.Name == "Bobber" then
-                    if v:FindFirstChild("Attachment") and v.Attachment:FindFirstChild("Hooked") then
-                        if v.Attachment.Hooked.Enabled then
-                            vu:Button1Down(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
-                            vu:Button1Up(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
-                        end
-                    end
-                end
+    -- 2. Explorer folder
+    local explorer = workspace:FindFirstChild("Explorer")
+    if explorer then
+        for _, obj in ipairs(explorer:GetDescendants()) do
+            if obj:IsA("BasePart") and obj.Name == "Body" then
+                table.insert(bodies, obj)
             end
         end
     end
-end)
+
+    -- 3. UUID body folder
+    local uuidFolder = workspace:FindFirstChild("{ab1a3def-0d9e-4ba6-809c-5235f6bb3610}")
+    if uuidFolder and uuidFolder:FindFirstChild("Body") then
+        for _, obj in ipairs(uuidFolder.Body:GetDescendants()) do
+            if obj:IsA("BasePart") and obj.Name == "Body" then
+                table.insert(bodies, obj)
+            end
+        end
+    end
+
+    return bodies
+end
+
+-- === Float Loop Handler ===
+local function makeFloatToggle(section, name, desc)
+    local active = false
+
+    local function loop()
+        while active do
+            local bodies = getBodies()
+            if #bodies > 0 then
+                for _, body in ipairs(bodies) do
+                    if not active then break end
+                    floatAbove(body)
+                end
+            else
+                task.wait(10) -- wait before scanning again
+            end
+        end
+    end
+
+    section:NewToggle(name, desc, function(state)
+        active = state
+        if state then
+            task.spawn(loop)
+        end
+    end)
+end
+
+-- === Tabs ===
+local TeleportTab = Window:NewTab("Main")
+local TeleportSection = TeleportTab:NewSection("Island Teleports")
+
+local TravelTab = Window:NewTab("Island Travel")
+local TravelSection = TravelTab:NewSection("Travel Controls")
+
+local LunarTab = Window:NewTab("Lunar/Volcano")
+local LunarSection = LunarTab:NewSection("Special Islands")
+
+-- === Toggles (examples, add more as needed) ===
+makeFloatToggle(TeleportSection, "Mainland Float", "Float above Bodies on Mainland")
+makeFloatToggle(TeleportSection, "Jungle Island Float", "Float above Bodies on Jungle Island")
+makeFloatToggle(TravelSection, "Travel Float", "Float above Bodies while Traveling")
+makeFloatToggle(LunarSection, "Lunar Island Float", "Float above Bodies on Lunar Island")
+makeFloatToggle(LunarSection, "Volcano Island Float", "Float above Bodies on Volcano Island")
