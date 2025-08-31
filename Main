@@ -653,9 +653,16 @@ local exclusions = {
 
 -- === Island Folders ===
 local islandFolders = {
+    "Mainland",
+    "Forest Island",
     "Mountain Island",
+    "Lunar Islands",
     "Royal Island",
+    "Blizzard Island",
+    "Jungle Island",
+    "Volcano Island",
     "Desert Island",
+    "The Magical Forest",
     "Glacier Island",
 }
 
@@ -759,9 +766,17 @@ local exclusions = {
 
 -- === Island Folders ===
 local islandFolders = {
+    "Mainland",
+    "Forest Island",
+    "Mountain Island",
     "Lunar Islands",
+    "Royal Island",
+    "Blizzard Island",
     "Jungle Island",
     "Volcano Island",
+    "Desert Island",
+    "The Magical Forest",
+    "Glacier Island",
 }
 
 -- === Remote ===
