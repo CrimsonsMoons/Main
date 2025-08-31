@@ -127,7 +127,7 @@ for islandName, _ in pairs(islandConfigs) do
                 if #bodies > 0 then
                     for _, body in ipairs(bodies) do
                         while teleportToggles[islandName] and body:IsDescendantOf(workspace) do
-                            hrp.CFrame = CFrame.new(body.Position + Vector3.new(0,0,0))
+                            hrp.CFrame = CFrame.new(body.Position + Vector3.new(0,5,0))
                             task.wait(0.05)
                         end
                     end
