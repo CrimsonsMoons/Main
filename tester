@@ -626,6 +626,12 @@ local LocalPlayer = Players.LocalPlayer
 local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 local HumanoidRootPart = Character:WaitForChild("HumanoidRootPart")
 
+-- Reconnect on respawn
+LocalPlayer.CharacterAdded:Connect(function(char)
+    Character = char
+    HumanoidRootPart = char:WaitForChild("HumanoidRootPart")
+end)
+
 -- === Tool UUIDs ===
 local TOOL_UUIDS = {
     "{b3766c24-da18-40f0-be56-66dba5e882d8}",
@@ -676,7 +682,7 @@ local lastCaught = {}
 
 -- === Utility ===
 local function isUUID(name)
-    return typeof(name) == "string" and name:match("^%b{}$") ~= nil
+    return typeof(name) == "string" and name:match("^%b{}$") and #name == 38
 end
 
 -- === Toggle Logic ===
@@ -686,22 +692,30 @@ AutoSection:NewToggle("4,5,6", "Auto Catch Script 2", function(state)
     if state then
         task.spawn(function()
             while autoCatch2Enabled do
+                if not HumanoidRootPart or not HumanoidRootPart.Parent then
+                    task.wait(0.3)
+                    continue
+                end
+
                 local playerPos = HumanoidRootPart.Position
+                local now = os.clock()
 
                 -- Check island folders
-                for _, islandName in ipairs(islandFolders) do
-                    local islandFolder = Workspace:FindFirstChild("Islands"):FindFirstChild(islandName)
-                    if islandFolder then
-                        for _, child in ipairs(islandFolder:GetChildren()) do
-                            local body = child:FindFirstChild("Body")
-                            if body and isUUID(child.Name) and not exclusions[child.Name] then
-                                local dist = (body.Position - playerPos).Magnitude
-                                local now = os.clock()
-                                if dist <= CATCH_RADIUS and (not lastCaught[child] or now - lastCaught[child] > CATCH_COOLDOWN) then
-                                    for _, tool in ipairs(TOOL_UUIDS) do
-                                        remote:FireServer(tool, "Activate", child)
+                local islands = Workspace:FindFirstChild("Islands")
+                if islands then
+                    for _, islandName in ipairs(islandFolders) do
+                        local islandFolder = islands:FindFirstChild(islandName)
+                        if islandFolder then
+                            for _, child in ipairs(islandFolder:GetChildren()) do
+                                local body = child:FindFirstChild("Body")
+                                if body and isUUID(child.Name) and not exclusions[child.Name] then
+                                    local dist = (body.Position - playerPos).Magnitude
+                                    if dist <= CATCH_RADIUS and (not lastCaught[child] or now - lastCaught[child] > CATCH_COOLDOWN) then
+                                        for _, tool in ipairs(TOOL_UUIDS) do
+                                            remote:FireServer(tool, "Activate", child)
+                                        end
+                                        lastCaught[child] = now
                                     end
-                                    lastCaught[child] = now
                                 end
                             end
                         end
@@ -713,7 +727,6 @@ AutoSection:NewToggle("4,5,6", "Auto Catch Script 2", function(state)
                     local body = child:FindFirstChild("Body")
                     if body and isUUID(child.Name) and not exclusions[child.Name] then
                         local dist = (body.Position - playerPos).Magnitude
-                        local now = os.clock()
                         if dist <= CATCH_RADIUS and (not lastCaught[child] or now - lastCaught[child] > CATCH_COOLDOWN) then
                             for _, tool in ipairs(TOOL_UUIDS) do
                                 remote:FireServer(tool, "Activate", child)
@@ -728,6 +741,7 @@ AutoSection:NewToggle("4,5,6", "Auto Catch Script 2", function(state)
         end)
     end
 end)
+
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
