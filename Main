@@ -664,7 +664,7 @@ local remote = ReplicatedStorage:WaitForChild("Communication"):WaitForChild("Eve
 
 -- === Settings ===
 local CATCH_RADIUS = 15
-local CATCH_COOLDOWN = 0.5
+local CATCH_COOLDOWN = 0.8
 local lastCaught = {}
 
 -- === Utility ===
@@ -769,7 +769,7 @@ local remote = ReplicatedStorage:WaitForChild("Communication"):WaitForChild("Eve
 
 -- === Settings ===
 local CATCH_RADIUS = 15
-local CATCH_COOLDOWN = 0.5
+local CATCH_COOLDOWN = 0.8
 local lastCaught = {}
 
 -- === Utility ===
