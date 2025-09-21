@@ -1,0 +1,147 @@
+-- === GUI Library Setup ===
+local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/xHeptc/Kavo-UI-Library/main/source.lua"))()
+local Window = Library.CreateLib("All Islands Teleport", "DarkTheme")
+
+-- === Tabs ===
+local TeleportTab = Window:NewTab("Main")
+local TeleportSection = TeleportTab:NewSection("Teleport Controls")
+
+local TravelTab = Window:NewTab("Island Travel")
+local TravelSection = TravelTab:NewSection("Quick TP Buttons")
+
+local TrainTab = Window:NewTab("Train")
+local TrainSection = TrainTab:NewSection("Training Features")
+
+local AutoTab = Window:NewTab("Auto")
+local AutoSection = AutoTab:NewSection("Automation")
+
+local ShopTab = Window:NewTab("Shop")
+local ShopSection = ShopTab:NewSection("Shop Items")
+
+local LunarVolcanoTab = Window:NewTab("Lunar/Volcano")
+local LunarVolcanoSection = LunarVolcanoTab:NewSection("Special Teleports & Lava")
+
+-- === Initialization ===
+local player = game.Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local hrp = character:WaitForChild("HumanoidRootPart")
+local islandsFolder = workspace:WaitForChild("Islands")
+local explorerFolder = workspace:FindFirstChild("Explorer")
+
+player.CharacterAdded:Connect(function(newChar)
+    character = newChar
+    hrp = character:WaitForChild("HumanoidRootPart")
+end)
+
+-- === Island Configuration ===
+local islandConfigs = {
+    ["Mainland"] = {},
+    ["Forest Island"] = {},
+    ["Mountain Island"] = {},
+    ["Lunar Islands"] = {},
+    ["Royal Island"] = {},
+    ["Blizzard Island"] = {},
+    ["Jungle Island"] = {},
+    ["Volcano Island"] = {},
+    ["Desert Island"] = {},
+    ["Glacier Island"] = {},
+    ["The Magical Forest"] = {},
+}
+
+-- === Universal Exclusions ===
+local exclusions = {
+    ["{84b93b68-b932-4db8-b765-d1bd9ef8aae9}"] = true,
+    ["{c5769905-aecf-4d7a-ada9-064802b0cae9}"] = true,
+    ["{d2227f02-c482-4911-b201-7e842b31c47c}"] = true,
+    ["{6b019e60-21c6-4536-9a06-4cbfee80d88f}"] = true,
+    ["{12916ad6-7fd9-46d5-8bc1-e69671249721}"] = true,
+    ["{2c0549c7-f2d0-4828-bc2a-6d484e792cdd}"] = true,
+    ["{de31ac95-029b-4c26-b9f8-4b61faed7335}"] = true,
+    ["{fd489389-537f-40e1-bd1a-c048522d23bc}"] = true,
+    ["{f1f04024-ba69-4d0f-9fee-4f93758c1bfc}"] = true,
+    ["Horse"] = true,
+    ["Travel Boat"] = true,
+    ["c21e5cba-8957-4d65-9e54-1aaa2411a71c"] = true,
+}
+
+-- === Function to get all UUID Body parts ===
+local function getAllBodies(islandName)
+    local bodies = {}
+
+    -- Workspace direct children (UUID models)
+    for _, model in ipairs(workspace:GetChildren()) do
+        if model:IsA("Model") and model.Name:match("^%b{}$") and not exclusions[model.Name] then
+            local body = model:FindFirstChild("Body")
+            if body and body:IsA("BasePart") then
+                table.insert(bodies, body)
+            end
+        end
+    end
+
+    -- Islands folder
+    local folder = islandsFolder:FindFirstChild(islandName)
+    if folder then
+        for _, model in ipairs(folder:GetChildren()) do
+            if not exclusions[model.Name] then
+                local body = model:FindFirstChild("Body")
+                if body and body:IsA("BasePart") then
+                    table.insert(bodies, body)
+                end
+            end
+        end
+    end
+
+    -- Explorer folder
+    if explorerFolder then
+        local folder = explorerFolder:FindFirstChild(islandName)
+        if folder then
+            for _, model in ipairs(folder:GetChildren()) do
+                if not exclusions[model.Name] then
+                    local body = model:FindFirstChild("Body")
+                    if body and body:IsA("BasePart") then
+                        table.insert(bodies, body)
+                    end
+                end
+            end
+        end
+    end
+
+    return bodies
+end
+
+-- === Teleport Toggles for All Islands ===
+local teleportToggles = {}
+for islandName, _ in pairs(islandConfigs) do
+    teleportToggles[islandName] = false
+
+    TeleportSection:NewToggle("Teleport " .. islandName, "Teleport to " .. islandName, function(state)
+        teleportToggles[islandName] = state
+    end)
+end
+
+-- === Single Master Loop ===
+task.spawn(function()
+    while true do
+        for islandName, enabled in pairs(teleportToggles) do
+            if enabled then
+                local bodies = getAllBodies(islandName)
+                if #bodies > 0 then
+                    local body = bodies[1] -- just grab first valid body
+                    if body and body:IsDescendantOf(workspace) then
+                        hrp.CFrame = CFrame.new(body.Position + Vector3.new(0, 5, 0))
+                    end
+                end
+            end
+        end
+        task.wait(0.3) -- global loop tick (not too fast)
+    end
+end)
+
+-- === Travel Buttons ===
+for islandName in pairs(islandConfigs) do
+    TravelSection:NewButton("Travel to " .. islandName, "Use teleport remote", function()
+        local args = {"\1", "Travel", islandName, 1}
+        game:GetService("ReplicatedStorage"):WaitForChild("Communication", 9e9)
+            :WaitForChild("Functions", 9e9):GetChildren()[2]:FireServer(unpack(args))
+    end)
+end
