@@ -958,10 +958,20 @@ ShopSection:NewButton("Tin", "Buys Tin from Mainland Shop", function()
         :WaitForChild("Events", 9e9):GetChildren()[18]:FireServer(unpack(args))
 end)
 
-ShopSection:NewButton("Craft Tin Lassos", "Crafts 1000 Tin Lassos", function()
-    local args = {"Craft", {id = 18, variants = {}, amt = 1000}}
-    game:GetService("ReplicatedStorage"):WaitForChild("Communication", 9e9)
-        :WaitForChild("Events", 9e9):GetChildren()[9]:FireServer(unpack(args))
+local autoCraftEnabled = false
+
+ShopSection:NewToggle("Auto Craft Tin Lassos", "Continuously crafts Tin Lassos every 0.4s", function(state)
+    autoCraftEnabled = state
+    if state then
+        task.spawn(function()
+            while autoCraftEnabled do
+                local args = {"Craft", {id = 18, variants = {}, amt = 1000}}
+                game:GetService("ReplicatedStorage"):WaitForChild("Communication", 9e9)
+                    :WaitForChild("Events", 9e9):GetChildren()[9]:FireServer(unpack(args))
+                task.wait(0.4)
+            end
+        end)
+    end
 end)
 
 -- === Shop Toggles ===
