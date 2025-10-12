@@ -1,96 +1,90 @@
--- Server: ForceLoadAllFullClone.lua (ServerScriptService)
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
+-- Map Load Detection Script
+-- Detects if the game uses StreamingEnabled or distance-based map loading
+-- Works in LocalScript or Command bar (Client)
+
 local Players = game:GetService("Players")
-local IslandsFolder = workspace:WaitForChild("Islands", 10)
+local ReplicatedFirst = game:GetService("ReplicatedFirst")
+local Lighting = game:GetService("Lighting")
+local Workspace = game:GetService("Workspace")
 
--- RemoteEvent for requests
-local event = ReplicatedStorage:FindFirstChild("RequestForceLoadAll")
-if not event then
-    event = Instance.new("RemoteEvent")
-    event.Name = "RequestForceLoadAll"
-    event.Parent = ReplicatedStorage
+local player = Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local hrp = character:WaitForChild("HumanoidRootPart")
+
+local isStreaming = false
+local testFinished = false
+
+-- Step 1: Check StreamingEnabled flag
+if Workspace.StreamingEnabled then
+	isStreaming = true
+	print("[DETECTION] StreamingEnabled = true (map loads based on distance)")
+else
+	print("[DETECTION] StreamingEnabled = false (full map *might* load)")
 end
 
--- Throttle table (seconds)
-local THROTTLE_TIME = 20
-local lastRequest = {}
+-- Step 2: Attempt to detect actual streaming behavior
+task.spawn(function()
+	local testDistance = 3000 -- how far to check for parts
+	local totalParts = 0
+	local farPartsFound = 0
 
--- Sanitize: remove scripts and unwanted heavy instances
-local function sanitize(instance)
-    for _, child in ipairs(instance:GetDescendants()) do
-        if child:IsA("Script") or child:IsA("LocalScript") or child:IsA("ModuleScript") then
-            child:Destroy()
-        elseif child:IsA("ParticleEmitter") or child:IsA("Trail") then
-            -- optional: destroy particle systems to reduce load
-            child:Destroy()
-        elseif child:IsA("Sound") then
-            -- optional: stop or remove sounds
-            child:Destroy()
-        end
-    end
-end
+	for _, part in pairs(Workspace:GetDescendants()) do
+		if part:IsA("BasePart") then
+			totalParts += 1
+			local dist = (hrp.Position - part.Position).Magnitude
+			if dist > testDistance then
+				farPartsFound += 1
+			end
+		end
+	end
 
-local function ensurePlayerFolder(player)
-    local root = workspace:FindFirstChild("PlayerIslands")
-    if not root then
-        root = Instance.new("Folder")
-        root.Name = "PlayerIslands"
-        root.Parent = workspace
-    end
-    local pf = root:FindFirstChild(player.Name)
-    if not pf then
-        pf = Instance.new("Folder")
-        pf.Name = player.Name
-        pf.Parent = root
-    end
-    return pf
-end
+	if totalParts == 0 then
+		print("[DETECTION] Workspace empty — map may not be fully loaded yet.")
+		testFinished = true
+		return
+	end
 
--- Optionally limit total number of clones or parts to avoid exploding memory
-local MAX_TOTAL_CHILDREN = 10000 -- tweak as needed
+	print(string.format("[SCAN] Checked %d parts; %d were farther than %d studs.",
+		totalParts, farPartsFound, testDistance))
 
-local function countDescendants(folder)
-    local n = 0
-    for _, v in ipairs(folder:GetDescendants()) do n = n + 1 end
-    return n
-end
+	-- If we find *zero* far parts, it likely means they are being streamed out.
+	if farPartsFound == 0 and Workspace.StreamingEnabled then
+		print("[RESULT] Map is streaming. Only nearby parts are loaded.")
+		isStreaming = true
+	elseif farPartsFound > 0 then
+		print("[RESULT] Full map appears loaded (no distance restriction).")
+		isStreaming = false
+	else
+		print("[RESULT] Uncertain. Map might still be loading.")
+	end
 
-event.OnServerEvent:Connect(function(player)
-    -- basic throttle
-    local now = os.time()
-    if lastRequest[player.UserId] and (now - lastRequest[player.UserId]) < THROTTLE_TIME then
-        warn(("Player %s attempted force-load too quickly."):format(player.Name))
-        return
-    end
-    lastRequest[player.UserId] = now
+	testFinished = true
+end)
 
-    -- prepare target folder
-    local playerFolder = ensurePlayerFolder(player)
+-- Step 3: Optional live test — see if distant regions appear when moving
+task.spawn(function()
+	local initialCount = #Workspace:GetDescendants()
+	task.wait(10)
+	local laterCount = #Workspace:GetDescendants()
 
-    -- clear previous copy (optional)
-    for _, child in ipairs(playerFolder:GetChildren()) do
-        child:Destroy()
-    end
+	if laterCount > initialCount + 50 then
+		print("[LIVE CHECK] More parts appeared after moving or waiting — streaming confirmed.")
+		isStreaming = true
+	elseif laterCount < initialCount then
+		print("[LIVE CHECK] Some parts unloaded — streaming confirmed.")
+		isStreaming = true
+	else
+		print("[LIVE CHECK] Part count stable — likely full map load.")
+	end
+end)
 
-    -- Clone all islands safely
-    local totalBefore = countDescendants(workspace)
-    local totalCloned = 0
-    for _, island in ipairs(IslandsFolder:GetChildren()) do
-        if island:IsA("Model") or island:IsA("Folder") then
-            local ok, clone = pcall(function() return island:Clone() end)
-            if ok and clone then
-                -- sanitize to avoid running scripts / heavy stuff on this clone
-                sanitize(clone)
-                clone.Parent = playerFolder
-                totalCloned = totalCloned + 1
-            end
-        end
-        -- optional safety: stop if too many objects already
-        if (countDescendants(workspace) - totalBefore) > MAX_TOTAL_CHILDREN then
-            warn("Aborting clone: would exceed MAX_TOTAL_CHILDREN")
-            break
-        end
-    end
-
-    print(("Force-loaded %d islands for %s"):format(totalCloned, player.Name))
+-- Final result after delay
+task.delay(12, function()
+	print("\n====== MAP LOAD DETECTION RESULT ======")
+	if isStreaming then
+		warn("🟠 The game is using STREAMING — map only loads near the player.")
+	else
+		print("🟢 The full map appears to be LOADED and not distance-limited.")
+	end
+	print("=======================================")
 end)
