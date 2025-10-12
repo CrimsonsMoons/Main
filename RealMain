@@ -1127,6 +1127,9 @@ AutoSection:Toggle{
 -- === Cycle Toggle 1: Glacier → Desert → Royal ===
 local cycleIslandsEnabled1 = false
 
+-- === Cycle Toggle 1: Glacier → Desert → Royal ===
+local cycleIslandsEnabled1 = false
+
 ExtraTab:Toggle{
     Name = "Cycle Glacier → Desert → Royal",
     StartingState = false,
@@ -1156,8 +1159,16 @@ ExtraTab:Toggle{
                             for _, pos in ipairs(posList) do
                                 if not cycleIslandsEnabled1 then break end
                                 hrp.CFrame = CFrame.new(pos + Vector3.new(0,5,0))
-                                task.wait(12)
-                                if #getAllBodies(currentIsland) > 0 then break end
+                                
+                                -- Break long wait into smaller waits to check toggle
+                                local waitTime = 12
+                                local interval = 0.1
+                                for t=0, waitTime, interval do
+                                    if not cycleIslandsEnabled1 then break end
+                                    task.wait(interval)
+                                end
+
+                                if #getAllBodies(currentIsland) > 0 or not cycleIslandsEnabled1 then break end
                             end
                         end
 
@@ -1205,8 +1216,16 @@ ExtraTab:Toggle{
                             for _, pos in ipairs(posList) do
                                 if not cycleIslandsEnabled2 then break end
                                 hrp.CFrame = CFrame.new(pos + Vector3.new(0,5,0))
-                                task.wait(12)
-                                if #getAllBodies(currentIsland) > 0 then break end
+
+                                -- Break long wait into smaller waits to check toggle
+                                local waitTime = 12
+                                local interval = 0.1
+                                for t=0, waitTime, interval do
+                                    if not cycleIslandsEnabled2 then break end
+                                    task.wait(interval)
+                                end
+
+                                if #getAllBodies(currentIsland) > 0 or not cycleIslandsEnabled2 then break end
                             end
                         end
 
