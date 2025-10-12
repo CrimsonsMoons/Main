@@ -1132,3 +1132,79 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
         GUI.Visible = not GUI.Visible
     end
 end)
+-- === Extra Tab ===
+local ExtraTab = GUI:Tab{
+    Name = "Extra",
+    Icon = "rbxassetid://8569322835"
+}
+
+local ExtraSection = ExtraTab:Section{
+    Name = "Volcano & Speed Settings"
+}
+
+-- Remove Volcano Lava Button
+ExtraSection:Button{
+    Name = "Remove Volcano Lava",
+    Description = "Instantly deletes Volcano Island LavaParts",
+    Callback = function()
+        local lavaFolder = workspace:FindFirstChild("Islands")
+            and workspace.Islands:FindFirstChild("Volcano Island")
+            and workspace.Islands["Volcano Island"]:FindFirstChild("LavaParts")
+        if lavaFolder then
+            lavaFolder:Destroy()
+            print("Volcano lava removed!")
+        else
+            print("No LavaParts found.")
+        end
+    end
+}
+
+-- Speed Hack Variables
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+local Humanoid = Character:WaitForChild("Humanoid")
+
+-- Reconnect Humanoid on respawn
+LocalPlayer.CharacterAdded:Connect(function(char)
+    Character = char
+    Humanoid = char:WaitForChild("Humanoid")
+end)
+
+-- WalkSpeed Slider
+ExtraSection:Slider{
+    Name = "WalkSpeed",
+    Min = 16,
+    Max = 500,
+    StartingValue = 16,
+    Callback = function(value)
+        if Humanoid then
+            Humanoid.WalkSpeed = value
+        end
+    end
+}
+
+-- JumpPower Slider
+ExtraSection:Slider{
+    Name = "JumpPower",
+    Min = 50,
+    Max = 500,
+    StartingValue = 50,
+    Callback = function(value)
+        if Humanoid then
+            Humanoid.JumpPower = value
+        end
+    end
+}
+
+-- Reset Button
+ExtraSection:Button{
+    Name = "Reset Speed",
+    Description = "Resets WalkSpeed and JumpPower to default",
+    Callback = function()
+        if Humanoid then
+            Humanoid.WalkSpeed = 16
+            Humanoid.JumpPower = 50
+        end
+    end
+}
