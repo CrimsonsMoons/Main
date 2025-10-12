@@ -1124,12 +1124,6 @@ AutoSection:Toggle{
     end
 }
 
--- === Cycle Toggle 1: Glacier → Desert → Royal ===
-local cycleIslandsEnabled1 = false
-
--- === Cycle Toggle 1: Glacier → Desert → Royal ===
-local cycleIslandsEnabled1 = false
-
 -- === Extra Tab ===
 local ExtraTab = Window:Tab("Extra") -- create the Extra tab if not already
 
