@@ -1243,3 +1243,15 @@ ExtraTab:Toggle{
         end
     end
 }
+
+ExtraTab:Button{
+    Name = "Remove Volcano Lava",
+    Callback = function()
+        local lavaFolder = workspace:FindFirstChild("Islands")
+            and workspace.Islands:FindFirstChild("Volcano Island")
+            and workspace.Islands["Volcano Island"]:FindFirstChild("LavaParts")
+        if lavaFolder then
+            lavaFolder:Destroy()
+        end
+    end
+}
