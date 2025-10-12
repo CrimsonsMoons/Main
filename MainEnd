@@ -1124,54 +1124,48 @@ AutoSection:Toggle{
     end
 }
 
--- === Extra Tab ===
-local ExtraTab = GUI:Tab{
-    Name = "Extra",
-    Icon = "rbxassetid://8569322835"
-}
+-- === Cycle Toggle 1: Glacier → Desert → Royal ===
+local cycleIslandsEnabled1 = false
 
-local SpecialSection = ExtraTab:Section{ Name = "Special Auto-Teleport" }
-
--- Glacier → Desert → Royal
-local specialToggle1Enabled = false
-SpecialSection:Toggle{
-    Name = "Glacier → Desert → Royal",
-    Description = "Cycles through Glacier, Desert, Royal Islands using bodies and positions",
+ExtraTab:Toggle{
+    Name = "Cycle Glacier → Desert → Royal",
     StartingState = false,
     Callback = function(state)
-        specialToggle1Enabled = state
+        cycleIslandsEnabled1 = state
         if state then
             task.spawn(function()
-                local islandsOrder = {"Glacier Island", "Desert Island", "Royal Island"}
-                while specialToggle1Enabled do
-                    for _, islandName in ipairs(islandsOrder) do
-                        if not specialToggle1Enabled then break end
+                local islandSequence = {"Glacier Island", "Desert Island", "Royal Island"}
+                local islandIndex = 1
+                local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+                while cycleIslandsEnabled1 do
+                    local currentIsland = islandSequence[islandIndex]
+                    local startTime = os.clock()
+                    while os.clock() - startTime < 205 and cycleIslandsEnabled1 do -- 3 mins 25 sec
+                        hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+                        if not hrp then break end
 
-                        local toggle = islandToggles[islandName]
-                        local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
-                        if hrp then
-                            local startTime = tick()
-                            local duration = 205 -- 3 minutes 25 seconds
-                            while tick() - startTime < duration and specialToggle1Enabled do
-                                local bodies = getAllBodies(islandName)
-                                local currentBody = bodies[1]
+                        local bodies = getAllBodies(currentIsland)
+                        local posList = positionsByIsland[currentIsland]
 
-                                if currentBody and currentBody.Parent then
-                                    hrp.CFrame = CFrame.new(currentBody.Position + Vector3.new(0,5,0))
-                                    task.wait(0.3)
-                                else
-                                    -- Fallback to positions if no bodies found
-                                    local positions = positionsByIsland[islandName] or {}
-                                    for _, pos in ipairs(positions) do
-                                        if not specialToggle1Enabled then break end
-                                        hrp.CFrame = CFrame.new(pos + Vector3.new(0,5,0))
-                                        task.wait(12)
-                                        if #getAllBodies(islandName) > 0 then break end
-                                    end
-                                end
-                                task.wait(0.1)
+                        if #bodies > 0 then
+                            local body = bodies[1]
+                            if body and body.Parent then
+                                hrp.CFrame = CFrame.new(body.Position + Vector3.new(0,5,0))
+                            end
+                        elseif #posList > 0 then
+                            for _, pos in ipairs(posList) do
+                                if not cycleIslandsEnabled1 then break end
+                                hrp.CFrame = CFrame.new(pos + Vector3.new(0,5,0))
+                                task.wait(12)
+                                if #getAllBodies(currentIsland) > 0 then break end
                             end
                         end
+
+                        task.wait(0.3)
+                    end
+                    islandIndex = islandIndex + 1
+                    if islandIndex > #islandSequence then
+                        islandIndex = 1
                     end
                 end
             end)
@@ -1179,46 +1173,48 @@ SpecialSection:Toggle{
     end
 }
 
--- Lunar → Volcano → Jungle
-local specialToggle2Enabled = false
-SpecialSection:Toggle{
-    Name = "Lunar → Volcano → Jungle",
-    Description = "Cycles through Lunar, Volcano, Jungle Islands using bodies and positions",
+-- === Cycle Toggle 2: Lunar → Volcano → Jungle ===
+local cycleIslandsEnabled2 = false
+
+ExtraTab:Toggle{
+    Name = "Cycle Lunar → Volcano → Jungle",
     StartingState = false,
     Callback = function(state)
-        specialToggle2Enabled = state
+        cycleIslandsEnabled2 = state
         if state then
             task.spawn(function()
-                local islandsOrder = {"Lunar Islands", "Volcano Island", "Jungle Island"}
-                while specialToggle2Enabled do
-                    for _, islandName in ipairs(islandsOrder) do
-                        if not specialToggle2Enabled then break end
+                local islandSequence = {"Lunar Islands", "Volcano Island", "Jungle Island"}
+                local islandIndex = 1
+                local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+                while cycleIslandsEnabled2 do
+                    local currentIsland = islandSequence[islandIndex]
+                    local startTime = os.clock()
+                    while os.clock() - startTime < 205 and cycleIslandsEnabled2 do -- 3 mins 25 sec
+                        hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+                        if not hrp then break end
 
-                        local toggle = islandToggles[islandName]
-                        local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
-                        if hrp then
-                            local startTime = tick()
-                            local duration = 205 -- 3 minutes 25 seconds
-                            while tick() - startTime < duration and specialToggle2Enabled do
-                                local bodies = getAllBodies(islandName)
-                                local currentBody = bodies[1]
+                        local bodies = getAllBodies(currentIsland)
+                        local posList = positionsByIsland[currentIsland]
 
-                                if currentBody and currentBody.Parent then
-                                    hrp.CFrame = CFrame.new(currentBody.Position + Vector3.new(0,5,0))
-                                    task.wait(0.3)
-                                else
-                                    -- Fallback to positions if no bodies found
-                                    local positions = positionsByIsland[islandName] or {}
-                                    for _, pos in ipairs(positions) do
-                                        if not specialToggle2Enabled then break end
-                                        hrp.CFrame = CFrame.new(pos + Vector3.new(0,5,0))
-                                        task.wait(12)
-                                        if #getAllBodies(islandName) > 0 then break end
-                                    end
-                                end
-                                task.wait(0.1)
+                        if #bodies > 0 then
+                            local body = bodies[1]
+                            if body and body.Parent then
+                                hrp.CFrame = CFrame.new(body.Position + Vector3.new(0,5,0))
+                            end
+                        elseif #posList > 0 then
+                            for _, pos in ipairs(posList) do
+                                if not cycleIslandsEnabled2 then break end
+                                hrp.CFrame = CFrame.new(pos + Vector3.new(0,5,0))
+                                task.wait(12)
+                                if #getAllBodies(currentIsland) > 0 then break end
                             end
                         end
+
+                        task.wait(0.3)
+                    end
+                    islandIndex = islandIndex + 1
+                    if islandIndex > #islandSequence then
+                        islandIndex = 1
                     end
                 end
             end)
