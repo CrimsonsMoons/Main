@@ -1132,6 +1132,7 @@ local ExtraTab = GUI:Tab{
 
 -- === Cycle Toggle 1: Glacier → Desert → Royal ===
 local cycleIslandsEnabled1 = false
+
 ExtraTab:Toggle{
     Name = "Cycle Glacier → Desert → Royal",
     StartingState = false,
@@ -1141,11 +1142,12 @@ ExtraTab:Toggle{
             task.spawn(function()
                 local islandSequence = {"Glacier Island", "Desert Island", "Royal Island"}
                 local islandIndex = 1
+                local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
                 while cycleIslandsEnabled1 do
                     local currentIsland = islandSequence[islandIndex]
                     local startTime = os.clock()
                     while os.clock() - startTime < 205 and cycleIslandsEnabled1 do -- 3 mins 25 sec
-                        local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+                        hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
                         if not hrp then break end
 
                         local bodies = getAllBodies(currentIsland)
@@ -1172,6 +1174,7 @@ ExtraTab:Toggle{
                                 if #getAllBodies(currentIsland) > 0 or not cycleIslandsEnabled1 then break end
                             end
                         end
+
                         task.wait(0.3)
                     end
                     islandIndex = islandIndex + 1
@@ -1186,6 +1189,7 @@ ExtraTab:Toggle{
 
 -- === Cycle Toggle 2: Lunar → Volcano → Jungle ===
 local cycleIslandsEnabled2 = false
+
 ExtraTab:Toggle{
     Name = "Cycle Lunar → Volcano → Jungle",
     StartingState = false,
@@ -1195,11 +1199,12 @@ ExtraTab:Toggle{
             task.spawn(function()
                 local islandSequence = {"Lunar Islands", "Volcano Island", "Jungle Island"}
                 local islandIndex = 1
+                local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
                 while cycleIslandsEnabled2 do
                     local currentIsland = islandSequence[islandIndex]
                     local startTime = os.clock()
-                    while os.clock() - startTime < 205 and cycleIslandsEnabled2 do
-                        local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+                    while os.clock() - startTime < 205 and cycleIslandsEnabled2 do -- 3 mins 25 sec
+                        hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
                         if not hrp then break end
 
                         local bodies = getAllBodies(currentIsland)
@@ -1226,6 +1231,7 @@ ExtraTab:Toggle{
                                 if #getAllBodies(currentIsland) > 0 or not cycleIslandsEnabled2 then break end
                             end
                         end
+
                         task.wait(0.3)
                     end
                     islandIndex = islandIndex + 1
@@ -1234,19 +1240,6 @@ ExtraTab:Toggle{
                     end
                 end
             end)
-        end
-    end
-}
-
--- === Remove Volcano Lava Button ===
-ExtraTab:Button{
-    Name = "Remove Volcano Lava",
-    Callback = function()
-        local lavaFolder = workspace:FindFirstChild("Islands")
-            and workspace.Islands:FindFirstChild("Volcano Island")
-            and workspace.Islands["Volcano Island"]:FindFirstChild("LavaParts")
-        if lavaFolder then
-            lavaFolder:Destroy()
         end
     end
 }
