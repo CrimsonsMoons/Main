@@ -1,0 +1,96 @@
+-- Server: ForceLoadAllFullClone.lua (ServerScriptService)
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
+local IslandsFolder = workspace:WaitForChild("Islands", 10)
+
+-- RemoteEvent for requests
+local event = ReplicatedStorage:FindFirstChild("RequestForceLoadAll")
+if not event then
+    event = Instance.new("RemoteEvent")
+    event.Name = "RequestForceLoadAll"
+    event.Parent = ReplicatedStorage
+end
+
+-- Throttle table (seconds)
+local THROTTLE_TIME = 20
+local lastRequest = {}
+
+-- Sanitize: remove scripts and unwanted heavy instances
+local function sanitize(instance)
+    for _, child in ipairs(instance:GetDescendants()) do
+        if child:IsA("Script") or child:IsA("LocalScript") or child:IsA("ModuleScript") then
+            child:Destroy()
+        elseif child:IsA("ParticleEmitter") or child:IsA("Trail") then
+            -- optional: destroy particle systems to reduce load
+            child:Destroy()
+        elseif child:IsA("Sound") then
+            -- optional: stop or remove sounds
+            child:Destroy()
+        end
+    end
+end
+
+local function ensurePlayerFolder(player)
+    local root = workspace:FindFirstChild("PlayerIslands")
+    if not root then
+        root = Instance.new("Folder")
+        root.Name = "PlayerIslands"
+        root.Parent = workspace
+    end
+    local pf = root:FindFirstChild(player.Name)
+    if not pf then
+        pf = Instance.new("Folder")
+        pf.Name = player.Name
+        pf.Parent = root
+    end
+    return pf
+end
+
+-- Optionally limit total number of clones or parts to avoid exploding memory
+local MAX_TOTAL_CHILDREN = 10000 -- tweak as needed
+
+local function countDescendants(folder)
+    local n = 0
+    for _, v in ipairs(folder:GetDescendants()) do n = n + 1 end
+    return n
+end
+
+event.OnServerEvent:Connect(function(player)
+    -- basic throttle
+    local now = os.time()
+    if lastRequest[player.UserId] and (now - lastRequest[player.UserId]) < THROTTLE_TIME then
+        warn(("Player %s attempted force-load too quickly."):format(player.Name))
+        return
+    end
+    lastRequest[player.UserId] = now
+
+    -- prepare target folder
+    local playerFolder = ensurePlayerFolder(player)
+
+    -- clear previous copy (optional)
+    for _, child in ipairs(playerFolder:GetChildren()) do
+        child:Destroy()
+    end
+
+    -- Clone all islands safely
+    local totalBefore = countDescendants(workspace)
+    local totalCloned = 0
+    for _, island in ipairs(IslandsFolder:GetChildren()) do
+        if island:IsA("Model") or island:IsA("Folder") then
+            local ok, clone = pcall(function() return island:Clone() end)
+            if ok and clone then
+                -- sanitize to avoid running scripts / heavy stuff on this clone
+                sanitize(clone)
+                clone.Parent = playerFolder
+                totalCloned = totalCloned + 1
+            end
+        end
+        -- optional safety: stop if too many objects already
+        if (countDescendants(workspace) - totalBefore) > MAX_TOTAL_CHILDREN then
+            warn("Aborting clone: would exceed MAX_TOTAL_CHILDREN")
+            break
+        end
+    end
+
+    print(("Force-loaded %d islands for %s"):format(totalCloned, player.Name))
+end)
