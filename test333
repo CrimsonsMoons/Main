@@ -1133,39 +1133,71 @@ local ExtraTab = GUI:Tab{
 local specialAutoEnabled = false
 ExtraTab:Section{ Name = "Special Actions" }:Toggle{
     Name = "Special Island Catch",
-    Description = "Auto-catch Glacier -> Desert -> Royal for 3m25s each",
+    Description = "Auto-catch Glacier -> Desert -> Royal using Travel + Body positions",
     StartingState = false,
     Callback = function(state)
         specialAutoEnabled = state
         if state then
             task.spawn(function()
                 local islandsSequence = {"Glacier Island", "Desert Island", "Royal Island"}
-                local duration = 205 -- 3 minutes 25 seconds in seconds
-                local startTime = os.clock()
+                local duration = 205 -- 3 minutes 25 seconds per island
+                local lastCaught = {}
                 local playerHrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
-                local remoteFolder = ReplicatedStorage:WaitForChild("Communication"):WaitForChild("Functions", 9e9)
-                local travelRemote = remoteFolder:GetChildren()[2] -- adjust if needed
+                local travelRemote = game:GetService("ReplicatedStorage"):WaitForChild("Communication"):WaitForChild("Functions",9e9):GetChildren()[2]
 
-                for _, islandName in ipairs(islandsSequence) do
-                    if not specialAutoEnabled then break end
+                local function isUUID(name)
+                    return typeof(name) == "string" and name:match("^%b{}$") ~= nil
+                end
 
-                    -- Teleport to island using travel remote
-                    travelRemote:FireServer("\1", "Travel", islandName, 1)
-
-                    local islandFolder = workspace:FindFirstChild("Islands") and workspace.Islands:FindFirstChild(islandName)
-                    local islandStartTime = os.clock()
-
-                    while os.clock() - islandStartTime < duration do
+                while specialAutoEnabled do
+                    for _, islandName in ipairs(islandsSequence) do
                         if not specialAutoEnabled then break end
-                        task.wait(0.5)
-                        
-                        if islandFolder then
-                            for _, child in ipairs(islandFolder:GetChildren()) do
-                                local body = child:FindFirstChild("Body")
-                                if body and body.Parent then
-                                    -- Teleport player to Body
+                        local toggle = islandToggles[islandName]
+                        local positions = positionsByIsland[islandName] or {}
+
+                        -- Travel using Travel tab remote
+                        travelRemote:FireServer("\1", "Travel", islandName, 1)
+                        local islandFolder = workspace:FindFirstChild("Islands") and workspace.Islands:FindFirstChild(islandName)
+                        local startTime = os.clock()
+
+                        while os.clock() - startTime < duration do
+                            if not specialAutoEnabled then break end
+                            task.wait(0.3)
+
+                            -- Check for Bodies first
+                            local bodies = {}
+                            if islandFolder then
+                                for _, model in ipairs(islandFolder:GetChildren()) do
+                                    if not exclusions[model.Name] then
+                                        local body = model:FindFirstChild("Body")
+                                        if body and body.Parent then
+                                            table.insert(bodies, body)
+                                        end
+                                    end
+                                end
+                            end
+
+                            if #bodies > 0 then
+                                -- Teleport to first Body found
+                                local targetBody = bodies[1]
+                                if playerHrp and targetBody then
+                                    playerHrp.CFrame = CFrame.new(targetBody.Position + Vector3.new(0,5,0))
+                                    for _, tool in ipairs(TOOL_UUIDS) do
+                                        remote:FireServer(tool, "Activate", targetBody)
+                                    end
+                                    lastCaught[targetBody] = os.clock()
+                                end
+                            elseif #positions > 0 then
+                                -- No Bodies, move to predefined positions
+                                for _, pos in ipairs(positions) do
+                                    if not specialAutoEnabled then break end
                                     if playerHrp then
-                                        playerHrp.CFrame = CFrame.new(body.Position + Vector3.new(0,5,0))
+                                        playerHrp.CFrame = CFrame.new(pos + Vector3.new(0,5,0))
+                                    end
+                                    task.wait(12)
+                                    -- Stop early if a Body appears
+                                    if islandFolder and #islandFolder:GetChildren() > 0 then
+                                        break
                                     end
                                 end
                             end
