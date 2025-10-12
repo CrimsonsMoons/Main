@@ -1,4 +1,4 @@
-=-- Map Load Detection Script
+-- Map Load Detection Script
 -- Detects if the game uses StreamingEnabled or distance-based map loading
 -- Works in LocalScript or Command bar (Client)
 
