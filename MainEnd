@@ -1130,44 +1130,93 @@ local ExtraTab = GUI:Tab{
     Icon = "rbxassetid://8569322835"
 }
 
-local specialAutoEnabled = false
-ExtraTab:Section{ Name = "Special Actions" }:Toggle{
-    Name = "Special Island Catch",
-    Description = "Auto-catch Glacier -> Desert -> Royal for 3m25s each",
+local SpecialSection = ExtraTab:Section{ Name = "Special Auto-Teleport" }
+
+-- Glacier → Desert → Royal
+local specialToggle1Enabled = false
+SpecialSection:Toggle{
+    Name = "Glacier → Desert → Royal",
+    Description = "Cycles through Glacier, Desert, Royal Islands using bodies and positions",
     StartingState = false,
     Callback = function(state)
-        specialAutoEnabled = state
+        specialToggle1Enabled = state
         if state then
             task.spawn(function()
-                local islandsSequence = {"Glacier Island", "Desert Island", "Royal Island"}
-                local duration = 205 -- 3 minutes 25 seconds in seconds
-                local startTime = os.clock()
-                local playerHrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
-                local remoteFolder = ReplicatedStorage:WaitForChild("Communication"):WaitForChild("Functions", 9e9)
-                local travelRemote = remoteFolder:GetChildren()[2] -- adjust if needed
+                local islandsOrder = {"Glacier Island", "Desert Island", "Royal Island"}
+                while specialToggle1Enabled do
+                    for _, islandName in ipairs(islandsOrder) do
+                        if not specialToggle1Enabled then break end
 
-                for _, islandName in ipairs(islandsSequence) do
-                    if not specialAutoEnabled then break end
+                        local toggle = islandToggles[islandName]
+                        local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+                        if hrp then
+                            local startTime = tick()
+                            local duration = 205 -- 3 minutes 25 seconds
+                            while tick() - startTime < duration and specialToggle1Enabled do
+                                local bodies = getAllBodies(islandName)
+                                local currentBody = bodies[1]
 
-                    -- Teleport to island using travel remote
-                    travelRemote:FireServer("\1", "Travel", islandName, 1)
-
-                    local islandFolder = workspace:FindFirstChild("Islands") and workspace.Islands:FindFirstChild(islandName)
-                    local islandStartTime = os.clock()
-
-                    while os.clock() - islandStartTime < duration do
-                        if not specialAutoEnabled then break end
-                        task.wait(0.5)
-                        
-                        if islandFolder then
-                            for _, child in ipairs(islandFolder:GetChildren()) do
-                                local body = child:FindFirstChild("Body")
-                                if body and body.Parent then
-                                    -- Teleport player to Body
-                                    if playerHrp then
-                                        playerHrp.CFrame = CFrame.new(body.Position + Vector3.new(0,5,0))
+                                if currentBody and currentBody.Parent then
+                                    hrp.CFrame = CFrame.new(currentBody.Position + Vector3.new(0,5,0))
+                                    task.wait(0.3)
+                                else
+                                    -- Fallback to positions if no bodies found
+                                    local positions = positionsByIsland[islandName] or {}
+                                    for _, pos in ipairs(positions) do
+                                        if not specialToggle1Enabled then break end
+                                        hrp.CFrame = CFrame.new(pos + Vector3.new(0,5,0))
+                                        task.wait(12)
+                                        if #getAllBodies(islandName) > 0 then break end
                                     end
                                 end
+                                task.wait(0.1)
+                            end
+                        end
+                    end
+                end
+            end)
+        end
+    end
+}
+
+-- Lunar → Volcano → Jungle
+local specialToggle2Enabled = false
+SpecialSection:Toggle{
+    Name = "Lunar → Volcano → Jungle",
+    Description = "Cycles through Lunar, Volcano, Jungle Islands using bodies and positions",
+    StartingState = false,
+    Callback = function(state)
+        specialToggle2Enabled = state
+        if state then
+            task.spawn(function()
+                local islandsOrder = {"Lunar Islands", "Volcano Island", "Jungle Island"}
+                while specialToggle2Enabled do
+                    for _, islandName in ipairs(islandsOrder) do
+                        if not specialToggle2Enabled then break end
+
+                        local toggle = islandToggles[islandName]
+                        local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+                        if hrp then
+                            local startTime = tick()
+                            local duration = 205 -- 3 minutes 25 seconds
+                            while tick() - startTime < duration and specialToggle2Enabled do
+                                local bodies = getAllBodies(islandName)
+                                local currentBody = bodies[1]
+
+                                if currentBody and currentBody.Parent then
+                                    hrp.CFrame = CFrame.new(currentBody.Position + Vector3.new(0,5,0))
+                                    task.wait(0.3)
+                                else
+                                    -- Fallback to positions if no bodies found
+                                    local positions = positionsByIsland[islandName] or {}
+                                    for _, pos in ipairs(positions) do
+                                        if not specialToggle2Enabled then break end
+                                        hrp.CFrame = CFrame.new(pos + Vector3.new(0,5,0))
+                                        task.wait(12)
+                                        if #getAllBodies(islandName) > 0 then break end
+                                    end
+                                end
+                                task.wait(0.1)
                             end
                         end
                     end
