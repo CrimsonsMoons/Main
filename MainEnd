@@ -1124,87 +1124,55 @@ AutoSection:Toggle{
     end
 }
 
--- GUI toggle with G key
-GUI.Visible = true
-UserInputService.InputBegan:Connect(function(input, gameProcessed)
-    if gameProcessed then return end
-    if input.KeyCode == Enum.KeyCode.G then
-        GUI.Visible = not GUI.Visible
-    end
-end)
 -- === Extra Tab ===
 local ExtraTab = GUI:Tab{
     Name = "Extra",
     Icon = "rbxassetid://8569322835"
 }
 
-local ExtraSection = ExtraTab:Section{
-    Name = "Volcano & Speed Settings"
-}
+local specialAutoEnabled = false
+ExtraTab:Section{ Name = "Special Actions" }:Toggle{
+    Name = "Special Island Catch",
+    Description = "Auto-catch Glacier -> Desert -> Royal for 3m25s each",
+    StartingState = false,
+    Callback = function(state)
+        specialAutoEnabled = state
+        if state then
+            task.spawn(function()
+                local islandsSequence = {"Glacier Island", "Desert Island", "Royal Island"}
+                local duration = 205 -- 3 minutes 25 seconds in seconds
+                local startTime = os.clock()
+                local playerHrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+                local remoteFolder = ReplicatedStorage:WaitForChild("Communication"):WaitForChild("Functions", 9e9)
+                local travelRemote = remoteFolder:GetChildren()[2] -- adjust if needed
 
--- Remove Volcano Lava Button
-ExtraSection:Button{
-    Name = "Remove Volcano Lava",
-    Description = "Instantly deletes Volcano Island LavaParts",
-    Callback = function()
-        local lavaFolder = workspace:FindFirstChild("Islands")
-            and workspace.Islands:FindFirstChild("Volcano Island")
-            and workspace.Islands["Volcano Island"]:FindFirstChild("LavaParts")
-        if lavaFolder then
-            lavaFolder:Destroy()
-            print("Volcano lava removed!")
-        else
-            print("No LavaParts found.")
-        end
-    end
-}
+                for _, islandName in ipairs(islandsSequence) do
+                    if not specialAutoEnabled then break end
 
--- Speed Hack Variables
-local Players = game:GetService("Players")
-local LocalPlayer = Players.LocalPlayer
-local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
-local Humanoid = Character:WaitForChild("Humanoid")
+                    -- Teleport to island using travel remote
+                    travelRemote:FireServer("\1", "Travel", islandName, 1)
 
--- Reconnect Humanoid on respawn
-LocalPlayer.CharacterAdded:Connect(function(char)
-    Character = char
-    Humanoid = char:WaitForChild("Humanoid")
-end)
+                    local islandFolder = workspace:FindFirstChild("Islands") and workspace.Islands:FindFirstChild(islandName)
+                    local islandStartTime = os.clock()
 
--- WalkSpeed Slider
-ExtraSection:Slider{
-    Name = "WalkSpeed",
-    Min = 16,
-    Max = 500,
-    StartingValue = 16,
-    Callback = function(value)
-        if Humanoid then
-            Humanoid.WalkSpeed = value
-        end
-    end
-}
-
--- JumpPower Slider
-ExtraSection:Slider{
-    Name = "JumpPower",
-    Min = 50,
-    Max = 500,
-    StartingValue = 50,
-    Callback = function(value)
-        if Humanoid then
-            Humanoid.JumpPower = value
-        end
-    end
-}
-
--- Reset Button
-ExtraSection:Button{
-    Name = "Reset Speed",
-    Description = "Resets WalkSpeed and JumpPower to default",
-    Callback = function()
-        if Humanoid then
-            Humanoid.WalkSpeed = 16
-            Humanoid.JumpPower = 50
+                    while os.clock() - islandStartTime < duration do
+                        if not specialAutoEnabled then break end
+                        task.wait(0.5)
+                        
+                        if islandFolder then
+                            for _, child in ipairs(islandFolder:GetChildren()) do
+                                local body = child:FindFirstChild("Body")
+                                if body and body.Parent then
+                                    -- Teleport player to Body
+                                    if playerHrp then
+                                        playerHrp.CFrame = CFrame.new(body.Position + Vector3.new(0,5,0))
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end
+            end)
         end
     end
 }
