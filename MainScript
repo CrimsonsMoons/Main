@@ -67,6 +67,7 @@ local positionsByIsland = {
     ["Desert Island"] = {Vector3.new(1050,15,4095), Vector3.new(156,31,4065), Vector3.new(-517,38,4221)},
     ["Glacier Island"] = {Vector3.new(2718,115,-74), Vector3.new(2438,196,-763), Vector3.new(3102,147,-911), Vector3.new(3125,82,-74)},
     ["The Magical Forest"] = {},
+    ["Haunted Island"] = {},
 }
 
 -- === Island Toggles ===
