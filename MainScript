@@ -461,31 +461,57 @@ ShopSection:Toggle{
 -- === Auto Souls Toggle ===
 local autosoulsEnabled = false
 
+-- === Auto Souls Toggle ===
+local autoSoulsEnabled = false
+
 ShopSection:Toggle{
     Name = "Auto Souls",
-    Description = "Collects souls from all islands every 0.5s",
+    Description = "Automatically collects Souls by teleporting to their InteractionPart",
     StartingState = false,
     Callback = function(state)
-        autosoulsEnabled = state
+        autoSoulsEnabled = state
         if state then
             task.spawn(function()
                 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-                local Events = ReplicatedStorage:WaitForChild("Communication", 9e9):WaitForChild("Events", 9e9)
-                local CollectEvent = Events:GetChildren()[13] -- Souls remote
-                local IslandsFolder = workspace:WaitForChild("Islands", 9e9)
+                local Players = game:GetService("Players")
+                local LocalPlayer = Players.LocalPlayer
+                local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+                local HumRoot = Character:WaitForChild("HumanoidRootPart")
 
-                while autosoulsEnabled do
-                    for _, island in pairs(IslandsFolder:GetChildren()) do
-                        if island:IsA("Folder") or island:IsA("Model") then
+                local Events = ReplicatedStorage:WaitForChild("Communication", 9e9):WaitForChild("Events", 9e9)
+                local CollectEvent = Events:GetChildren()[13]  -- Using your RemoteEvent
+
+                while autoSoulsEnabled do
+                    -- Loop through Islands
+                    local IslandsFolder = workspace:FindFirstChild("Islands")
+                    if IslandsFolder then
+                        for _, island in pairs(IslandsFolder:GetChildren()) do
                             for _, uuidModel in pairs(island:GetChildren()) do
-                                if uuidModel:IsA("Model") and uuidModel.Name:match("^%b{}$") then
-                                    local args = {"Collect", uuidModel}
-                                    CollectEvent:FireServer(unpack(args))
+                                if uuidModel:IsA("Model") and uuidModel:FindFirstChild("InteractionPart") then
+                                    local part = uuidModel.InteractionPart
+                                    if part.BrickColor == BrickColor.new("Mint") then
+                                        HumRoot.CFrame = part.CFrame + Vector3.new(0, 3, 0)
+                                        task.wait(0.05)
+                                        CollectEvent:FireServer("Collect", uuidModel)
+                                    end
                                 end
                             end
                         end
                     end
-                    task.wait(0.5)
+
+                    -- Loop through top-level workspace objects
+                    for _, obj in pairs(workspace:GetChildren()) do
+                        if obj:IsA("Model") and obj:FindFirstChild("InteractionPart") then
+                            local part = obj.InteractionPart
+                            if part.BrickColor == BrickColor.new("Mint") then
+                                HumRoot.CFrame = part.CFrame + Vector3.new(0, 3, 0)
+                                task.wait(0.05)
+                                CollectEvent:FireServer("Collect", obj)
+                            end
+                        end
+                    end
+
+                    task.wait(0.5)  -- adjust speed if needed
                 end
             end)
         end
