@@ -457,6 +457,41 @@ ShopSection:Toggle{
         end
     end
 }
+
+-- === Auto Souls Toggle ===
+local autosoulsEnabled = false
+
+ShopSection:Toggle{
+    Name = "Auto Souls",
+    Description = "Collects souls from all islands every 0.5s",
+    StartingState = false,
+    Callback = function(state)
+        autosoulsEnabled = state
+        if state then
+            task.spawn(function()
+                local ReplicatedStorage = game:GetService("ReplicatedStorage")
+                local Events = ReplicatedStorage:WaitForChild("Communication", 9e9):WaitForChild("Events", 9e9)
+                local CollectEvent = Events:GetChildren()[13] -- Souls remote
+                local IslandsFolder = workspace:WaitForChild("Islands", 9e9)
+
+                while autosoulsEnabled do
+                    for _, island in pairs(IslandsFolder:GetChildren()) do
+                        if island:IsA("Folder") or island:IsA("Model") then
+                            for _, uuidModel in pairs(island:GetChildren()) do
+                                if uuidModel:IsA("Model") and uuidModel.Name:match("^%b{}$") then
+                                    local args = {"Collect", uuidModel}
+                                    CollectEvent:FireServer(unpack(args))
+                                end
+                            end
+                        end
+                    end
+                    task.wait(0.5)
+                end
+            end)
+        end
+    end
+}
+
 -- === Auto Catch Tab ===
 local AutoCatchTab = GUI:Tab{
     Name = "Auto Catch",
