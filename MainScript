@@ -1208,13 +1208,13 @@ end
 local cycleIslandsEnabled1 = false
 
 ExtraTab:Toggle{
-    Name = "Cycle Glacier → Desert → Royal",
+    Name = "Cycle Glacier → Desert → Royal > Mountain",
     StartingState = false,
     Callback = function(state)
         cycleIslandsEnabled1 = state
         if state then
             task.spawn(function()
-                local islandSequence = {"Glacier Island", "Desert Island", "Royal Island"}
+                local islandSequence = {"Glacier Island", "Desert Island", "Royal Island", "Mountain Island"}
                 local islandIndex = 1
                 local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
                 while cycleIslandsEnabled1 do
