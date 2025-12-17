@@ -74,17 +74,34 @@ local positionsByIsland = {
 local islandToggles = {}
 local function getAllBodies(islandName)
     local bodies = {}
-    local islandFolder = workspace:FindFirstChild("Islands") and workspace.Islands:FindFirstChild(islandName)
+
+    -- === Islands folder ===
+    local islandsFolder = workspace:FindFirstChild("Islands")
+    local islandFolder = islandsFolder and islandsFolder:FindFirstChild(islandName)
+
     if islandFolder then
-        for _, model in pairs(islandFolder:GetChildren()) do
+        for _, model in ipairs(islandFolder:GetChildren()) do
             if not exclusions[model.Name] then
                 local body = model:FindFirstChild("Body")
-                if body and body.Parent then
+                if body and body:IsA("BasePart") then
                     table.insert(bodies, body)
                 end
             end
         end
     end
+
+    -- === Explorer folder (GLOBAL scan) ===
+    if explorerFolder then
+        for _, model in ipairs(explorerFolder:GetChildren()) do
+            if not exclusions[model.Name] then
+                local body = model:FindFirstChild("Body")
+                if body and body:IsA("BasePart") then
+                    table.insert(bodies, body)
+                end
+            end
+        end
+    end
+
     return bodies
 end
 
