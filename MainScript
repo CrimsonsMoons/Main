@@ -75,28 +75,43 @@ local islandToggles = {}
 local function getAllBodies(islandName)
     local bodies = {}
 
-    -- === Islands folder ===
-    local islandsFolder = workspace:FindFirstChild("Islands")
-    local islandFolder = islandsFolder and islandsFolder:FindFirstChild(islandName)
+    -- === Workspace direct children (UUID models only) ===
+    for _, model in ipairs(workspace:GetChildren()) do
+        if model:IsA("Model")
+        and model.Name:match("^%b{}$")
+        and not exclusions[model.Name] then
+            local body = model:FindFirstChild("Body")
+            if body and body:IsA("BasePart") then
+                table.insert(bodies, body)
+            end
+        end
+    end
 
-    if islandFolder then
-        for _, model in ipairs(islandFolder:GetChildren()) do
-            if not exclusions[model.Name] then
-                local body = model:FindFirstChild("Body")
-                if body and body:IsA("BasePart") then
-                    table.insert(bodies, body)
+    -- === Islands folder (island-specific) ===
+    if islandsFolder then
+        local islandFolder = islandsFolder:FindFirstChild(islandName)
+        if islandFolder then
+            for _, model in ipairs(islandFolder:GetChildren()) do
+                if not exclusions[model.Name] then
+                    local body = model:FindFirstChild("Body")
+                    if body and body:IsA("BasePart") then
+                        table.insert(bodies, body)
+                    end
                 end
             end
         end
     end
 
-    -- === Explorer folder (GLOBAL scan) ===
+    -- === Explorer folder (island-specific, NOT global) ===
     if explorerFolder then
-        for _, model in ipairs(explorerFolder:GetChildren()) do
-            if not exclusions[model.Name] then
-                local body = model:FindFirstChild("Body")
-                if body and body:IsA("BasePart") then
-                    table.insert(bodies, body)
+        local islandFolder = explorerFolder:FindFirstChild(islandName)
+        if islandFolder then
+            for _, model in ipairs(islandFolder:GetChildren()) do
+                if not exclusions[model.Name] then
+                    local body = model:FindFirstChild("Body")
+                    if body and body:IsA("BasePart") then
+                        table.insert(bodies, body)
+                    end
                 end
             end
         end
@@ -104,7 +119,6 @@ local function getAllBodies(islandName)
 
     return bodies
 end
-
 -- Section for island toggles
 local IslandSection = MainTab:Section{ Name = "Island Auto-Teleport" }
 for islandName,_ in pairs(positionsByIsland) do
