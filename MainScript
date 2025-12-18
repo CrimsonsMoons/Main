@@ -72,10 +72,13 @@ local positionsByIsland = {
 
 -- === Island Toggles ===
 local islandToggles = {}
+local islandsFolder = workspace:FindFirstChild("Islands")
+local explorerFolder = workspace:FindFirstChild("Explorer")
+
 local function getAllBodies(islandName)
     local bodies = {}
 
-    -- === Workspace direct children (UUID models only) ===
+    -- === Workspace UUID models (GLOBAL) ===
     for _, model in ipairs(workspace:GetChildren()) do
         if model:IsA("Model")
         and model.Name:match("^%b{}$")
@@ -102,11 +105,11 @@ local function getAllBodies(islandName)
         end
     end
 
-    -- === Explorer folder (island-specific, NOT global) ===
+    -- === Explorer folder (island-specific) ===
     if explorerFolder then
-        local islandFolder = explorerFolder:FindFirstChild(islandName)
-        if islandFolder then
-            for _, model in ipairs(islandFolder:GetChildren()) do
+        local explorerIsland = explorerFolder:FindFirstChild(islandName)
+        if explorerIsland then
+            for _, model in ipairs(explorerIsland:GetChildren()) do
                 if not exclusions[model.Name] then
                     local body = model:FindFirstChild("Body")
                     if body and body:IsA("BasePart") then
@@ -119,6 +122,7 @@ local function getAllBodies(islandName)
 
     return bodies
 end
+
 -- Section for island toggles
 local IslandSection = MainTab:Section{ Name = "Island Auto-Teleport" }
 for islandName,_ in pairs(positionsByIsland) do
