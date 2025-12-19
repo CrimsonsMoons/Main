@@ -136,44 +136,67 @@ for islandName,_ in pairs(positionsByIsland) do
     }
 end
 
--- Teleport loop
+-- Teleport loop (FIXED: no blind scan delay)
 task.spawn(function()
     while true do
-        local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+        local character = player.Character
+        local hrp = character and character:FindFirstChild("HumanoidRootPart")
+
         if hrp then
             for islandName, positions in pairs(positionsByIsland) do
                 local toggle = islandToggles[islandName]
                 if toggle and toggle.value then
                     local currentBody
+
                     repeat
                         local bodies = getAllBodies(islandName)
-                        if currentBody and (not currentBody.Parent or not currentBody:IsDescendantOf(workspace)) then
+
+                        -- Clear invalid body
+                        if currentBody and not currentBody:IsDescendantOf(workspace) then
                             currentBody = nil
                         end
-                        if not currentBody and #bodies>0 then
+
+                        -- Pick a new body if needed
+                        if not currentBody and #bodies > 0 then
                             currentBody = bodies[1]
                         end
 
-                        if currentBody and currentBody.Parent then
+                        -- === BODY LOCK ===
+                        if currentBody then
                             hrp.CFrame = CFrame.new(currentBody.Position + Vector3.new(0,5,0))
                             task.wait(0.3)
-                        elseif #positions>0 then
+
+                        -- === POSITION SCAN (NO BLIND WAIT) ===
+                        elseif #positions > 0 then
                             for _, pos in ipairs(positions) do
                                 if not toggle.value then break end
+
                                 hrp.CFrame = CFrame.new(pos + Vector3.new(0,5,0))
-                                task.wait(12)
-                                if #getAllBodies(islandName)>0 then break end
+
+                                -- Instant body detection (checks every 0.1s for 12s)
+                                for i = 1, 120 do
+                                    if not toggle.value then break end
+                                    if #getAllBodies(islandName) > 0 then break end
+                                    task.wait(0.1)
+                                end
+
+                                -- Stop position cycling if a body appeared
+                                if #getAllBodies(islandName) > 0 then
+                                    break
+                                end
                             end
                         else
-                            task.wait(0.5)
+                            task.wait(0.1)
                         end
                     until not toggle.value
                 end
             end
         end
-        task.wait(0.5)
+
+        task.wait(0.3)
     end
 end)
+
 
 -- === Travel Buttons ===
 local TravelSection = TravelTab:Section{ Name = "Travel" }
