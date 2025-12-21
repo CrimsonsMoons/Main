@@ -148,7 +148,7 @@ task.spawn(function()
     local lastReset = os.clock()
 
     while true do
-        -- 🔁 MEMORY RESET EVERY 30 MINUTES
+        -- Reset memory every 30 minutes
         if os.clock() - lastReset > 1800 then
             bodyCache = {}
             lastScanTime = {}
@@ -168,22 +168,32 @@ task.spawn(function()
                 local body = bodies[1]
 
                 if body and body:IsDescendantOf(workspace) then
-                    hrp.CFrame = CFrame.new(body.Position + Vector3.new(0,5,0))
-                    task.wait(0.5)
+                    if (hrp.Position - body.Position).Magnitude > 5 then
+                        hrp.CFrame = CFrame.new(body.Position + Vector3.new(0,5,0))
+                    end
+                    task.wait(1) -- Give player time to land
                 elseif positions and #positions > 0 then
                     for _, pos in ipairs(positions) do
                         if not toggle.value then break end
-                        hrp.CFrame = CFrame.new(pos + Vector3.new(0,5,0))
-                        task.wait(1)
-                        if #getCachedBodies(activeIsland) > 0 then
-                            break
+
+                        if (hrp.Position - pos).Magnitude > 10 then
+                            hrp.CFrame = CFrame.new(pos + Vector3.new(0,5,0))
+                            task.wait(1)
+
+                            if #getCachedBodies(activeIsland) > 0 then
+                                break
+                            end
                         end
                     end
+                else
+                    task.wait(1)
                 end
+            else
+                task.wait(1)
             end
+        else
+            task.wait(1) -- Idle delay
         end
-
-        task.wait(0.3)
     end
 end)
 
