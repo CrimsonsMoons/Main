@@ -178,8 +178,9 @@ for islandName, _ in pairs(positionsByIsland) do
     }
 end
 
---// 🔁 Teleport Loop
+--// 🔁 Teleport Loop (no memory cleanup, runs continuously)
 task.spawn(function()
+    while task.wait(0.3) do
         local character = player.Character
         local hrp = character and character:FindFirstChild("HumanoidRootPart")
 
@@ -204,8 +205,7 @@ task.spawn(function()
                         hrp.CFrame = CFrame.new(pos + Vector3.new(0, 5, 0))
 
                         -- Wait for 4–5 seconds
-                        local pauseTime = math.random(4, 5)
-                        task.wait(pauseTime)
+                        task.wait(math.random(4, 5))
 
                         -- Check if any new bodies spawned
                         local bodiesNow = getCachedBodies(activeIsland)
@@ -214,10 +214,9 @@ task.spawn(function()
                 end
             end
         end
-
-        task.wait(0.3)
     end
 end)
+
 
 -- === Travel Buttons ===
 local TravelSection = TravelTab:Section{ Name = "Travel" }
