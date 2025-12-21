@@ -180,17 +180,6 @@ end
 
 --// 🔁 Teleport Loop
 task.spawn(function()
-    local lastReset = os.clock()
-
-    while true do
-        -- 🧼 Memory cleanup every 30 minutes
-        if os.clock() - lastReset > 1800 then
-            print("[♻️] Memory Cleanup: Flushing body cache")
-            bodyCache = {}
-            collectgarbage("collect")
-            lastReset = os.clock()
-        end
-
         local character = player.Character
         local hrp = character and character:FindFirstChild("HumanoidRootPart")
 
