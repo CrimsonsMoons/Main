@@ -95,7 +95,7 @@ local positionsByIsland = {
     ["Haunted Island"] = {},
 }
 
---// 🧠 Cache
+--// 🧠 Cache System
 local bodyCache = {}
 local lastScanTime = {}
 local SCAN_INTERVAL = 1.6
@@ -104,6 +104,7 @@ local SCAN_INTERVAL = 1.6
 local function getAllBodies(islandName)
     local bodies = {}
 
+    -- Top-level Workspace bodies
     for _, model in ipairs(workspace:GetChildren()) do
         if model:IsA("Model") and model.Name:match("^%b{}$") and not exclusions[model.Name] then
             local body = model:FindFirstChild("Body")
@@ -113,6 +114,7 @@ local function getAllBodies(islandName)
         end
     end
 
+    -- Island folder bodies
     if islandsFolder then
         local folder = islandsFolder:FindFirstChild(islandName)
         if folder then
@@ -127,6 +129,7 @@ local function getAllBodies(islandName)
         end
     end
 
+    -- Explorer folder (shallow)
     if explorerFolder then
         local folder = explorerFolder:FindFirstChild(islandName)
         if folder then
@@ -153,10 +156,10 @@ local function getCachedBodies(islandName)
     return bodyCache[islandName] or {}
 end
 
---// 🧭 Island Toggles
+--// 🧭 Island Toggle UI
 local islandToggles = {}
-local IslandSection = MainTab:Section{ Name = "Island Auto-Teleport" }
 local activeIsland = nil
+local IslandSection = MainTab:Section{ Name = "Island Auto-Teleport" }
 
 for islandName, _ in pairs(positionsByIsland) do
     islandToggles[islandName] = { value = false }
@@ -165,56 +168,60 @@ for islandName, _ in pairs(positionsByIsland) do
         Name = islandName,
         StartingState = false,
         Callback = function(state)
-            if state then
-                -- Disable all other toggles
-                for name, t in pairs(islandToggles) do
-                    t.value = false
-                end
-                islandToggles[islandName].value = true
-                activeIsland = islandName
-            else
-                islandToggles[islandName].value = false
-                if activeIsland == islandName then
-                    activeIsland = nil
-                end
+            -- Disable all other toggles
+            for name, toggle in pairs(islandToggles) do
+                toggle.value = false
             end
+            islandToggles[islandName].value = state
+            activeIsland = state and islandName or nil
         end
     }
 end
 
---// 🚀 Teleport Loop (Stable for 24+ Hours)
+--// 🔁 Teleport Loop
 task.spawn(function()
+    local lastReset = os.clock()
+
+    while true do
+        -- 🧼 Memory cleanup every 30 minutes
+        if os.clock() - lastReset > 1800 then
+            print("[♻️] Memory Cleanup: Flushing body cache")
+            bodyCache = {}
+            collectgarbage("collect")
+            lastReset = os.clock()
+        end
+
         local character = player.Character
         local hrp = character and character:FindFirstChild("HumanoidRootPart")
 
         if hrp and activeIsland then
-            local positions = positionsByIsland[activeIsland]
             local toggle = islandToggles[activeIsland]
+            local positions = positionsByIsland[activeIsland]
 
             if toggle and toggle.value then
                 local bodies = getCachedBodies(activeIsland)
                 local body = bodies[1]
 
                 if body and body:IsDescendantOf(workspace) then
+                    -- Teleport directly to the body
                     hrp.CFrame = CFrame.new(body.Position + Vector3.new(0, 5, 0))
                     task.wait(0.5)
                 elseif positions and #positions > 0 then
-        for _, pos in ipairs(positions) do
-      if not toggle.value then break end
+                    -- Loop through fallback vector positions
+                    for _, pos in ipairs(positions) do
+                        if not toggle.value then break end
 
-       -- Teleport to position
-      hrp.CFrame = CFrame.new(pos + Vector3.new(0, 5, 0))
-  
-      -- Wait for 4–5 seconds (randomized)
-      local pauseTime = math.random(4, 5)
-      task.wait(pauseTime)
+                        -- Teleport to vector position
+                        hrp.CFrame = CFrame.new(pos + Vector3.new(0, 5, 0))
 
-    -- After waiting, check if any bodies were found
-    local bodiesNow = getCachedBodies(activeIsland)
-    if #bodiesNow > 0 then
-        break
-                      end
-                     end
+                        -- Wait for 4–5 seconds
+                        local pauseTime = math.random(4, 5)
+                        task.wait(pauseTime)
+
+                        -- Check if any new bodies spawned
+                        local bodiesNow = getCachedBodies(activeIsland)
+                        if #bodiesNow > 0 then break end
+                    end
                 end
             end
         end
