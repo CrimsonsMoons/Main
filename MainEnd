@@ -50,34 +50,19 @@ local positionsByIsland = {
     ["Haunted Island"] = {},
 }
 
--- SERVICES
-local Players = game:GetService("Players")
-local player = Players.LocalPlayer
-
--- FOLDERS (adjust names if needed)
+-- === Folders ===
 local islandsFolder = workspace:FindFirstChild("Islands")
 local explorerFolder = workspace:FindFirstChild("Explorer")
 
--- CONFIG
-local SCAN_INTERVAL = 0.5
-local TELEPORT_OFFSET = Vector3.new(0, 5, 0)
-local TELEPORT_WAIT = 0.6
-local LOOP_RESET_TIME = 1800 -- 30 minutes
-
--- STATE
-local activeIsland = nil
-local islandToggles = {}
+-- === Body Scan Cache (CRITICAL) ===
 local bodyCache = {}
-local lastScan = {}
-local exclusions = {}
+local lastScanTime = {}
+local SCAN_INTERVAL = 0.8
 
-----------------------------------------------------------------
--- GET ALL BODY PARTS (workspace + islands + explorer)
-----------------------------------------------------------------
+-- === Body Scanner ===
 local function getAllBodies(islandName)
     local bodies = {}
 
-    -- Workspace UUID models
     for _, model in ipairs(workspace:GetChildren()) do
         if model:IsA("Model") and model.Name:match("^%b{}$") and not exclusions[model.Name] then
             local body = model:FindFirstChild("Body")
@@ -87,7 +72,6 @@ local function getAllBodies(islandName)
         end
     end
 
-    -- Islands folder
     if islandsFolder then
         local folder = islandsFolder:FindFirstChild(islandName)
         if folder then
@@ -102,7 +86,6 @@ local function getAllBodies(islandName)
         end
     end
 
-    -- Explorer folder (SAME BEHAVIOR)
     if explorerFolder then
         local folder = explorerFolder:FindFirstChild(islandName)
         if folder then
@@ -120,74 +103,90 @@ local function getAllBodies(islandName)
     return bodies
 end
 
-----------------------------------------------------------------
--- CACHED SCAN (prevents CPU + GC buildup)
-----------------------------------------------------------------
 local function getCachedBodies(islandName)
     local now = os.clock()
-
-    if not lastScan[islandName] or now - lastScan[islandName] >= SCAN_INTERVAL then
+    if not lastScanTime[islandName] or now - lastScanTime[islandName] >= SCAN_INTERVAL then
         bodyCache[islandName] = getAllBodies(islandName)
-        lastScan[islandName] = now
+        lastScanTime[islandName] = now
     end
-
     return bodyCache[islandName] or {}
 end
 
-----------------------------------------------------------------
--- TELEPORT LOOP (STABLE)
-----------------------------------------------------------------
+-- === Island Toggles ===
+local islandToggles = {}
+local IslandSection = MainTab:Section{ Name = "Island Auto-Teleport" }
+
+local activeIsland = nil
+
+for islandName,_ in pairs(positionsByIsland) do
+    islandToggles[islandName] = {value = false}
+
+    IslandSection:Toggle{
+        Name = islandName,
+        StartingState = false,
+        Callback = function(state)
+            if state then
+                -- turn OFF all other islands
+                for name, t in pairs(islandToggles) do
+                    t.value = false
+                end
+                islandToggles[islandName].value = true
+                activeIsland = islandName
+            else
+                islandToggles[islandName].value = false
+                if activeIsland == islandName then
+                    activeIsland = nil
+                end
+            end
+        end
+    }
+end
+
+
+-- === TELEPORT LOOP (STABLE FOR 24+ HOURS) ===
 task.spawn(function()
+    local lastReset = os.clock()
+
     while true do
-        local loopStart = os.clock()
+        -- 🔁 MEMORY RESET EVERY 30 MINUTES
+        if os.clock() - lastReset > 1800 then
+            bodyCache = {}
+            lastScanTime = {}
+            collectgarbage("collect")
+            lastReset = os.clock()
+        end
 
-        while os.clock() - loopStart < LOOP_RESET_TIME do
-            task.wait(0.3)
+        local character = player.Character
+        local hrp = character and character:FindFirstChild("HumanoidRootPart")
 
-            local islandName = activeIsland
-            if not islandName then continue end
+        if hrp and activeIsland then
+            local positions = positionsByIsland[activeIsland]
+            local toggle = islandToggles[activeIsland]
 
-            local toggle = islandToggles[islandName]
-            if not toggle or not toggle.value then continue end
+            if toggle and toggle.value then
+                local bodies = getCachedBodies(activeIsland)
+                local body = bodies[1]
 
-            local character = player.Character
-            local hrp = character and character:FindFirstChild("HumanoidRootPart")
-            if not hrp then continue end
-
-            local bodies = getCachedBodies(islandName)
-            local body = bodies[1]
-
-            if body and body:IsDescendantOf(workspace) then
-                hrp.CFrame = CFrame.new(body.Position + TELEPORT_OFFSET)
-                task.wait(TELEPORT_WAIT)
+                if body and body:IsDescendantOf(workspace) then
+                    hrp.CFrame = CFrame.new(body.Position + Vector3.new(0,5,0))
+                    task.wait(0.5)
+                elseif positions and #positions > 0 then
+                    for _, pos in ipairs(positions) do
+                        if not toggle.value then break end
+                        hrp.CFrame = CFrame.new(pos + Vector3.new(0,5,0))
+                        task.wait(1)
+                        if #getCachedBodies(activeIsland) > 0 then
+                            break
+                        end
+                    end
+                end
             end
         end
 
-        -- 🔁 HARD RESET (prevents 4+ hour crash)
-        bodyCache = {}
-        lastScan = {}
-        collectgarbage("collect")
-        task.wait(2)
+        task.wait(0.3)
     end
 end)
 
-----------------------------------------------------------------
--- TOGGLE HANDLER (ONLY ONE ISLAND AT A TIME)
-----------------------------------------------------------------
-local function setIslandToggle(islandName, state)
-    if state then
-        for name, t in pairs(islandToggles) do
-            t.value = false
-        end
-        islandToggles[islandName].value = true
-        activeIsland = islandName
-    else
-        islandToggles[islandName].value = false
-        if activeIsland == islandName then
-            activeIsland = nil
-        end
-    end
-end
 
 -- === Travel Buttons ===
 local TravelSection = TravelTab:Section{ Name = "Travel" }
@@ -1438,4 +1437,3 @@ ExtraTab:Button{
         end
     end
 }
-
