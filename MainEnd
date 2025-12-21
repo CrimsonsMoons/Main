@@ -1396,7 +1396,7 @@ ExtraTab:Toggle{
                                 hrp.CFrame = CFrame.new(pos + Vector3.new(0,5,0))
                                 for _ = 1, 120 do
                                     if not cycleIslandsEnabled1 then break end
-                                    task.wait(0.1)
+                                    task.wait(0.4)
                                 end
                             end
                         end
