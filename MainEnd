@@ -817,7 +817,6 @@ AutoSection:Toggle{
                                             remote:FireServer(tool, "Activate", child)
                                         end
                                         lastCaught[child] = now
-                                        print("Caught:", child.Name, "at", islandName, "Distance:", math.floor(dist))
                                     end
                                 end
                             end
@@ -834,7 +833,6 @@ AutoSection:Toggle{
                                     remote:FireServer(tool, "Activate", child)
                                 end
                                 lastCaught[child] = now
-                                print("Caught top-level:", child.Name, "Distance:", math.floor(dist))
                             end
                         end
                     end
