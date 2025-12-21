@@ -57,7 +57,7 @@ local explorerFolder = workspace:FindFirstChild("Explorer")
 -- === Body Scan Cache (CRITICAL) ===
 local bodyCache = {}
 local lastScanTime = {}
-local SCAN_INTERVAL = 0.8
+local SCAN_INTERVAL = 2
 
 -- === Body Scanner ===
 local function getAllBodies(islandName)
