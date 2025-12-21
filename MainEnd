@@ -184,17 +184,6 @@ end
 
 --// 🚀 Teleport Loop (Stable for 24+ Hours)
 task.spawn(function()
-    local lastReset = os.clock()
-
-    while true do
-        -- ♻️ Memory Reset Every 30 Minutes
-        if os.clock() - lastReset > 1800 then
-            bodyCache = {}
-            lastScanTime = {}
-            collectgarbage("collect")
-            lastReset = os.clock()
-        end
-
         local character = player.Character
         local hrp = character and character:FindFirstChild("HumanoidRootPart")
 
