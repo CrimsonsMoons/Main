@@ -57,7 +57,7 @@ local explorerFolder = workspace:FindFirstChild("Explorer")
 -- === Body Scan Cache (CRITICAL) ===
 local bodyCache = {}
 local lastScanTime = {}
-local SCAN_INTERVAL = 0.5
+local SCAN_INTERVAL = 0.8
 
 -- === Body Scanner ===
 local function getAllBodies(islandName)
@@ -152,7 +152,7 @@ task.spawn(function()
 
                         if currentBody then
                             hrp.CFrame = CFrame.new(currentBody.Position + Vector3.new(0,5,0))
-                            task.wait(0.3)
+                            task.wait(0.5)
                         elseif #positions > 0 then
                             for _, pos in ipairs(positions) do
                                 if not toggle.value then break end
@@ -161,7 +161,7 @@ task.spawn(function()
                                 for i = 1, 120 do
                                     if not toggle.value then break end
                                     if #getCachedBodies(islandName) > 0 then break end
-                                    task.wait(0.1)
+                                    task.wait(0.2)
                                 end
 
                                 if #getCachedBodies(islandName) > 0 then break end
