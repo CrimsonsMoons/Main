@@ -98,7 +98,7 @@ local positionsByIsland = {
 --// 🧠 Cache
 local bodyCache = {}
 local lastScanTime = {}
-local SCAN_INTERVAL = 0.8
+local SCAN_INTERVAL = 1.6
 
 --// 🔎 Body Scanner
 local function getAllBodies(islandName)
