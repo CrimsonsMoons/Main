@@ -1357,6 +1357,65 @@ ExtraTab:Toggle{
     end
 }
 
+
+-- === Cycle Toggle 1: Glacier → Desert → Royal ===
+local cycleIslandsEnabled1 = false
+
+ExtraTab:Toggle{
+    Name = "Cycle Forest > Blizzard",
+    StartingState = false,
+    Callback = function(state)
+        cycleIslandsEnabled1 = state
+        if state then
+            task.spawn(function()
+                local islandSequence = {"Forest Island", "Blizzard Island"}
+                local islandIndex = 1
+                local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+                while cycleIslandsEnabled1 do
+                    local currentIsland = islandSequence[islandIndex]
+
+                    -- Travel using the remote
+                    travelToIsland(currentIsland)
+
+                    local startTime = os.clock()
+                    while os.clock() - startTime < 205 and cycleIslandsEnabled1 do
+                        hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+                        if not hrp then break end
+
+                        local bodies = getAllBodies(currentIsland)
+                        local posList = positionsByIsland[currentIsland]
+
+                        if #bodies > 0 then
+                            local body = bodies[1]
+                            if body and body.Parent then
+                                hrp.CFrame = CFrame.new(body.Position + Vector3.new(0,5,0))
+                            end
+                        elseif #posList > 0 then
+                            for _, pos in ipairs(posList) do
+                                if not cycleIslandsEnabled1 then break end
+                                hrp.CFrame = CFrame.new(pos + Vector3.new(0,5,0))
+                                for _ = 1, 120 do
+                                    if not cycleIslandsEnabled1 then break end
+                                    task.wait(0.1)
+                                end
+                            end
+                        end
+
+                        task.wait(0.3)
+                    end
+
+                    -- Next island
+                    islandIndex = islandIndex + 1
+                    if islandIndex > #islandSequence then
+                        islandIndex = 1
+                    end
+                end
+            end)
+        end
+    end
+}
+
+
 -- === Remove Lava Button ===
 ExtraTab:Button{
     Name = "Remove Volcano Lava",
