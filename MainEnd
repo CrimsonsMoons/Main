@@ -169,20 +169,20 @@ local function detachFromBody()
 	attachedBody = nil
 end
 
--- Attach player to a body using WeldConstraint (no offset, no hover)
+-- Attach player directly to the Body part (no offset)
 local function attachToBody(body)
-	if attachedBody == body then return end -- Already attached
+	if attachedBody == body then return end
 
 	local character = player.Character
 	local hrp = character and character:FindFirstChild("HumanoidRootPart")
 	if not hrp or not body then return end
 
-	detachFromBody() -- Clean previous
+	detachFromBody()
 
-	-- SNAP exactly to the body's position and orientation
+	-- Snap player to EXACT position and orientation of body
 	hrp.CFrame = body.CFrame
 
-	-- Create and apply the weld
+	-- Create a WeldConstraint
 	local weld = Instance.new("WeldConstraint")
 	weld.Part0 = hrp
 	weld.Part1 = body
@@ -192,13 +192,13 @@ local function attachToBody(body)
 	attachedBody = body
 end
 
--- Handle respawn (clears welded state)
+-- Handle respawn (detach when player resets)
 player.CharacterAdded:Connect(function()
 	task.wait(1)
 	detachFromBody()
 end)
 
---// 🔁 Main Attach Loop
+--// 🔁 Main Loop
 task.spawn(function()
 	while task.wait(0.4) do
 		pcall(function()
@@ -210,23 +210,19 @@ task.spawn(function()
 				local targetBody = bodies[1]
 
 				if targetBody then
-					attachToBody(targetBody)
+					attachToBody(targetBody) -- One-time attach
 				else
-					-- No body: detach and teleport to fallback
-					if attachedBody then
-						detachFromBody()
-					end
-
-					if positionsByIsland[activeIsland] and #positionsByIsland[activeIsland] > 0 then
-						local randomPos = positionsByIsland[activeIsland][math.random(1, #positionsByIsland[activeIsland])]
-						hrp.CFrame = CFrame.new(randomPos + Vector3.new(0, 2, 0)) -- slight height
+					-- No body: teleport to fallback position
+					if attachedBody then detachFromBody() end
+					local fallback = positionsByIsland[activeIsland]
+					if fallback and #fallback > 0 then
+						local pos = fallback[math.random(1, #fallback)]
+						hrp.CFrame = CFrame.new(pos)
 					end
 				end
 			else
-				-- Toggle off or no island selected
-				if attachedBody then
-					detachFromBody()
-				end
+				-- Toggle turned off
+				if attachedBody then detachFromBody() end
 			end
 		end)
 	end
