@@ -1,4 +1,4 @@
----// 📦 Load Mercury UI Library
+--// 📦 Load Mercury UI Library
 local Mercury = loadstring(game:HttpGet(
     "https://raw.githubusercontent.com/CrimsonsMoons/Main/refs/heads/main/UiLibary"
 ))()
@@ -80,7 +80,6 @@ local positionsByIsland = {
 local function getBodies(island)
     local bodies = {}
 
-    -- Workspace UUID models
     for _, model in ipairs(workspace:GetChildren()) do
         if model:IsA("Model")
         and model.Name:match("^%b{}$")
@@ -92,7 +91,6 @@ local function getBodies(island)
         end
     end
 
-    -- Island + Explorer folders
     for _, parent in ipairs({ islandsFolder, explorerFolder }) do
         local folder = parent and parent:FindFirstChild(island)
         if folder then
@@ -138,10 +136,10 @@ local function attachToBody(hrp, target)
     alignOri.Responsiveness = 200
 end
 
---// 🧭 UI Toggles
+--// 🌍 Travel Tab – Island Auto-Follow
 local toggles = {}
 local activeIsland = nil
-local IslandSection = MainTab:Section{ Name = "Island Auto-Follow" }
+local IslandSection = TravelTab:Section{ Name = "Island Auto-Follow" }
 
 for island in pairs(positionsByIsland) do
     toggles[island] = { value = false }
@@ -158,7 +156,7 @@ for island in pairs(positionsByIsland) do
     }
 end
 
---// 🔁 Follow Loop (NO TELEPORT SPAM)
+--// 🔁 Follow Loop
 task.spawn(function()
     while task.wait(0.3) do
         local char = player.Character
