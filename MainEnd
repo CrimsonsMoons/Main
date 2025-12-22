@@ -156,25 +156,57 @@ for islandName, _ in pairs(positionsByIsland) do
 	}
 end
 
---// 🔁 CFrame Teleport Follow Loop
+--// 🔁 Body Follow OR Position Fallback Search
 task.spawn(function()
 	while task.wait() do
-		local character = player.Character
-		local hrp = character and character:FindFirstChild("HumanoidRootPart")
+		local character = player.Character or player.CharacterAdded:Wait()
+		local hrp = character:FindFirstChild("HumanoidRootPart")
+		
+		if not hrp then continue end
+		if not activeIsland or not islandToggles[activeIsland].value then continue end
 
-		if hrp and activeIsland and islandToggles[activeIsland].value then
-			local bodies = getBodies(activeIsland)
+		local toggle = islandToggles[activeIsland]
+		local positions = positionsByIsland[activeIsland]
+		local bodyFound = false
+
+		-- 🔎 Try to find a body first
+		local bodies = getBodies(activeIsland)
+		if #bodies > 0 then
+			bodyFound = true
 			local target = bodies[1]
-
-			if target then
-				-- Hard CFrame teleport every frame (no offset)
+			if target and target:IsDescendantOf(workspace) then
 				hrp.CFrame = target.CFrame
+				continue -- ✅ Skip fallback if body exists
+			end
+		end
+
+		-- 🧭 No body found → cycle through fallback positions
+		if not bodyFound and positions and #positions > 0 then
+			for _, pos in ipairs(positions) do
+				if not toggle.value then break end
+
+				-- Teleport to this position
+				hrp.CFrame = CFrame.new(pos + Vector3.new(0, 5, 0))
+
+				-- Wait up to 12s while scanning for new bodies
+				for i = 1, 120 do
+					if not toggle.value then break end
+
+					local check = getBodies(activeIsland)
+					if #check > 0 then
+						bodyFound = true
+						break
+					end
+
+					task.wait(0.1)
+				end
+
+				-- If a body was found during the scan, exit the loop
+				if bodyFound then break end
 			end
 		end
 	end
 end)
-
-
 
 
 -- === Travel Buttons ===
