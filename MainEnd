@@ -180,8 +180,8 @@ local function attachToBody(body)
 
 	detachFromBody() -- Clean previous
 
-	-- TELEPORT ONCE to the body before welding
-	hrp.CFrame = CFrame.new(body.Position + Vector3.new(0, 5, 0))
+	-- Lower height here (from 5 to 2 studs)
+	hrp.CFrame = CFrame.new(body.Position + Vector3.new(0, 2, 0))
 
 	-- Create and apply the weld
 	local weld = Instance.new("WeldConstraint")
