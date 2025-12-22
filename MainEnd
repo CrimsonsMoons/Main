@@ -159,21 +159,60 @@ for islandName, _ in pairs(positionsByIsland) do
 end
 
 --// 🔁 Teleport Loop
+--// 🤝 Attach to body
+local attachedWeld = nil
+
+-- Clean up any previous welds
+local function detachFromBody()
+    if attachedWeld then
+        attachedWeld:Destroy()
+        attachedWeld = nil
+    end
+end
+
+-- Attach player to a body
+local function attachToBody(body)
+    detachFromBody()
+
+    local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+
+    -- Create a weld so the player stays attached
+    local weld = Instance.new("WeldConstraint")
+    weld.Part0 = hrp
+    weld.Part1 = body
+    weld.Parent = hrp
+    attachedWeld = weld
+
+    -- Move player above the body before attaching
+    hrp.CFrame = CFrame.new(body.Position + Vector3.new(0, 5, 0))
+end
+
+-- Background loop to constantly attach to bodies
 task.spawn(function()
     while task.wait(0.4) do
         pcall(function()
             local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
             if hrp and activeIsland and islandToggles[activeIsland].value then
                 local bodies = getBodies(activeIsland)
-                if bodies[1] then
-                    -- Teleport to first body found
-                    hrp.CFrame = CFrame.new(bodies[1].Position + Vector3.new(0, 5, 0))
-                elseif positionsByIsland[activeIsland] and #positionsByIsland[activeIsland] > 0 then
-                    -- Teleport to a random fallback position
+                local targetBody = bodies[1]
+
+                if targetBody then
+                    -- Already attached to the correct body?
+                    if not attachedWeld or attachedWeld.Part1 ~= targetBody then
+                        attachToBody(targetBody)
+                    end
+                else
+                    -- No body found, fallback to teleport
+                    detachFromBody()
                     local positions = positionsByIsland[activeIsland]
-                    local randomPos = positions[math.random(1, #positions)]
-                    hrp.CFrame = CFrame.new(randomPos + Vector3.new(0, 5, 0))
+                    if positions and #positions > 0 then
+                        local randomPos = positions[math.random(1, #positions)]
+                        hrp.CFrame = CFrame.new(randomPos + Vector3.new(0, 5, 0))
+                    end
                 end
+            else
+                detachFromBody()
             end
         end)
     end
