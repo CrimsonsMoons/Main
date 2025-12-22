@@ -98,7 +98,7 @@ local positionsByIsland = {
 --// 🧠 Cache System
 local bodyCache = {}
 local lastScanTime = {}
-local SCAN_INTERVAL = 1.6
+local SCAN_INTERVAL = 2
 
 --// 🔎 Body Scanner
 local function getAllBodies(islandName)
@@ -180,7 +180,7 @@ end
 
 --// 🔁 Teleport Loop (no memory cleanup, runs continuously)
 task.spawn(function()
-    while task.wait(0.3) do
+    while task.wait(0.4) do
         local character = player.Character
         local hrp = character and character:FindFirstChild("HumanoidRootPart")
 
@@ -205,7 +205,7 @@ task.spawn(function()
                         hrp.CFrame = CFrame.new(pos + Vector3.new(0, 5, 0))
 
                         -- Wait for 4–5 seconds
-                        task.wait(math.random(4, 5))
+                        task.wait(math.random(6, 7))
 
                         -- Check if any new bodies spawned
                         local bodiesNow = getCachedBodies(activeIsland)
