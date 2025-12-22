@@ -159,31 +159,39 @@ end
 
 --// 🤝 Attach System
 local attachedWeld = nil
+local attachedBody = nil
 
 -- Detach any previous welds
 local function detachFromBody()
     if attachedWeld then
         attachedWeld:Destroy()
         attachedWeld = nil
+        attachedBody = nil
     end
 end
 
--- Attach player to a body using WeldConstraint
+-- Attach player to a body using WeldConstraint (only once)
 local function attachToBody(body)
+    local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+    if not hrp or not body then return end
+
+    -- Already attached to this body?
+    if attachedBody == body then return end
+
+    -- Clean up old weld
     detachFromBody()
 
-    local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
-    if not hrp then return end
-
-    -- Move player slightly above body before welding
+    -- Move player once to the body
     hrp.CFrame = CFrame.new(body.Position + Vector3.new(0, 5, 0))
 
-    -- Create and apply the weld
+    -- Weld player to body
     local weld = Instance.new("WeldConstraint")
     weld.Part0 = hrp
     weld.Part1 = body
     weld.Parent = hrp
+
     attachedWeld = weld
+    attachedBody = body
 end
 
 --// 🔁 Main Attach Loop
@@ -191,15 +199,13 @@ task.spawn(function()
     while task.wait(0.4) do
         pcall(function()
             local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+
             if hrp and activeIsland and islandToggles[activeIsland].value then
                 local bodies = getBodies(activeIsland)
                 local targetBody = bodies[1]
 
                 if targetBody then
-                    -- If not already attached to this body
-                    if not attachedWeld or attachedWeld.Part1 ~= targetBody then
-                        attachToBody(targetBody)
-                    end
+                    attachToBody(targetBody) -- Only attaches once
                 else
                     -- No body found: detach and fallback teleport
                     detachFromBody()
@@ -210,7 +216,6 @@ task.spawn(function()
                     end
                 end
             else
-                -- Not active or character missing: detach
                 detachFromBody()
             end
         end)
