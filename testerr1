@@ -156,11 +156,11 @@ for islandName, _ in pairs(positionsByIsland) do
 	}
 end
 
---// 🔁 Smart Teleport + Position Scan Fallback
+--// 🔁 CFrame Follow with Position Cycle Fallback
 local lastTeleportIndex = {}
 
 task.spawn(function()
-	while task.wait(0.3) do
+	while task.wait(0.1) do
 		local character = player.Character
 		local hrp = character and character:FindFirstChild("HumanoidRootPart")
 
@@ -172,28 +172,32 @@ task.spawn(function()
 			repeat
 				local bodies = getBodies(activeIsland)
 
-				-- Invalidate old body if deleted
+				-- Body disappeared
 				if currentBody and not currentBody:IsDescendantOf(workspace) then
 					currentBody = nil
 				end
 
-				-- Lock onto a new body
+				-- Acquire body
 				if not currentBody and #bodies > 0 then
 					currentBody = bodies[1]
 				end
 
+				-- === LOCK ONTO BODY ===
 				if currentBody then
-					-- Follow the body
-					hrp.CFrame = currentBody.CFrame
-					task.wait(0.3)
+					-- Frame-by-frame body following
+					while toggle.value and currentBody and currentBody:IsDescendantOf(workspace) do
+						hrp.CFrame = currentBody.CFrame
+						task.wait() -- tight follow
+					end
 
+				-- === CYCLE POSITIONS IF NO BODY ===
 				elseif positions and #positions > 0 then
 					local index = lastTeleportIndex[activeIsland] or 1
 					local pos = positions[index]
 
 					hrp.CFrame = CFrame.new(pos + Vector3.new(0, 5, 0))
 
-					-- Check for body appearance at this position
+					-- Check for body up to 12s (0.1s * 120)
 					local found = false
 					for i = 1, 120 do
 						if not toggle.value then break end
@@ -218,7 +222,6 @@ task.spawn(function()
 		end
 	end
 end)
-
 
 
 
