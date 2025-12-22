@@ -136,7 +136,7 @@ end
 --// 🧭 Island Toggle UI
 local islandToggles = {}
 local activeIsland = nil
-local IslandSection = MainTab:Section{ Name = "Island Auto-Teleport" }
+local IslandSection = MainTab:Section{ Name = "Island Auto-Attach" }
 
 for islandName, _ in pairs(positionsByIsland) do
     islandToggles[islandName] = { value = false }
@@ -145,24 +145,22 @@ for islandName, _ in pairs(positionsByIsland) do
         Name = islandName,
         StartingState = false,
         Callback = function(state)
-            -- Disable all other toggles except the one clicked
+            -- Disable all other toggles except the selected one
             for name, toggle in pairs(islandToggles) do
                 if name ~= islandName then
                     toggle.value = false
                 end
             end
-
             islandToggles[islandName].value = state
             activeIsland = state and islandName or nil
         end
     }
 end
 
---// 🔁 Teleport Loop
---// 🤝 Attach to body
+--// 🤝 Attach System
 local attachedWeld = nil
 
--- Clean up any previous welds
+-- Detach any previous welds
 local function detachFromBody()
     if attachedWeld then
         attachedWeld:Destroy()
@@ -170,25 +168,25 @@ local function detachFromBody()
     end
 end
 
--- Attach player to a body
+-- Attach player to a body using WeldConstraint
 local function attachToBody(body)
     detachFromBody()
 
     local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
     if not hrp then return end
 
-    -- Create a weld so the player stays attached
+    -- Move player slightly above body before welding
+    hrp.CFrame = CFrame.new(body.Position + Vector3.new(0, 5, 0))
+
+    -- Create and apply the weld
     local weld = Instance.new("WeldConstraint")
     weld.Part0 = hrp
     weld.Part1 = body
     weld.Parent = hrp
     attachedWeld = weld
-
-    -- Move player above the body before attaching
-    hrp.CFrame = CFrame.new(body.Position + Vector3.new(0, 5, 0))
 end
 
--- Background loop to constantly attach to bodies
+--// 🔁 Main Attach Loop
 task.spawn(function()
     while task.wait(0.4) do
         pcall(function()
@@ -198,12 +196,12 @@ task.spawn(function()
                 local targetBody = bodies[1]
 
                 if targetBody then
-                    -- Already attached to the correct body?
+                    -- If not already attached to this body
                     if not attachedWeld or attachedWeld.Part1 ~= targetBody then
                         attachToBody(targetBody)
                     end
                 else
-                    -- No body found, fallback to teleport
+                    -- No body found: detach and fallback teleport
                     detachFromBody()
                     local positions = positionsByIsland[activeIsland]
                     if positions and #positions > 0 then
@@ -212,11 +210,13 @@ task.spawn(function()
                     end
                 end
             else
+                -- Not active or character missing: detach
                 detachFromBody()
             end
         end)
     end
 end)
+
 
 
 
