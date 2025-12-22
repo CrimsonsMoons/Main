@@ -169,7 +169,7 @@ local function detachFromBody()
 	attachedBody = nil
 end
 
--- Attach player directly to the Body part (no offset)
+-- Attach player to body at exact position using classic Weld
 local function attachToBody(body)
 	if attachedBody == body then return end
 
@@ -179,26 +179,29 @@ local function attachToBody(body)
 
 	detachFromBody()
 
-	-- Snap player to EXACT position and orientation of body
+	-- Snap player exactly to the body's position and orientation
 	hrp.CFrame = body.CFrame
 
-	-- Create a WeldConstraint
-	local weld = Instance.new("WeldConstraint")
+	-- Create legacy Weld for zero offset
+	local weld = Instance.new("Weld")
+	weld.Name = "BodyAttachWeld"
 	weld.Part0 = hrp
 	weld.Part1 = body
+	weld.C0 = CFrame.new()
+	weld.C1 = CFrame.new()
 	weld.Parent = hrp
 
 	attachedWeld = weld
 	attachedBody = body
 end
 
--- Handle respawn (detach when player resets)
+-- Handle respawn: cleanup on new character load
 player.CharacterAdded:Connect(function()
 	task.wait(1)
 	detachFromBody()
 end)
 
---// 🔁 Main Loop
+--// 🔁 Main Attach Loop
 task.spawn(function()
 	while task.wait(0.4) do
 		pcall(function()
@@ -210,10 +213,11 @@ task.spawn(function()
 				local targetBody = bodies[1]
 
 				if targetBody then
-					attachToBody(targetBody) -- One-time attach
+					attachToBody(targetBody)
 				else
-					-- No body: teleport to fallback position
 					if attachedBody then detachFromBody() end
+
+					-- No body: fallback teleport to island position
 					local fallback = positionsByIsland[activeIsland]
 					if fallback and #fallback > 0 then
 						local pos = fallback[math.random(1, #fallback)]
@@ -221,12 +225,12 @@ task.spawn(function()
 					end
 				end
 			else
-				-- Toggle turned off
 				if attachedBody then detachFromBody() end
 			end
 		end)
 	end
 end)
+
 
 -- === Travel Buttons ===
 local TravelSection = TravelTab:Section{ Name = "Travel" }
