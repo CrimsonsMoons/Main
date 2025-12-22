@@ -16,7 +16,7 @@ local GUI = Mercury:Create{
     Link = "https://github.com/deeeity/mercury-lib"
 }
 
---// 🧭 Tabs (CORRECT FORMAT)
+--// 🧭 Tabs
 local MainTab   = GUI:Tab{ Name = "Main",   Icon = "rbxassetid://8569322835" }
 local TravelTab = GUI:Tab{ Name = "Travel", Icon = "rbxassetid://8569322835" }
 local TrainTab  = GUI:Tab{ Name = "Train",  Icon = "rbxassetid://8569322835" }
@@ -25,8 +25,18 @@ local ShopTab   = GUI:Tab{ Name = "Shop",   Icon = "rbxassetid://8569322835" }
 
 --// 🚫 Universal Exclusions
 local exclusions = {
+    ["{84b93b68-b932-4db8-b765-d1bd9ef8aae9}"] = true,
+    ["{c5769905-aecf-4d7a-ada9-064802b0cae9}"] = true,
+    ["{d2227f02-c482-4911-b201-7e842b31c47c}"] = true,
+    ["{6b019e60-21c6-4536-9a06-4cbfee80d88f}"] = true,
+    ["{12916ad6-7fd9-46d5-8bc1-e69671249721}"] = true,
+    ["{2c0549c7-f2d0-4828-bc2a-6d484e792cdd}"] = true,
+    ["{de31ac95-029b-4c26-b9f8-4b61faed7335}"] = true,
+    ["{fd489389-537f-40e1-bd1a-c048522d23bc}"] = true,
+    ["{f1f04024-ba69-4d0f-9fee-4f93758c1bfc}"] = true,
     ["Horse"] = true,
     ["Travel Boat"] = true,
+    ["c21e5cba-8957-4d65-9e54-1aaa2411a71c"] = true,
 }
 
 --// 🗺️ Island Positions
@@ -126,7 +136,7 @@ end
 --// 🧭 Island Toggle UI
 local islandToggles = {}
 local activeIsland = nil
-local IslandSection = MainTab:Section{ Name = "Island Auto-Attach" }
+local IslandSection = MainTab:Section{ Name = "Island Auto-Follow (CFrame)" }
 
 for islandName, _ in pairs(positionsByIsland) do
 	islandToggles[islandName] = { value = false }
@@ -146,113 +156,137 @@ for islandName, _ in pairs(positionsByIsland) do
 	}
 end
 
---// 🤝 Attach System
-local attachedWeld = nil
-local attachedBody = nil
+--// 🧭 Island Toggle UI
+-- ... (this section stays the same)
 
--- Detach any previous welds
-local function detachFromBody()
-	if attachedWeld then
-		attachedWeld:Destroy()
-		attachedWeld = nil
-	end
-	attachedBody = nil
-end
+-- === REPLACE your old task.spawn loop with this block ===
+local lastTeleportIndex = {}
 
--- Attach player to body at exact position using classic Weld
-local function attachToBody(body)
-	if attachedBody == body then return end
-
-	local character = player.Character
-	local hrp = character and character:FindFirstChild("HumanoidRootPart")
-	if not hrp or not body then return end
-
-	detachFromBody()
-
-	-- Snap player exactly to the body's position and orientation
-	hrp.CFrame = body.CFrame
-
-	-- Create legacy Weld for zero offset
-	local weld = Instance.new("Weld")
-	weld.Name = "BodyAttachWeld"
-	weld.Part0 = hrp
-	weld.Part1 = body
-	weld.C0 = CFrame.new()
-	weld.C1 = CFrame.new()
-	weld.Parent = hrp
-
-	attachedWeld = weld
-	attachedBody = body
-end
-
--- Handle respawn: cleanup on new character load
-player.CharacterAdded:Connect(function()
-	task.wait(1)
-	detachFromBody()
-end)
-
---// 🔁 Main Attach Loop
 task.spawn(function()
-	while task.wait(0.4) do
-		pcall(function()
-			local character = player.Character
-			local hrp = character and character:FindFirstChild("HumanoidRootPart")
+	while task.wait(0.5) do
+		local character = player.Character
+		local hrp = character and character:FindFirstChild("HumanoidRootPart")
 
-			if hrp and activeIsland and islandToggles[activeIsland].value then
-				local bodies = getBodies(activeIsland)
-				local targetBody = bodies[1]
+		if hrp and activeIsland and islandToggles[activeIsland].value then
+			local toggle = islandToggles[activeIsland]
+			local bodies = getBodies(activeIsland)
+			local positions = positionsByIsland[activeIsland]
 
-				if targetBody then
-					attachToBody(targetBody)
-				else
-					if attachedBody then detachFromBody() end
+			if #bodies > 0 then
+				lastTeleportIndex[activeIsland] = nil
+				hrp.CFrame = bodies[1].CFrame
+			elseif positions and #positions > 0 then
+				local index = lastTeleportIndex[activeIsland] or 1
+				local pos = positions[index]
 
-					-- No body: fallback teleport to island position
-					local fallback = positionsByIsland[activeIsland]
-					if fallback and #fallback > 0 then
-						local pos = fallback[math.random(1, #fallback)]
-						hrp.CFrame = CFrame.new(pos)
+				if pos then
+					hrp.CFrame = CFrame.new(pos + Vector3.new(0, 5, 0))
+
+					local bodyFound = false
+					for i = 1, 120 do
+						if not toggle.value then break end
+
+						if #getBodies(activeIsland) > 0 then
+							bodyFound = true
+							break
+						end
+
+						task.wait(0.1)
+					end
+
+					if not bodyFound then
+						index += 1
+						if index > #positions then
+							index = 1
+						end
+						lastTeleportIndex[activeIsland] = index
 					end
 				end
-			else
-				if attachedBody then detachFromBody() end
 			end
-		end)
+		end
 	end
 end)
 
 
---// 🚢 TRAVEL TAB
+
+
+
+-- === Travel Buttons ===
 local TravelSection = TravelTab:Section{ Name = "Travel" }
-for island in pairs(positionsByIsland) do
+for islandName in pairs(positionsByIsland) do
     TravelSection:Button{
-        Name = "Travel to "..island,
+        Name = "Travel to "..islandName,
+        Description = "Use teleport remote",
         Callback = function()
-            local args = {"\1","Travel",island,1}
-            local remote = game:GetService("ReplicatedStorage")
-                :WaitForChild("Communication",9e9)
-                :WaitForChild("Functions",9e9)
-                :GetChildren()[2]
-            remote:FireServer(unpack(args))
+            local args = {"\1","Travel",islandName,1}
+            local remoteFolder = game:GetService("ReplicatedStorage"):WaitForChild("Communication",9e9):WaitForChild("Functions",9e9)
+            local teleportRemote = remoteFolder:GetChildren()[2]
+            if teleportRemote then
+                teleportRemote:FireServer(unpack(args))
+            end
         end
     }
 end
 
---// 🏋 TRAIN TAB
-TrainTab:Section{ Name = "Train" }:Button{
+-- === Train Tab ===
+local TrainSection = TrainTab:Section{ Name = "Train" }
+TrainSection:Button{
     Name = "Train All",
+    Description = "Run Cross v1",
     Callback = function()
         loadstring(game:HttpGet("https://raw.githubusercontent.com/CrimsonsMoons/Jasmine/refs/heads/main/Cross%20v1", true))()
     end
 }
 
---// 💰 SELL TAB
-SellTab:Section{ Name = "Auto Sell" }:Toggle{
-    Name = "Auto Sell",
+-- === Sell Tab ===
+local SellSection = SellTab:Section{ Name = "Auto Sell" }
+
+local sellSpecials = false
+SellSection:Toggle{
+    Name = "Sell Specials",
+    Description = "Sell all special (unlocked) items every 5s",
+    StartingState = false,
     Callback = function(state)
+        sellSpecials = state
         if state then
             task.spawn(function()
-                while state do
+                while sellSpecials do
+                    loadstring(game:HttpGet("https://raw.githubusercontent.com/CrimsonsMoons/Jasmine/refs/heads/main/Sell%20Specials", true))()
+                    task.wait(5)
+                end
+            end)
+        end
+    end
+}
+
+local sellSpecials3 = false
+SellSection:Toggle{
+    Name = "Sell Specials3",
+    Description = "Sell all special (unlocked) items every 5s",
+    StartingState = false,
+    Callback = function(state)
+        sellSpecials3 = state
+        if state then
+            task.spawn(function()
+                while sellSpecials3 do
+                    loadstring(game:HttpGet("https://raw.githubusercontent.com/CrimsonsMoons/Jasmine/refs/heads/main/Auto%20Sell%20Specials%203", true))()
+                    task.wait(5)
+                end
+            end)
+        end
+    end
+}
+
+local autoSellAll = false
+SellSection:Toggle{
+    Name = "Auto Sell",
+    Description = "Sells all unlocked, non-special items every 5s",
+    StartingState = false,
+    Callback = function(state)
+        autoSellAll = state
+        if state then
+            task.spawn(function()
+                while autoSellAll do
                     loadstring(game:HttpGet("https://raw.githubusercontent.com/CrimsonsMoons/Jasmine/refs/heads/main/auto%20sell2", true))()
                     task.wait(5)
                 end
@@ -261,20 +295,100 @@ SellTab:Section{ Name = "Auto Sell" }:Toggle{
     end
 }
 
---// 🛒 SHOP TAB
-ShopTab:Section{ Name = "Shop Actions" }:Button{
-    Name = "Buy Rope",
-    Callback = function()
-        local args = {"BuyShopItem","Mainland Shop",1,1000}
-        game:GetService("ReplicatedStorage")
-            :WaitForChild("Communication",9e9)
-            :WaitForChild("Events",9e9)
-            :GetChildren()[18]
-            :FireServer(unpack(args))
+local autoSell3Enabled = false
+SellSection:Toggle{
+    Name = "Auto Sell 3",
+    Description = "Loop auto sell3 every 0.5 seconds",
+    StartingState = false,
+    Callback = function(state)
+        autoSell3Enabled = state
+        if state then
+            task.spawn(function()
+                while autoSell3Enabled do
+                    loadstring(game:HttpGet("https://raw.githubusercontent.com/CrimsonsMoons/Jasmine/refs/heads/main/auto%20sell3", true))()
+                    task.wait(0.5)
+                end
+            end)
+        end
     end
 }
 
+local autoSell4Enabled = false
+SellSection:Toggle{
+    Name = "Auto Sell 4",
+    Description = "Loop auto sell4 every 0.5 seconds",
+    StartingState = false,
+    Callback = function(state)
+        autoSell4Enabled = state
+        if state then
+            task.spawn(function()
+                while autoSell4Enabled do
+                    loadstring(game:HttpGet("https://raw.githubusercontent.com/CrimsonsMoons/Jasmine/refs/heads/main/auto%20sell4", true))()
+                    task.wait(0.5)
+                end
+            end)
+        end
+    end
+}
 
+local autoSellAccEnabled = false
+SellSection:Toggle{
+    Name = "Auto Sell Acc",
+    Description = "Auto sell accessories every 5 seconds",
+    StartingState = false,
+    Callback = function(state)
+        autoSellAccEnabled = state
+        if state then
+            task.spawn(function()
+                while autoSellAccEnabled do
+                    loadstring(game:HttpGet("https://raw.githubusercontent.com/CrimsonsMoons/Jasmine/refs/heads/main/auto%20sell%20acc", true))()
+                    task.wait(5)
+                end
+            end)
+        end
+    end
+}
+
+-- === Shop Tab ===
+local ShopSection = ShopTab:Section{ Name = "Shop Actions" }
+
+-- All buttons and toggles for Shop
+ShopSection:Button{
+    Name = "Rope",
+    Description = "Buys Rope from Mainland Shop",
+    Callback = function()
+        local args = {"BuyShopItem","Mainland Shop",1,1000}
+        game:GetService("ReplicatedStorage"):WaitForChild("Communication",9e9):WaitForChild("Events",9e9):GetChildren()[18]:FireServer(unpack(args))
+    end
+}
+
+ShopSection:Button{
+    Name = "Tin",
+    Description = "Buys Tin from Mainland Shop",
+    Callback = function()
+        local args = {"BuyShopItem","Mainland Shop",10,1000}
+        game:GetService("ReplicatedStorage"):WaitForChild("Communication",9e9):WaitForChild("Events",9e9):GetChildren()[18]:FireServer(unpack(args))
+    end
+}
+
+local autoCraftEnabled = false
+ShopSection:Toggle{
+    Name = "Auto Craft Tin Lassos",
+    Description = "Continuously crafts Tin Lassos every 0.4s",
+    StartingState = false,
+    Callback = function(state)
+        autoCraftEnabled = state
+        if state then
+            task.spawn(function()
+                while autoCraftEnabled do
+                    local args = {"Craft",{id=18,variants={},amt=1000}}
+                    game:GetService("ReplicatedStorage"):WaitForChild("Communication",9e9):WaitForChild("Events",9e9):GetChildren()[9]:FireServer(unpack(args))
+                    task.wait(0.4)
+                end
+            end)
+        end
+    end
+}
 
 -- === Shop Toggles (Mercury UI) ===
 local autoBasketEnabled = false
@@ -490,111 +604,119 @@ local AutoSection = AutoCatchTab:Section{
 local autoCatchConnection -- global ref to disconnect old loop if needed
 
 AutoSection:Toggle{
-    Name = "Islands 1,2,3",
-    Description = "Auto Catch Script",
-    StartingState = false,
-    Callback = function(state)
-        autoCatchEnabled = state
+	Name = "Islands 1,2,3",
+	Description = "Auto Catch Script",
+	StartingState = false,
+	Callback = function(state)
+		autoCatchEnabled = state
 
-        -- Stop old connection if it exists
-        if autoCatchConnection then
-            autoCatchConnection:Disconnect()
-            autoCatchConnection = nil
-        end
+		-- Stop old connection if it exists
+		if autoCatchConnection then
+			autoCatchConnection:Disconnect()
+			autoCatchConnection = nil
+		end
 
-        if state then
-            local Players = game:GetService("Players")
-            local ReplicatedStorage = game:GetService("ReplicatedStorage")
-            local Workspace = game:GetService("Workspace")
+		if state then
+			local Players = game:GetService("Players")
+			local ReplicatedStorage = game:GetService("ReplicatedStorage")
+			local Workspace = game:GetService("Workspace")
 
-            local LocalPlayer = Players.LocalPlayer
-            local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
-            local HumanoidRootPart = Character:WaitForChild("HumanoidRootPart")
+			local LocalPlayer = Players.LocalPlayer
+			local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+			local HumanoidRootPart = Character:WaitForChild("HumanoidRootPart")
 
-            -- Listen for respawn
-            autoCatchConnection = LocalPlayer.CharacterAdded:Connect(function(char)
-                Character = char
-                HumanoidRootPart = char:WaitForChild("HumanoidRootPart")
-            end)
+			-- Listen for respawn
+			autoCatchConnection = LocalPlayer.CharacterAdded:Connect(function(char)
+				Character = char
+				HumanoidRootPart = char:WaitForChild("HumanoidRootPart")
+			end)
 
-            local TOOL_UUIDS = {
-                "{b3766c24-da18-40f0-be56-66dba5e882d8}",
-                "{efe4b787-0112-42f2-a83c-659149e1de5c}",
-                "{91c7c7cc-0b88-4450-9cd5-18063fa4fea0}",
-                "{cd4c34c5-99a6-4f28-ac73-bfad7c8e1ca2}",
-            }
+			-- === Config ===
+			local TOOL_UUIDS = {
+				"{b3766c24-da18-40f0-be56-66dba5e882d8}",
+				"{efe4b787-0112-42f2-a83c-659149e1de5c}",
+				"{91c7c7cc-0b88-4450-9cd5-18063fa4fea0}",
+				"{cd4c34c5-99a6-4f28-ac73-bfad7c8e1ca2}",
+			}
 
-            local exclusions = {
-                ["{84b93b68-b932-4db8-b765-d1bd9ef8aae9}"] = true,
-                ["{c5769905-aecf-4d7a-ada9-064802b0cae9}"] = true,
-                ["{d2227f02-c482-4911-b201-7e842b31c47c}"] = true,
-                ["{6b019e60-21c6-4536-9a06-4cbfee80d88f}"] = true,
-                ["{12916ad6-7fd9-46d5-8bc1-e69671249721}"] = true,
-                ["{c91d0e3a-e8c6-4e70-b274-9b7304ffbb28}"] = true,
-                ["{2c0549c7-f2d0-4828-bc2a-6d484e792cdd}"] = true,
-                ["{de31ac95-029b-4c26-b9f8-4b61faed7335}"] = true,
-                ["{fd489389-537f-40e1-bd1a-c048522d23bc}"] = true,
-                ["{f1f04024-ba69-4d0f-9fee-4f93758c1bfc}"] = true,
-                ["Horse"] = true,
-                ["Travel Boat"] = true,
-            }
+			local exclusions = {
+				["{84b93b68-b932-4db8-b765-d1bd9ef8aae9}"] = true,
+				["{c5769905-aecf-4d7a-ada9-064802b0cae9}"] = true,
+				["{d2227f02-c482-4911-b201-7e842b31c47c}"] = true,
+				["{6b019e60-21c6-4536-9a06-4cbfee80d88f}"] = true,
+				["{12916ad6-7fd9-46d5-8bc1-e69671249721}"] = true,
+				["{c91d0e3a-e8c6-4e70-b274-9b7304ffbb28}"] = true,
+				["{2c0549c7-f2d0-4828-bc2a-6d484e792cdd}"] = true,
+				["{de31ac95-029b-4c26-b9f8-4b61faed7335}"] = true,
+				["{fd489389-537f-40e1-bd1a-c048522d23bc}"] = true,
+				["{f1f04024-ba69-4d0f-9fee-4f93758c1bfc}"] = true,
+				["Horse"] = true,
+				["Travel Boat"] = true,
+			}
 
-            local islandFolders = {
-                "Mainland", "Forest Island", "Mountain Island", "Lunar Islands",
-                "Royal Island", "Blizzard Island", "Jungle Island", "Volcano Island",
-                "Desert Island", "The Magical Forest"
-            }
+			local islandFolders = {
+				"Mainland", "Forest Island", "Mountain Island", "Lunar Islands",
+				"Royal Island", "Blizzard Island", "Jungle Island", "Volcano Island",
+				"Desert Island", "The Magical Forest"
+			}
 
-            local remote = ReplicatedStorage:WaitForChild("Communication"):WaitForChild("Events"):GetChildren()[13]
-            local CATCH_RADIUS = 15
-            local CATCH_COOLDOWN = 1 -- safer cooldown
-            local lastCaught = {}
+			local remote = ReplicatedStorage:WaitForChild("Communication"):WaitForChild("Events"):GetChildren()[13]
+			local CATCH_RADIUS = 15
+			local CATCH_COOLDOWN = 1 -- seconds per target
+			local lastCaught = {}
 
-            local function isUUID(name)
-                return typeof(name) == "string" and name:match("^%b{}$") ~= nil
-            end
+			local function isUUID(name)
+				return typeof(name) == "string" and name:match("^%b{}$") ~= nil
+			end
 
-            -- MAIN LOOP
-            task.spawn(function()
-                while autoCatchEnabled do
-                    task.wait(1) -- increased delay to lower CPU usage
-                    if not HumanoidRootPart or not HumanoidRootPart.Parent then continue end
+			-- === MAIN LOOP ===
+			task.spawn(function()
+				while autoCatchEnabled do
+					task.wait(1) -- throttled loop
 
-                    local playerPos = HumanoidRootPart.Position
-                    local now = os.clock()
+					if not HumanoidRootPart or not HumanoidRootPart.Parent then continue end
+					local playerPos = HumanoidRootPart.Position
+					local now = os.clock()
 
-                    -- === Check island folders ===
-                    for _, islandName in ipairs(islandFolders) do
-                        local islandFolder = Workspace:FindFirstChild("Islands") and Workspace.Islands:FindFirstChild(islandName)
-                        if islandFolder then
-                            for _, child in ipairs(islandFolder:GetChildren()) do
-                                local body = child:FindFirstChild("Body")
-                                if body and isUUID(child.Name) and not exclusions[child.Name] then
-                                    local dist = (body.Position - playerPos).Magnitude
-                                    if dist <= CATCH_RADIUS and (not lastCaught[child] or now - lastCaught[child] > CATCH_COOLDOWN) then
-                                        remote:FireServer(TOOL_UUIDS[1], "Activate", child)
-                                        lastCaught[child] = now
-                                    end
-                                end
-                            end
-                        end
-                    end
+					-- === Check island folders ===
+					local islandsRoot = Workspace:FindFirstChild("Islands")
+					if islandsRoot then
+						for _, islandName in ipairs(islandFolders) do
+							local islandFolder = islandsRoot:FindFirstChild(islandName)
+							if islandFolder then
+								for _, child in ipairs(islandFolder:GetChildren()) do
+									local body = child:FindFirstChild("Body")
+									if body and isUUID(child.Name) and not exclusions[child.Name] then
+										local dist = (body.Position - playerPos).Magnitude
+										if dist <= CATCH_RADIUS and (not lastCaught[child] or now - lastCaught[child] > CATCH_COOLDOWN) then
+											for _, uuid in ipairs(TOOL_UUIDS) do
+												remote:FireServer(uuid, "Activate", child)
+											end
+											lastCaught[child] = now
+										end
+									end
+								end
+							end
+						end
+					end
 
-                    -- === Check top-level UUIDs ===
-                    for _, child in ipairs(Workspace:GetChildren()) do
-                        local body = child:FindFirstChild("Body")
-                        if body and isUUID(child.Name) and not exclusions[child.Name] then
-                            local dist = (body.Position - playerPos).Magnitude
-                            if dist <= CATCH_RADIUS and (not lastCaught[child] or now - lastCaught[child] > CATCH_COOLDOWN) then
-                                remote:FireServer(TOOL_UUIDS[1], "Activate", child)
-                                lastCaught[child] = now
-                            end
-                        end
-                    end
-                end
-            end)
-        end
-    end
+					-- === Check top-level UUIDs ===
+					for _, child in ipairs(Workspace:GetChildren()) do
+						local body = child:FindFirstChild("Body")
+						if body and isUUID(child.Name) and not exclusions[child.Name] then
+							local dist = (body.Position - playerPos).Magnitude
+							if dist <= CATCH_RADIUS and (not lastCaught[child] or now - lastCaught[child] > CATCH_COOLDOWN) then
+								for _, uuid in ipairs(TOOL_UUIDS) do
+									remote:FireServer(uuid, "Activate", child)
+								end
+								lastCaught[child] = now
+							end
+						end
+					end
+				end
+			end)
+		end
+	end
 }
 
 
