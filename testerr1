@@ -179,3 +179,33 @@ task.spawn(function()
         end
     end
 end)
+
+-- === 🚢 Travel Buttons ===
+local TravelSection = TravelTab:Section{ Name = "Travel" }
+
+for islandName in pairs(positionsByIsland) do
+    TravelSection:Button{
+        Name = "Travel to " .. islandName,
+        Description = "Use teleport remote",
+        Callback = function()
+            local args = {
+                "\1",
+                "Travel",
+                islandName,
+                1
+            }
+
+            local remoteFolder =
+                game:GetService("ReplicatedStorage")
+                :WaitForChild("Communication", 9e9)
+                :WaitForChild("Functions", 9e9)
+
+            local teleportRemote = remoteFolder:GetChildren()[2]
+
+            if teleportRemote then
+                teleportRemote:FireServer(unpack(args))
+            end
+        end
+    }
+end
+
