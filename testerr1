@@ -1,4 +1,4 @@
---// 📦 Load Mercury UI Library
+---// 📦 Load Mercury UI Library
 local Mercury = loadstring(game:HttpGet(
     "https://raw.githubusercontent.com/CrimsonsMoons/Main/refs/heads/main/UiLibary"
 ))()
