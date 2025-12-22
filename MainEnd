@@ -95,66 +95,44 @@ local positionsByIsland = {
     ["Haunted Island"] = {},
 }
 
---// 🧠 Cache System
+--// 🧠 Cache
 local bodyCache = {}
-local lastScanTime = {}
+local lastScan = {}
 local SCAN_INTERVAL = 2
 
 --// 🔎 Body Scanner
-local function getAllBodies(islandName)
+local function getBodies(island)
+    local now = os.clock()
+    if lastScan[island] and now - lastScan[island] < SCAN_INTERVAL then
+        return bodyCache[island] or {}
+    end
+
     local bodies = {}
 
-    -- Top-level Workspace bodies
     for _, model in ipairs(workspace:GetChildren()) do
         if model:IsA("Model") and model.Name:match("^%b{}$") and not exclusions[model.Name] then
             local body = model:FindFirstChild("Body")
-            if body and body:IsA("BasePart") then
-                table.insert(bodies, body)
-            end
+            if body then table.insert(bodies, body) end
         end
     end
 
-    -- Island folder bodies
-    if islandsFolder then
-        local folder = islandsFolder:FindFirstChild(islandName)
+    for _, parent in ipairs({ islandsFolder, explorerFolder }) do
+        local folder = parent and parent:FindFirstChild(island)
         if folder then
             for _, model in ipairs(folder:GetChildren()) do
                 if not exclusions[model.Name] then
                     local body = model:FindFirstChild("Body")
-                    if body and body:IsA("BasePart") then
-                        table.insert(bodies, body)
-                    end
+                    if body then table.insert(bodies, body) end
                 end
             end
         end
     end
 
-    -- Explorer folder (shallow)
-    if explorerFolder then
-        local folder = explorerFolder:FindFirstChild(islandName)
-        if folder then
-            for _, model in ipairs(folder:GetChildren()) do
-                if not exclusions[model.Name] then
-                    local body = model:FindFirstChild("Body")
-                    if body and body:IsA("BasePart") then
-                        table.insert(bodies, body)
-                    end
-                end
-            end
-        end
-    end
-
+    bodyCache[island] = bodies
+    lastScan[island] = now
     return bodies
 end
 
-local function getCachedBodies(islandName)
-    local now = os.clock()
-    if not lastScanTime[islandName] or now - lastScanTime[islandName] >= SCAN_INTERVAL then
-        bodyCache[islandName] = getAllBodies(islandName)
-        lastScanTime[islandName] = now
-    end
-    return bodyCache[islandName] or {}
-end
 
 --// 🧭 Island Toggle UI
 local islandToggles = {}
@@ -178,40 +156,15 @@ for islandName, _ in pairs(positionsByIsland) do
     }
 end
 
---// 🔁 Teleport Loop (no memory cleanup, runs continuously)
 task.spawn(function()
     while task.wait(0.4) do
-        local character = player.Character
-        local hrp = character and character:FindFirstChild("HumanoidRootPart")
-
-        if hrp and activeIsland then
-            local toggle = islandToggles[activeIsland]
-            local positions = positionsByIsland[activeIsland]
-
-            if toggle and toggle.value then
-                local bodies = getCachedBodies(activeIsland)
-                local body = bodies[1]
-
-                if body and body:IsDescendantOf(workspace) then
-                    -- Teleport directly to the body
-                    hrp.CFrame = CFrame.new(body.Position + Vector3.new(0, 5, 0))
-                    task.wait(0.5)
-                elseif positions and #positions > 0 then
-                    -- Loop through fallback vector positions
-                    for _, pos in ipairs(positions) do
-                        if not toggle.value then break end
-
-                        -- Teleport to vector position
-                        hrp.CFrame = CFrame.new(pos + Vector3.new(0, 5, 0))
-
-                        -- Wait for 4–5 seconds
-                        task.wait(math.random(6, 7))
-
-                        -- Check if any new bodies spawned
-                        local bodiesNow = getCachedBodies(activeIsland)
-                        if #bodiesNow > 0 then break end
-                    end
-                end
+        local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+        if hrp and activeIsland and islandToggles[activeIsland].value then
+            local bodies = getBodies(activeIsland)
+            if bodies[1] then
+                hrp.CFrame = CFrame.new(bodies[1].Position + Vector3.new(0,5,0))
+            elseif positionsByIsland[activeIsland][1] then
+                hrp.CFrame = CFrame.new(positionsByIsland[activeIsland][1] + Vector3.new(0,5,0))
             end
         end
     end
