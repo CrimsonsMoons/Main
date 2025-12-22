@@ -145,7 +145,6 @@ for islandName, _ in pairs(positionsByIsland) do
 		Name = islandName,
 		StartingState = false,
 		Callback = function(state)
-			-- Disable all other toggles except the selected one
 			for name, toggle in pairs(islandToggles) do
 				if name ~= islandName then
 					toggle.value = false
@@ -170,7 +169,7 @@ local function detachFromBody()
 	attachedBody = nil
 end
 
--- Attach player to a body using WeldConstraint (only once)
+-- Attach player to a body using WeldConstraint (no offset, no hover)
 local function attachToBody(body)
 	if attachedBody == body then return end -- Already attached
 
@@ -180,8 +179,8 @@ local function attachToBody(body)
 
 	detachFromBody() -- Clean previous
 
-	-- Lower height here (from 5 to 2 studs)
-	hrp.CFrame = CFrame.new(body.Position + Vector3.new(0, 2, 0))
+	-- SNAP exactly to the body's position and orientation
+	hrp.CFrame = body.CFrame
 
 	-- Create and apply the weld
 	local weld = Instance.new("WeldConstraint")
@@ -211,18 +210,20 @@ task.spawn(function()
 				local targetBody = bodies[1]
 
 				if targetBody then
-					attachToBody(targetBody) -- Only attaches once
+					attachToBody(targetBody)
 				else
-					-- No body: detach and fallback teleport
+					-- No body: detach and teleport to fallback
 					if attachedBody then
 						detachFromBody()
 					end
+
 					if positionsByIsland[activeIsland] and #positionsByIsland[activeIsland] > 0 then
 						local randomPos = positionsByIsland[activeIsland][math.random(1, #positionsByIsland[activeIsland])]
-						hrp.CFrame = CFrame.new(randomPos + Vector3.new(0, 2, 0))
+						hrp.CFrame = CFrame.new(randomPos + Vector3.new(0, 2, 0)) -- slight height
 					end
 				end
 			else
+				-- Toggle off or no island selected
 				if attachedBody then
 					detachFromBody()
 				end
@@ -230,7 +231,6 @@ task.spawn(function()
 		end)
 	end
 end)
-
 
 -- === Travel Buttons ===
 local TravelSection = TravelTab:Section{ Name = "Travel" }
