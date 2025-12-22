@@ -19,7 +19,11 @@ local GUI = Mercury:Create{
 }
 
 --// 🧭 Tabs
-local MainTab = GUI:Tab{ Name = "Main", Icon = "rbxassetid://8569322835" }
+local MainTab   = GUI:Tab{ Name = "Main",   Icon = "rbxassetid://8569322835" }
+local TravelTab = GUI:Tab{ Name = "Travel", Icon = "rbxassetid://8569322835" }
+local TrainTab  = GUI:Tab{ Name = "Train",  Icon = "rbxassetid://8569322835" }
+local SellTab   = GUI:Tab{ Name = "Sell",   Icon = "rbxassetid://8569322835" }
+local ShopTab   = GUI:Tab{ Name = "Shop",   Icon = "rbxassetid://8569322835" }
 
 --// 🚫 Universal Exclusions
 local exclusions = {
