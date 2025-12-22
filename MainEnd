@@ -102,35 +102,35 @@ local SCAN_INTERVAL = 2
 
 --// 🔎 Body Scanner
 local function getBodies(island)
-    local now = os.clock()
-    if lastScan[island] and now - lastScan[island] < SCAN_INTERVAL then
-        return bodyCache[island] or {}
-    end
+	local now = os.clock()
+	if lastScan[island] and now - lastScan[island] < SCAN_INTERVAL then
+		return bodyCache[island] or {}
+	end
 
-    local bodies = {}
+	local bodies = {}
 
-    for _, model in ipairs(workspace:GetChildren()) do
-        if model:IsA("Model") and model.Name:match("^%b{}$") and not exclusions[model.Name] then
-            local body = model:FindFirstChild("Body")
-            if body then table.insert(bodies, body) end
-        end
-    end
+	for _, model in ipairs(workspace:GetChildren()) do
+		if model:IsA("Model") and model.Name:match("^%b{}$") and not exclusions[model.Name] then
+			local body = model:FindFirstChild("Body")
+			if body then table.insert(bodies, body) end
+		end
+	end
 
-    for _, parent in ipairs({ islandsFolder, explorerFolder }) do
-        local folder = parent and parent:FindFirstChild(island)
-        if folder then
-            for _, model in ipairs(folder:GetChildren()) do
-                if not exclusions[model.Name] then
-                    local body = model:FindFirstChild("Body")
-                    if body then table.insert(bodies, body) end
-                end
-            end
-        end
-    end
+	for _, parent in ipairs({ islandsFolder, explorerFolder }) do
+		local folder = parent and parent:FindFirstChild(island)
+		if folder then
+			for _, model in ipairs(folder:GetChildren()) do
+				if not exclusions[model.Name] then
+					local body = model:FindFirstChild("Body")
+					if body then table.insert(bodies, body) end
+				end
+			end
+		end
+	end
 
-    bodyCache[island] = bodies
-    lastScan[island] = now
-    return bodies
+	bodyCache[island] = bodies
+	lastScan[island] = now
+	return bodies
 end
 
 --// 🧭 Island Toggle UI
@@ -139,22 +139,22 @@ local activeIsland = nil
 local IslandSection = MainTab:Section{ Name = "Island Auto-Attach" }
 
 for islandName, _ in pairs(positionsByIsland) do
-    islandToggles[islandName] = { value = false }
+	islandToggles[islandName] = { value = false }
 
-    IslandSection:Toggle{
-        Name = islandName,
-        StartingState = false,
-        Callback = function(state)
-            -- Disable all other toggles except the selected one
-            for name, toggle in pairs(islandToggles) do
-                if name ~= islandName then
-                    toggle.value = false
-                end
-            end
-            islandToggles[islandName].value = state
-            activeIsland = state and islandName or nil
-        end
-    }
+	IslandSection:Toggle{
+		Name = islandName,
+		StartingState = false,
+		Callback = function(state)
+			-- Disable all other toggles except the selected one
+			for name, toggle in pairs(islandToggles) do
+				if name ~= islandName then
+					toggle.value = false
+				end
+			end
+			islandToggles[islandName].value = state
+			activeIsland = state and islandName or nil
+		end
+	}
 end
 
 --// 🤝 Attach System
@@ -163,66 +163,73 @@ local attachedBody = nil
 
 -- Detach any previous welds
 local function detachFromBody()
-    if attachedWeld then
-        attachedWeld:Destroy()
-        attachedWeld = nil
-        attachedBody = nil
-    end
+	if attachedWeld then
+		attachedWeld:Destroy()
+		attachedWeld = nil
+	end
+	attachedBody = nil
 end
 
 -- Attach player to a body using WeldConstraint (only once)
 local function attachToBody(body)
-    local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
-    if not hrp or not body then return end
+	if attachedBody == body then return end -- Already attached
 
-    -- Already attached to this body?
-    if attachedBody == body then return end
+	local character = player.Character
+	local hrp = character and character:FindFirstChild("HumanoidRootPart")
+	if not hrp or not body then return end
 
-    -- Clean up old weld
-    detachFromBody()
+	detachFromBody() -- Clean previous
 
-    -- Move player once to the body
-    hrp.CFrame = CFrame.new(body.Position + Vector3.new(0, 5, 0))
+	-- TELEPORT ONCE to the body before welding
+	hrp.CFrame = CFrame.new(body.Position + Vector3.new(0, 5, 0))
 
-    -- Weld player to body
-    local weld = Instance.new("WeldConstraint")
-    weld.Part0 = hrp
-    weld.Part1 = body
-    weld.Parent = hrp
+	-- Create and apply the weld
+	local weld = Instance.new("WeldConstraint")
+	weld.Part0 = hrp
+	weld.Part1 = body
+	weld.Parent = hrp
 
-    attachedWeld = weld
-    attachedBody = body
+	attachedWeld = weld
+	attachedBody = body
 end
+
+-- Handle respawn (clears welded state)
+player.CharacterAdded:Connect(function()
+	task.wait(1)
+	detachFromBody()
+end)
 
 --// 🔁 Main Attach Loop
 task.spawn(function()
-    while task.wait(0.4) do
-        pcall(function()
-            local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+	while task.wait(0.4) do
+		pcall(function()
+			local character = player.Character
+			local hrp = character and character:FindFirstChild("HumanoidRootPart")
 
-            if hrp and activeIsland and islandToggles[activeIsland].value then
-                local bodies = getBodies(activeIsland)
-                local targetBody = bodies[1]
+			if hrp and activeIsland and islandToggles[activeIsland].value then
+				local bodies = getBodies(activeIsland)
+				local targetBody = bodies[1]
 
-                if targetBody then
-                    attachToBody(targetBody) -- Only attaches once
-                else
-                    -- No body found: detach and fallback teleport
-                    detachFromBody()
-                    local positions = positionsByIsland[activeIsland]
-                    if positions and #positions > 0 then
-                        local randomPos = positions[math.random(1, #positions)]
-                        hrp.CFrame = CFrame.new(randomPos + Vector3.new(0, 5, 0))
-                    end
-                end
-            else
-                detachFromBody()
-            end
-        end)
-    end
+				if targetBody then
+					attachToBody(targetBody) -- Only attaches once
+				else
+					-- No body: detach and fallback teleport
+					if attachedBody then
+						detachFromBody()
+					end
+					if positionsByIsland[activeIsland] and #positionsByIsland[activeIsland] > 0 then
+						local randomPos = positionsByIsland[activeIsland][math.random(1, #positionsByIsland[activeIsland])]
+						hrp.CFrame = CFrame.new(randomPos + Vector3.new(0, 5, 0))
+					end
+				end
+			else
+				if attachedBody then
+					detachFromBody()
+				end
+			end
+		end)
+	end
 end)
-
-
 
 
 -- === Travel Buttons ===
