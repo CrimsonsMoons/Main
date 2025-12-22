@@ -156,72 +156,57 @@ for islandName, _ in pairs(positionsByIsland) do
 	}
 end
 
---// 🔁 Follow Logic with Smart Teleport Fallback
-local lastTeleportIndex = {}
-local lastBodyPosition = nil
-
+--// 🔁 Body Follow OR Position Fallback Search
 task.spawn(function()
-	while task.wait(0.1) do
-		local character = player.Character
-		local hrp = character and character:FindFirstChild("HumanoidRootPart")
+	while task.wait() do
+		local character = player.Character or player.CharacterAdded:Wait()
+		local hrp = character:FindFirstChild("HumanoidRootPart")
+		
+		if not hrp then continue end
+		if not activeIsland or not islandToggles[activeIsland].value then continue end
 
-		if hrp and activeIsland and islandToggles[activeIsland].value then
-			local toggle = islandToggles[activeIsland]
-			local positions = positionsByIsland[activeIsland]
-			local currentBody = nil
+		local toggle = islandToggles[activeIsland]
+		local positions = positionsByIsland[activeIsland]
+		local bodyFound = false
 
-			repeat
-				local bodies = getBodies(activeIsland)
+		-- 🔎 Try to find a body first
+		local bodies = getBodies(activeIsland)
+		if #bodies > 0 then
+			bodyFound = true
+			local target = bodies[1]
+			if target and target:IsDescendantOf(workspace) then
+				hrp.CFrame = target.CFrame
+				continue -- ✅ Skip fallback if body exists
+			end
+		end
 
-				if currentBody and not currentBody:IsDescendantOf(workspace) then
-					currentBody = nil
-				end
+		-- 🧭 No body found → cycle through fallback positions
+		if not bodyFound and positions and #positions > 0 then
+			for _, pos in ipairs(positions) do
+				if not toggle.value then break end
 
-				if not currentBody and #bodies > 0 then
-					currentBody = bodies[1]
-					lastBodyPosition = currentBody.Position
-				end
+				-- Teleport to this position
+				hrp.CFrame = CFrame.new(pos + Vector3.new(0, 5, 0))
 
-				if currentBody then
-					-- Only move if body moved significantly
-					while toggle.value and currentBody and currentBody:IsDescendantOf(workspace) do
-						local distance = (hrp.Position - currentBody.Position).Magnitude
-						if distance > 0.1 then
-							hrp.CFrame = currentBody.CFrame
-						end
-						task.wait(0.05)
-					end
-				elseif positions and #positions > 0 then
-					local index = lastTeleportIndex[activeIsland] or 1
-					local pos = positions[index]
+				-- Wait up to 12s while scanning for new bodies
+				for i = 1, 120 do
+					if not toggle.value then break end
 
-					hrp.CFrame = CFrame.new(pos + Vector3.new(0, 5, 0))
-
-					local found = false
-					for i = 1, 120 do
-						if not toggle.value then break end
-						if #getBodies(activeIsland) > 0 then
-							found = true
-							break
-						end
-						task.wait(0.1)
+					local check = getBodies(activeIsland)
+					if #check > 0 then
+						bodyFound = true
+						break
 					end
 
-					if not found then
-						index += 1
-						if index > #positions then
-							index = 1
-						end
-						lastTeleportIndex[activeIsland] = index
-					end
-				else
-					task.wait(0.2)
+					task.wait(0.1)
 				end
-			until not toggle.value
+
+				-- If a body was found during the scan, exit the loop
+				if bodyFound then break end
+			end
 		end
 	end
 end)
-
 
 
 -- === Travel Buttons ===
