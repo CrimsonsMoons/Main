@@ -156,10 +156,7 @@ for islandName, _ in pairs(positionsByIsland) do
 	}
 end
 
---// 🧭 Island Toggle UI
--- ... (this section stays the same)
-
--- === REPLACE your old task.spawn loop with this block ===
+--// 🔁 Teleport Loop w/ Position Cycle Fallback
 local lastTeleportIndex = {}
 
 task.spawn(function()
