@@ -1,4 +1,4 @@
------// 📦 Load Mercury UI Library
+---// 📦 Load Mercury UI Library
 local Mercury = loadstring(game:HttpGet("https://raw.githubusercontent.com/CrimsonsMoons/Main/refs/heads/main/UiLibary"))()
 
 --// 👤 Services & Player
@@ -156,54 +156,68 @@ for islandName, _ in pairs(positionsByIsland) do
 	}
 end
 
---// 🔁 Teleport Loop w/ Position Cycle Fallback
+--// 🔁 Smart Teleport + Position Scan Fallback
 local lastTeleportIndex = {}
 
 task.spawn(function()
-	while task.wait(0.5) do
+	while task.wait(0.3) do
 		local character = player.Character
 		local hrp = character and character:FindFirstChild("HumanoidRootPart")
 
 		if hrp and activeIsland and islandToggles[activeIsland].value then
 			local toggle = islandToggles[activeIsland]
-			local bodies = getBodies(activeIsland)
 			local positions = positionsByIsland[activeIsland]
+			local currentBody
 
-			if #bodies > 0 then
-				lastTeleportIndex[activeIsland] = nil
-				hrp.CFrame = bodies[1].CFrame
-			elseif positions and #positions > 0 then
-				local index = lastTeleportIndex[activeIsland] or 1
-				local pos = positions[index]
+			repeat
+				local bodies = getBodies(activeIsland)
 
-				if pos then
+				-- Invalidate old body if deleted
+				if currentBody and not currentBody:IsDescendantOf(workspace) then
+					currentBody = nil
+				end
+
+				-- Lock onto a new body
+				if not currentBody and #bodies > 0 then
+					currentBody = bodies[1]
+				end
+
+				if currentBody then
+					-- Follow the body
+					hrp.CFrame = currentBody.CFrame
+					task.wait(0.3)
+
+				elseif positions and #positions > 0 then
+					local index = lastTeleportIndex[activeIsland] or 1
+					local pos = positions[index]
+
 					hrp.CFrame = CFrame.new(pos + Vector3.new(0, 5, 0))
 
-					local bodyFound = false
+					-- Check for body appearance at this position
+					local found = false
 					for i = 1, 120 do
 						if not toggle.value then break end
-
 						if #getBodies(activeIsland) > 0 then
-							bodyFound = true
+							found = true
 							break
 						end
-
 						task.wait(0.1)
 					end
 
-					if not bodyFound then
+					if not found then
 						index += 1
 						if index > #positions then
 							index = 1
 						end
 						lastTeleportIndex[activeIsland] = index
 					end
+				else
+					task.wait(0.2)
 				end
-			end
+			until not toggle.value
 		end
 	end
 end)
-
 
 
 
