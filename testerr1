@@ -108,7 +108,7 @@ local function getBodies(island)
     return bodies
 end
 
---// 📌 Attach Player to Body (Smooth Follow)
+--// 📌 Attach Player to Body
 local function attachToBody(hrp, target)
     for _, name in ipairs({ "BodyAlign", "GyroAlign", "FollowAttachment" }) do
         local obj = hrp:FindFirstChild(name)
@@ -136,10 +136,10 @@ local function attachToBody(hrp, target)
     alignOri.Responsiveness = 200
 end
 
---// 🌍 Travel Tab – Island Auto-Follow
+--// 🧭 MAIN TAB – Island Auto-Follow (FIXED)
 local toggles = {}
 local activeIsland = nil
-local IslandSection = TravelTab:Section{ Name = "Island Auto-Follow" }
+local IslandSection = MainTab:Section{ Name = "Island Auto-Follow" }
 
 for island in pairs(positionsByIsland) do
     toggles[island] = { value = false }
@@ -180,7 +180,7 @@ task.spawn(function()
     end
 end)
 
--- === 🚢 Travel Buttons ===
+--// 🚢 TRAVEL TAB – Travel Buttons
 local TravelSection = TravelTab:Section{ Name = "Travel" }
 
 for islandName in pairs(positionsByIsland) do
@@ -188,12 +188,7 @@ for islandName in pairs(positionsByIsland) do
         Name = "Travel to " .. islandName,
         Description = "Use teleport remote",
         Callback = function()
-            local args = {
-                "\1",
-                "Travel",
-                islandName,
-                1
-            }
+            local args = { "\1", "Travel", islandName, 1 }
 
             local remoteFolder =
                 game:GetService("ReplicatedStorage")
@@ -201,11 +196,9 @@ for islandName in pairs(positionsByIsland) do
                 :WaitForChild("Functions", 9e9)
 
             local teleportRemote = remoteFolder:GetChildren()[2]
-
             if teleportRemote then
                 teleportRemote:FireServer(unpack(args))
             end
         end
     }
 end
-
