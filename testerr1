@@ -1,12 +1,13 @@
----// 📦 Load Mercury UI Library
+--// 📦 Load Mercury UI Library
 local Mercury = loadstring(game:HttpGet("https://raw.githubusercontent.com/CrimsonsMoons/Main/refs/heads/main/UiLibary"))()
 
 --// 👤 Services & Player
 local Players = game:GetService("Players")
 local player = Players.LocalPlayer
-local workspace = game:GetService("Workspace")
+local character = player.Character or player.CharacterAdded:Wait()
 
 --// 🧱 Workspace Folders
+local workspace = game:GetService("Workspace")
 local islandsFolder = workspace:FindFirstChild("Islands")
 local explorerFolder = workspace:FindFirstChild("Explorer")
 
@@ -18,9 +19,13 @@ local GUI = Mercury:Create{
 }
 
 --// 🧭 Tabs
-local MainTab = GUI:Tab{ Name = "Main", Icon = "rbxassetid://8569322835" }
+local MainTab   = GUI:Tab{ Name = "Main",   Icon = "rbxassetid://8569322835" }
+local TravelTab = GUI:Tab{ Name = "Travel", Icon = "rbxassetid://8569322835" }
+local TrainTab  = GUI:Tab{ Name = "Train",  Icon = "rbxassetid://8569322835" }
+local SellTab   = GUI:Tab{ Name = "Sell",   Icon = "rbxassetid://8569322835" }
+local ShopTab   = GUI:Tab{ Name = "Shop",   Icon = "rbxassetid://8569322835" }
 
---// 🚫 Universal Exclusions
+--// 🚫 Exclusions
 local exclusions = {
     ["{84b93b68-b932-4db8-b765-d1bd9ef8aae9}"] = true,
     ["{c5769905-aecf-4d7a-ada9-064802b0cae9}"] = true,
@@ -36,7 +41,7 @@ local exclusions = {
     ["c21e5cba-8957-4d65-9e54-1aaa2411a71c"] = true,
 }
 
---// 🗺️ Island Positions
+--// 📍 Island Positions
 local positionsByIsland = {
     ["Mainland"] = {},
     ["Forest Island"] = {
@@ -50,16 +55,16 @@ local positionsByIsland = {
         Vector3.new(-6962,304,-778)
     },
     ["Lunar Islands"] = {
-        Vector3.new(-3097.42,17.63,-3681.29),
-        Vector3.new(-2759.49,6.74,-2589.20),
-        Vector3.new(-2207.14,139.06,-1223.94),
-        Vector3.new(-3266.90,15.43,-1436.56),
-        Vector3.new(-3357.76,24.34,-2428.62)
+        Vector3.new(-3097,17,-3681),
+        Vector3.new(-2759,6,-2589),
+        Vector3.new(-2207,139,-1223),
+        Vector3.new(-3266,15,-1436),
+        Vector3.new(-3357,24,-2428)
     },
     ["Royal Island"] = {
-        Vector3.new(253.7,94,-5399),
+        Vector3.new(253,94,-5399),
         Vector3.new(-372,156,-6136),
-        Vector3.new(617,6.8,-6002)
+        Vector3.new(617,6,-6002)
     },
     ["Blizzard Island"] = {
         Vector3.new(-428,138,-3859),
@@ -72,10 +77,10 @@ local positionsByIsland = {
         Vector3.new(3763,16,3143)
     },
     ["Volcano Island"] = {
-        Vector3.new(2964.74,108.94,-7078.36),
-        Vector3.new(4134.52,27.04,-6894.68),
-        Vector3.new(4757.52,26.13,-7939.00),
-        Vector3.new(3487.48,20.99,-8586.85)
+        Vector3.new(2964,108,-7078),
+        Vector3.new(4134,27,-6894),
+        Vector3.new(4757,26,-7939),
+        Vector3.new(3487,20,-8586)
     },
     ["Desert Island"] = {
         Vector3.new(1050,15,4095),
@@ -92,8 +97,8 @@ local positionsByIsland = {
     ["Haunted Island"] = {},
 }
 
---// 🧠 Get All Bodies
-local function getAllBodies(islandName)
+--// 🔍 Find Bodies
+local function getBodies(island)
     local bodies = {}
 
     for _, model in ipairs(workspace:GetChildren()) do
@@ -105,9 +110,11 @@ local function getAllBodies(islandName)
         end
     end
 
-    local function scanFolder(folder)
-        if folder then
-            for _, model in ipairs(folder:GetChildren()) do
+    local folders = { islandsFolder, explorerFolder }
+    for _, parent in ipairs(folders) do
+        local islandFolder = parent and parent:FindFirstChild(island)
+        if islandFolder then
+            for _, model in ipairs(islandFolder:GetChildren()) do
                 if not exclusions[model.Name] then
                     local body = model:FindFirstChild("Body")
                     if body and body:IsA("BasePart") then
@@ -118,107 +125,70 @@ local function getAllBodies(islandName)
         end
     end
 
-    scanFolder(islandsFolder and islandsFolder:FindFirstChild(islandName))
-    scanFolder(explorerFolder and explorerFolder:FindFirstChild(islandName))
-
     return bodies
 end
 
---// 🧭 Island Toggle UI
-local islandToggles = {}
-local IslandSection = MainTab:Section{ Name = "Island Auto-Teleport" }
+--// 📌 Attach Player to Body
+local function attachToBody(hrp, targetPart)
+    if hrp:FindFirstChild("BodyAlign") then
+        hrp.BodyAlign:Destroy()
+    end
+    if hrp:FindFirstChild("GyroAlign") then
+        hrp.GyroAlign:Destroy()
+    end
+
+    local attachment0 = Instance.new("Attachment", hrp)
+    local attachment1 = Instance.new("Attachment", targetPart)
+
+    local alignPos = Instance.new("AlignPosition", hrp)
+    alignPos.Name = "BodyAlign"
+    alignPos.Attachment0 = attachment0
+    alignPos.Attachment1 = attachment1
+    alignPos.RigidityEnabled = true
+    alignPos.MaxForce = math.huge
+    alignPos.Responsiveness = 200
+
+    local alignOri = Instance.new("AlignOrientation", hrp)
+    alignOri.Name = "GyroAlign"
+    alignOri.Attachment0 = attachment0
+    alignOri.Attachment1 = attachment1
+    alignOri.MaxTorque = math.huge
+    alignOri.Responsiveness = 200
+end
+
+--// 🎮 UI Toggles
+local toggles = {}
+local activeIsland = nil
+local IslandSection = MainTab:Section{ Name = "Island Auto-Follow" }
 
 for islandName, _ in pairs(positionsByIsland) do
-    islandToggles[islandName] = { value = false }
-
+    toggles[islandName] = { value = false }
     IslandSection:Toggle{
         Name = islandName,
         StartingState = false,
         Callback = function(state)
-            for name, toggle in pairs(islandToggles) do
+            for name, toggle in pairs(toggles) do
                 toggle.value = false
             end
-            islandToggles[islandName].value = state
+            toggles[islandName].value = state
+            activeIsland = state and islandName or nil
         end
     }
 end
 
---// 📌 Attachment Handler
-local function attachToBody(hrp, body)
-    -- Cleanup previous
-    for _, obj in ipairs(hrp:GetChildren()) do
-        if obj:IsA("AlignPosition") or obj:IsA("AlignOrientation") or obj:IsA("Attachment") then
-            obj:Destroy()
-        end
-    end
-
-    -- Create attachments
-    local a0 = Instance.new("Attachment", hrp)
-    local a1 = Instance.new("Attachment", body)
-
-    -- AlignPosition
-    local ap = Instance.new("AlignPosition")
-    ap.Attachment0 = a0
-    ap.Attachment1 = a1
-    ap.RigidityEnabled = true
-    ap.Responsiveness = 200
-    ap.MaxForce = math.huge
-    ap.Parent = hrp
-
-    -- AlignOrientation
-    local ao = Instance.new("AlignOrientation")
-    ao.Attachment0 = a0
-    ao.Attachment1 = a1
-    ao.RigidityEnabled = true
-    ao.Responsiveness = 200
-    ao.MaxTorque = math.huge
-    ao.Parent = hrp
-
-    return { ap, ao, a0, a1 } -- Return for cleanup later
-end
-
---// 🔁 Teleport Loop
+--// 🔁 Follow Loop
 task.spawn(function()
     while task.wait(0.3) do
         local character = player.Character
         local hrp = character and character:FindFirstChild("HumanoidRootPart")
 
-        if not hrp then continue end
-
-        for islandName, toggle in pairs(islandToggles) do
-            if toggle.value then
-                local body = getAllBodies(islandName)[1]
-                local attachObjs = nil
-
-                if body then
-                    character:SetPrimaryPartCFrame(body.CFrame + Vector3.new(0, 5, 0))
-                    attachObjs = attachToBody(hrp, body)
-
-                    -- Stay attached until toggle is turned off or body is destroyed
-                    while toggle.value and body:IsDescendantOf(workspace) do
-                        task.wait(0.3)
-                    end
-
-                    -- Detach
-                    for _, obj in ipairs(attachObjs) do
-                        if obj and obj.Parent then
-                            obj:Destroy()
-                        end
-                    end
-                else
-                    -- Fallback vector positions
-                    local positions = positionsByIsland[islandName]
-                    for _, pos in ipairs(positions) do
-                        if not toggle.value then break end
-                        hrp.CFrame = CFrame.new(pos + Vector3.new(0, 5, 0))
-                        for i = 1, 100 do
-                            if not toggle.value then break end
-                            if #getAllBodies(islandName) > 0 then break end
-                            task.wait(0.1)
-                        end
-                        if #getAllBodies(islandName) > 0 then break end
-                    end
-                end
+        if hrp and activeIsland and toggles[activeIsland].value then
+            local bodies = getBodies(activeIsland)
+            if #bodies > 0 then
+                local target = bodies[1]
+                attachToBody(hrp, target)
+            else
+                hrp.CFrame = CFrame.new(positionsByIsland[activeIsland][1] + Vector3.new(0, 5, 0))
             end
         end
     end
