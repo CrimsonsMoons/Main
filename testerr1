@@ -92,68 +92,135 @@ local SCAN_INTERVAL = 2
 
 --// 🔎 Body Scanner
 local function getBodies(island)
-    local now = os.clock()
-    if lastScan[island] and now - lastScan[island] < SCAN_INTERVAL then
-        return bodyCache[island] or {}
-    end
+	local now = os.clock()
+	if lastScan[island] and now - lastScan[island] < SCAN_INTERVAL then
+		return bodyCache[island] or {}
+	end
 
-    local bodies = {}
+	local bodies = {}
 
-    for _, model in ipairs(workspace:GetChildren()) do
-        if model:IsA("Model") and model.Name:match("^%b{}$") and not exclusions[model.Name] then
-            local body = model:FindFirstChild("Body")
-            if body then table.insert(bodies, body) end
-        end
-    end
+	for _, model in ipairs(workspace:GetChildren()) do
+		if model:IsA("Model") and model.Name:match("^%b{}$") and not exclusions[model.Name] then
+			local body = model:FindFirstChild("Body")
+			if body then table.insert(bodies, body) end
+		end
+	end
 
-    for _, parent in ipairs({ islandsFolder, explorerFolder }) do
-        local folder = parent and parent:FindFirstChild(island)
-        if folder then
-            for _, model in ipairs(folder:GetChildren()) do
-                if not exclusions[model.Name] then
-                    local body = model:FindFirstChild("Body")
-                    if body then table.insert(bodies, body) end
-                end
-            end
-        end
-    end
+	for _, parent in ipairs({ islandsFolder, explorerFolder }) do
+		local folder = parent and parent:FindFirstChild(island)
+		if folder then
+			for _, model in ipairs(folder:GetChildren()) do
+				if not exclusions[model.Name] then
+					local body = model:FindFirstChild("Body")
+					if body then table.insert(bodies, body) end
+				end
+			end
+		end
+	end
 
-    bodyCache[island] = bodies
-    lastScan[island] = now
-    return bodies
+	bodyCache[island] = bodies
+	lastScan[island] = now
+	return bodies
 end
 
---// 🧭 MAIN TAB – Island Auto Teleport
+--// 🧭 Island Toggle UI
 local islandToggles = {}
-local activeIsland
-local IslandSection = MainTab:Section{ Name = "Island Auto-Teleport" }
+local activeIsland = nil
+local IslandSection = MainTab:Section{ Name = "Island Auto-Attach" }
 
-for island in pairs(positionsByIsland) do
-    islandToggles[island] = { value = false }
-    IslandSection:Toggle{
-        Name = island,
-        StartingState = false,
-        Callback = function(state)
-            for _, t in pairs(islandToggles) do t.value = false end
-            islandToggles[island].value = state
-            activeIsland = state and island or nil
-        end
-    }
+for islandName, _ in pairs(positionsByIsland) do
+	islandToggles[islandName] = { value = false }
+
+	IslandSection:Toggle{
+		Name = islandName,
+		StartingState = false,
+		Callback = function(state)
+			for name, toggle in pairs(islandToggles) do
+				if name ~= islandName then
+					toggle.value = false
+				end
+			end
+			islandToggles[islandName].value = state
+			activeIsland = state and islandName or nil
+		end
+	}
 end
 
-task.spawn(function()
-    while task.wait(0.4) do
-        local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
-        if hrp and activeIsland and islandToggles[activeIsland].value then
-            local bodies = getBodies(activeIsland)
-            if bodies[1] then
-                hrp.CFrame = CFrame.new(bodies[1].Position + Vector3.new(0,5,0))
-            elseif positionsByIsland[activeIsland][1] then
-                hrp.CFrame = CFrame.new(positionsByIsland[activeIsland][1] + Vector3.new(0,5,0))
-            end
-        end
-    end
+--// 🤝 Attach System
+local attachedWeld = nil
+local attachedBody = nil
+
+-- Detach any previous welds
+local function detachFromBody()
+	if attachedWeld then
+		attachedWeld:Destroy()
+		attachedWeld = nil
+	end
+	attachedBody = nil
+end
+
+-- Attach player to body at exact position using classic Weld
+local function attachToBody(body)
+	if attachedBody == body then return end
+
+	local character = player.Character
+	local hrp = character and character:FindFirstChild("HumanoidRootPart")
+	if not hrp or not body then return end
+
+	detachFromBody()
+
+	-- Snap player exactly to the body's position and orientation
+	hrp.CFrame = body.CFrame
+
+	-- Create legacy Weld for zero offset
+	local weld = Instance.new("Weld")
+	weld.Name = "BodyAttachWeld"
+	weld.Part0 = hrp
+	weld.Part1 = body
+	weld.C0 = CFrame.new()
+	weld.C1 = CFrame.new()
+	weld.Parent = hrp
+
+	attachedWeld = weld
+	attachedBody = body
+end
+
+-- Handle respawn: cleanup on new character load
+player.CharacterAdded:Connect(function()
+	task.wait(1)
+	detachFromBody()
 end)
+
+--// 🔁 Main Attach Loop
+task.spawn(function()
+	while task.wait(0.4) do
+		pcall(function()
+			local character = player.Character
+			local hrp = character and character:FindFirstChild("HumanoidRootPart")
+
+			if hrp and activeIsland and islandToggles[activeIsland].value then
+				local bodies = getBodies(activeIsland)
+				local targetBody = bodies[1]
+
+				if targetBody then
+					attachToBody(targetBody)
+				else
+					if attachedBody then detachFromBody() end
+
+					-- No body: fallback teleport to island position
+					local fallback = positionsByIsland[activeIsland]
+					if fallback and #fallback > 0 then
+						local pos = fallback[math.random(1, #fallback)]
+						hrp.CFrame = CFrame.new(pos)
+					end
+				end
+			else
+				if attachedBody then detachFromBody() end
+			end
+		end)
+	end
+end)
+
 
 --// 🚢 TRAVEL TAB
 local TravelSection = TravelTab:Section{ Name = "Travel" }
