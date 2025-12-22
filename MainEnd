@@ -136,7 +136,7 @@ end
 --// 🧭 Island Toggle UI
 local islandToggles = {}
 local activeIsland = nil
-local IslandSection = MainTab:Section{ Name = "Island Auto-Follow" }
+local IslandSection = MainTab:Section{ Name = "Island Auto-Follow (CFrame)" }
 
 for islandName, _ in pairs(positionsByIsland) do
 	islandToggles[islandName] = { value = false }
@@ -156,93 +156,24 @@ for islandName, _ in pairs(positionsByIsland) do
 	}
 end
 
---// 🚀 Follow System
-local alignPos = nil
-local alignOri = nil
-local attachment0 = nil
-local attachment1 = nil
-local attachedBody = nil
-
-local function clearFollow()
-	if alignPos then alignPos:Destroy() end
-	if alignOri then alignOri:Destroy() end
-	if attachment0 then attachment0:Destroy() end
-	if attachment1 then attachment1:Destroy() end
-	alignPos, alignOri, attachment0, attachment1 = nil, nil, nil, nil
-	attachedBody = nil
-end
-
-local function followBody(body)
-	if attachedBody == body then return end -- Already following
-	clearFollow()
-
-	local character = player.Character
-	local hrp = character and character:FindFirstChild("HumanoidRootPart")
-	if not hrp or not body then return end
-
-	-- Create attachments
-	attachment0 = Instance.new("Attachment", hrp)
-	attachment1 = Instance.new("Attachment", body)
-
-	-- AlignPosition
-	alignPos = Instance.new("AlignPosition")
-	alignPos.Attachment0 = attachment0
-	alignPos.Attachment1 = attachment1
-	alignPos.RigidityEnabled = true
-	alignPos.Responsiveness = 200
-	alignPos.MaxForce = math.huge
-	alignPos.ApplyAtCenterOfMass = false
-	alignPos.Parent = hrp
-
-	-- AlignOrientation (optional)
-	alignOri = Instance.new("AlignOrientation")
-	alignOri.Attachment0 = attachment0
-	alignOri.Attachment1 = attachment1
-	alignOri.RigidityEnabled = true
-	alignOri.Responsiveness = 200
-	alignOri.MaxTorque = math.huge
-	alignOri.Parent = hrp
-
-	-- Snap to position on start
-	hrp.CFrame = body.CFrame
-
-	attachedBody = body
-end
-
--- Clear on respawn
-player.CharacterAdded:Connect(function()
-	task.wait(1)
-	clearFollow()
-end)
-
---// 🔁 Main Follow Loop
+--// 🔁 CFrame Teleport Follow Loop
 task.spawn(function()
-	while task.wait(0.4) do
-		pcall(function()
-			local character = player.Character
-			local hrp = character and character:FindFirstChild("HumanoidRootPart")
+	while task.wait() do
+		local character = player.Character
+		local hrp = character and character:FindFirstChild("HumanoidRootPart")
 
-			if hrp and activeIsland and islandToggles[activeIsland].value then
-				local bodies = getBodies(activeIsland)
-				local targetBody = bodies[1]
+		if hrp and activeIsland and islandToggles[activeIsland].value then
+			local bodies = getBodies(activeIsland)
+			local target = bodies[1]
 
-				if targetBody then
-					followBody(targetBody)
-				else
-					if attachedBody then clearFollow() end
-
-					local fallback = positionsByIsland[activeIsland]
-					if fallback and #fallback > 0 then
-						local pos = fallback[math.random(1, #fallback)]
-						hrp.CFrame = CFrame.new(pos)
-					end
-				end
-			else
-				if attachedBody then clearFollow() end
+			if target then
+				-- Hard CFrame teleport every frame (no offset)
+				hrp.CFrame = target.CFrame
 			end
-		end)
+		end
 	end
 end)
+
 
 
 
