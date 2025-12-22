@@ -156,9 +156,12 @@ for islandName, _ in pairs(positionsByIsland) do
 	}
 end
 
+-- Track current teleport index per island
+local lastTeleportIndex = {}
+
 --// 🔁 CFrame Teleport Follow Loop
 task.spawn(function()
-	while task.wait() do
+	while task.wait(0.5) do
 		local character = player.Character
 		local hrp = character and character:FindFirstChild("HumanoidRootPart")
 
@@ -167,8 +170,26 @@ task.spawn(function()
 			local target = bodies[1]
 
 			if target then
-				-- Hard CFrame teleport every frame (no offset)
+				-- Reset index when a body is found
+				lastTeleportIndex[activeIsland] = nil
 				hrp.CFrame = target.CFrame
+			else
+				local positions = positionsByIsland[activeIsland]
+				if positions and #positions > 0 then
+					-- Get or start cycling index
+					local index = lastTeleportIndex[activeIsland] or 1
+					local pos = positions[index]
+
+					-- Teleport to current vector position
+					hrp.CFrame = CFrame.new(pos + Vector3.new(0, 5, 0)) -- Slight Y offset to avoid getting stuck
+
+					-- Prepare next index for the next loop
+					index = index + 1
+					if index > #positions then
+						index = 1
+					end
+					lastTeleportIndex[activeIsland] = index
+				end
 			end
 		end
 	end
