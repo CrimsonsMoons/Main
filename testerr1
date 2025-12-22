@@ -1,7 +1,5 @@
----// 📦 Load Mercury UI Library
-local Mercury = loadstring(game:HttpGet(
-    "https://raw.githubusercontent.com/CrimsonsMoons/Main/refs/heads/main/UiLibary"
-))()
+--// 📦 Load Mercury UI Library
+local Mercury = loadstring(game:HttpGet("https://raw.githubusercontent.com/CrimsonsMoons/Main/refs/heads/main/UiLibary"))()
 
 --// 👤 Services & Player
 local Players = game:GetService("Players")
@@ -13,34 +11,27 @@ local explorerFolder = workspace:FindFirstChild("Explorer")
 
 --// 🖼️ Create GUI
 local GUI = Mercury:Create{
-    Name = "Island Auto-Follow",
+    Name = "Island Teleport GUI",
     Theme = Mercury.Themes.Dark,
     Link = "https://github.com/deeeity/mercury-lib"
 }
 
---// 🧭 Tabs
+--// 🧭 Tabs (CORRECT FORMAT)
 local MainTab   = GUI:Tab{ Name = "Main",   Icon = "rbxassetid://8569322835" }
 local TravelTab = GUI:Tab{ Name = "Travel", Icon = "rbxassetid://8569322835" }
+local TrainTab  = GUI:Tab{ Name = "Train",  Icon = "rbxassetid://8569322835" }
+local SellTab   = GUI:Tab{ Name = "Sell",   Icon = "rbxassetid://8569322835" }
+local ShopTab   = GUI:Tab{ Name = "Shop",   Icon = "rbxassetid://8569322835" }
 
 --// 🚫 Universal Exclusions
 local exclusions = {
-    ["{84b93b68-b932-4db8-b765-d1bd9ef8aae9}"] = true,
-    ["{c5769905-aecf-4d7a-ada9-064802b0cae9}"] = true,
-    ["{d2227f02-c482-4911-b201-7e842b31c47c}"] = true,
-    ["{6b019e60-21c6-4536-9a06-4cbfee80d88f}"] = true,
-    ["{12916ad6-7fd9-46d5-8bc1-e69671249721}"] = true,
-    ["{2c0549c7-f2d0-4828-bc2a-6d484e792cdd}"] = true,
-    ["{de31ac95-029b-4c26-b9f8-4b61faed7335}"] = true,
-    ["{fd489389-537f-40e1-bd1a-c048522d23bc}"] = true,
-    ["{f1f04024-ba69-4d0f-9fee-4f93758c1bfc}"] = true,
     ["Horse"] = true,
     ["Travel Boat"] = true,
-    ["c21e5cba-8957-4d65-9e54-1aaa2411a71c"] = true,
 }
 
---// 🗺️ Island Fallback Positions
+--// 🗺️ Island Positions
 local positionsByIsland = {
-    ["Mainland"] = { Vector3.new(0,10,0) },
+    ["Mainland"] = {},
     ["Forest Island"] = {
         Vector3.new(-7839,96,4180),
         Vector3.new(-7945,91,3557),
@@ -52,42 +43,66 @@ local positionsByIsland = {
         Vector3.new(-6962,304,-778)
     },
     ["Lunar Islands"] = {
-        Vector3.new(-3097,18,-3681),
-        Vector3.new(-2759,7,-2589),
-        Vector3.new(-2207,139,-1223)
+        Vector3.new(-3097.42,17.63,-3681.29),
+        Vector3.new(-2759.49,6.74,-2589.20),
+        Vector3.new(-2207.14,139.06,-1223.94),
+        Vector3.new(-3266.90,15.43,-1436.56),
+        Vector3.new(-3357.76,24.34,-2428.62)
     },
     ["Royal Island"] = {
-        Vector3.new(253,94,-5399)
+        Vector3.new(253.7,94,-5399),
+        Vector3.new(-372,156,-6136),
+        Vector3.new(617,6.8,-6002)
     },
     ["Blizzard Island"] = {
-        Vector3.new(-428,138,-3859)
+        Vector3.new(-428,138,-3859),
+        Vector3.new(-937,14,-3897),
+        Vector3.new(244,15,-3563)
     },
     ["Jungle Island"] = {
-        Vector3.new(3396,15,1080)
+        Vector3.new(3396,15,1080),
+        Vector3.new(3616,65,2149),
+        Vector3.new(3763,16,3143)
     },
     ["Volcano Island"] = {
-        Vector3.new(2964,109,-7078)
+        Vector3.new(2964.74,108.94,-7078.36),
+        Vector3.new(4134.52,27.04,-6894.68),
+        Vector3.new(4757.52,26.13,-7939.00),
+        Vector3.new(3487.48,20.99,-8586.85)
     },
     ["Desert Island"] = {
-        Vector3.new(1050,15,4095)
+        Vector3.new(1050,15,4095),
+        Vector3.new(156,31,4065),
+        Vector3.new(-517,38,4221)
     },
     ["Glacier Island"] = {
-        Vector3.new(2718,115,-74)
-    }
+        Vector3.new(2718,115,-74),
+        Vector3.new(2438,196,-763),
+        Vector3.new(3102,147,-911),
+        Vector3.new(3125,82,-74)
+    },
+    ["The Magical Forest"] = {},
+    ["Haunted Island"] = {},
 }
+
+--// 🧠 Cache
+local bodyCache = {}
+local lastScan = {}
+local SCAN_INTERVAL = 2
 
 --// 🔎 Body Scanner
 local function getBodies(island)
+    local now = os.clock()
+    if lastScan[island] and now - lastScan[island] < SCAN_INTERVAL then
+        return bodyCache[island] or {}
+    end
+
     local bodies = {}
 
     for _, model in ipairs(workspace:GetChildren()) do
-        if model:IsA("Model")
-        and model.Name:match("^%b{}$")
-        and not exclusions[model.Name] then
+        if model:IsA("Model") and model.Name:match("^%b{}$") and not exclusions[model.Name] then
             local body = model:FindFirstChild("Body")
-            if body and body:IsA("BasePart") then
-                table.insert(bodies, body)
-            end
+            if body then table.insert(bodies, body) end
         end
     end
 
@@ -97,108 +112,97 @@ local function getBodies(island)
             for _, model in ipairs(folder:GetChildren()) do
                 if not exclusions[model.Name] then
                     local body = model:FindFirstChild("Body")
-                    if body and body:IsA("BasePart") then
-                        table.insert(bodies, body)
-                    end
+                    if body then table.insert(bodies, body) end
                 end
             end
         end
     end
 
+    bodyCache[island] = bodies
+    lastScan[island] = now
     return bodies
 end
 
---// 📌 Attach Player to Body
-local function attachToBody(hrp, target)
-    for _, name in ipairs({ "BodyAlign", "GyroAlign", "FollowAttachment" }) do
-        local obj = hrp:FindFirstChild(name)
-        if obj then obj:Destroy() end
-    end
-
-    local a0 = Instance.new("Attachment", hrp)
-    a0.Name = "FollowAttachment"
-
-    local a1 = Instance.new("Attachment", target)
-
-    local alignPos = Instance.new("AlignPosition", hrp)
-    alignPos.Name = "BodyAlign"
-    alignPos.Attachment0 = a0
-    alignPos.Attachment1 = a1
-    alignPos.MaxForce = math.huge
-    alignPos.Responsiveness = 200
-    alignPos.RigidityEnabled = true
-
-    local alignOri = Instance.new("AlignOrientation", hrp)
-    alignOri.Name = "GyroAlign"
-    alignOri.Attachment0 = a0
-    alignOri.Attachment1 = a1
-    alignOri.MaxTorque = math.huge
-    alignOri.Responsiveness = 200
-end
-
---// 🧭 MAIN TAB – Island Auto-Follow (FIXED)
-local toggles = {}
-local activeIsland = nil
-local IslandSection = MainTab:Section{ Name = "Island Auto-Follow" }
+--// 🧭 MAIN TAB – Island Auto Teleport
+local islandToggles = {}
+local activeIsland
+local IslandSection = MainTab:Section{ Name = "Island Auto-Teleport" }
 
 for island in pairs(positionsByIsland) do
-    toggles[island] = { value = false }
+    islandToggles[island] = { value = false }
     IslandSection:Toggle{
         Name = island,
         StartingState = false,
         Callback = function(state)
-            for _, t in pairs(toggles) do
-                t.value = false
-            end
-            toggles[island].value = state
+            for _, t in pairs(islandToggles) do t.value = false end
+            islandToggles[island].value = state
             activeIsland = state and island or nil
         end
     }
 end
 
---// 🔁 Follow Loop
 task.spawn(function()
-    while task.wait(0.3) do
-        local char = player.Character
-        local hrp = char and char:FindFirstChild("HumanoidRootPart")
-
-        if hrp and activeIsland and toggles[activeIsland].value then
+    while task.wait(0.4) do
+        local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+        if hrp and activeIsland and islandToggles[activeIsland].value then
             local bodies = getBodies(activeIsland)
-
-            if #bodies > 0 then
-                local target = bodies[1]
-                if target:IsDescendantOf(workspace) then
-                    attachToBody(hrp, target)
-                end
-            else
-                local fallback = positionsByIsland[activeIsland]
-                if fallback and fallback[1] then
-                    hrp.CFrame = CFrame.new(fallback[1] + Vector3.new(0,5,0))
-                end
+            if bodies[1] then
+                hrp.CFrame = CFrame.new(bodies[1].Position + Vector3.new(0,5,0))
+            elseif positionsByIsland[activeIsland][1] then
+                hrp.CFrame = CFrame.new(positionsByIsland[activeIsland][1] + Vector3.new(0,5,0))
             end
         end
     end
 end)
 
---// 🚢 TRAVEL TAB – Travel Buttons
+--// 🚢 TRAVEL TAB
 local TravelSection = TravelTab:Section{ Name = "Travel" }
-
-for islandName in pairs(positionsByIsland) do
+for island in pairs(positionsByIsland) do
     TravelSection:Button{
-        Name = "Travel to " .. islandName,
-        Description = "Use teleport remote",
+        Name = "Travel to "..island,
         Callback = function()
-            local args = { "\1", "Travel", islandName, 1 }
-
-            local remoteFolder =
-                game:GetService("ReplicatedStorage")
-                :WaitForChild("Communication", 9e9)
-                :WaitForChild("Functions", 9e9)
-
-            local teleportRemote = remoteFolder:GetChildren()[2]
-            if teleportRemote then
-                teleportRemote:FireServer(unpack(args))
-            end
+            local args = {"\1","Travel",island,1}
+            local remote = game:GetService("ReplicatedStorage")
+                :WaitForChild("Communication",9e9)
+                :WaitForChild("Functions",9e9)
+                :GetChildren()[2]
+            remote:FireServer(unpack(args))
         end
     }
 end
+
+--// 🏋 TRAIN TAB
+TrainTab:Section{ Name = "Train" }:Button{
+    Name = "Train All",
+    Callback = function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/CrimsonsMoons/Jasmine/refs/heads/main/Cross%20v1", true))()
+    end
+}
+
+--// 💰 SELL TAB
+SellTab:Section{ Name = "Auto Sell" }:Toggle{
+    Name = "Auto Sell",
+    Callback = function(state)
+        if state then
+            task.spawn(function()
+                while state do
+                    loadstring(game:HttpGet("https://raw.githubusercontent.com/CrimsonsMoons/Jasmine/refs/heads/main/auto%20sell2", true))()
+                    task.wait(5)
+                end
+            end)
+        end
+    end
+}
+
+--// 🛒 SHOP TAB
+ShopTab:Section{ Name = "Shop Actions" }:Button{
+    Name = "Buy Rope",
+    Callback = function()
+        local args = {"BuyShopItem","Mainland Shop",1,1000}
+        game:GetService("ReplicatedStorage")
+            :WaitForChild("Communication",9e9)
+            :WaitForChild("Events",9e9)
+            :GetChildren()[18]
+            :FireServer(unpack(args))
+    end
+}
