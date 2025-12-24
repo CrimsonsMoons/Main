@@ -9,7 +9,7 @@ local visited = {} -- [Body] = true
 local esp = {}     -- [Body] = BillboardGui
 
 --------------------------------------------------
--- CREATE ESP
+--- CREATE ESP
 --------------------------------------------------
 local function createESP(body)
 	if esp[body] then return end
