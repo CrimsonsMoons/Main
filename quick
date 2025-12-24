@@ -1,11 +1,74 @@
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local Workspace = game:GetService("Workspace")
+local RunService = game:GetService("RunService")
 
 local player = Players.LocalPlayer
 local visited = {} -- [BodyPart] = true
+local esp = {}     -- [BodyPart] = { gui, conn }
 
--- Get next unvisited Body
+--------------------------------------------------
+-- CREATE ESP
+--------------------------------------------------
+local function createESP(body)
+	if esp[body] then return end
+	if not body:IsA("BasePart") then return end
+	if body.Name ~= "Body" then return end
+	if visited[body] then return end -- ❌ don't show if already visited
+
+	local billboard = Instance.new("BillboardGui")
+	billboard.Name = "BodyESP"
+	billboard.Adornee = body
+	billboard.Size = UDim2.fromScale(8, 2)
+	billboard.StudsOffset = Vector3.new(0, 6, 0)
+	billboard.AlwaysOnTop = true
+	billboard.MaxDistance = 1e9
+	billboard.Parent = body
+
+	local text = Instance.new("TextLabel")
+	text.Size = UDim2.fromScale(1, 1)
+	text.BackgroundTransparency = 0.2
+	text.BackgroundColor3 = Color3.new(0, 0, 0)
+	text.Text = "BODY"
+	text.TextScaled = true
+	text.Font = Enum.Font.GothamBlack
+	text.TextStrokeTransparency = 0
+	text.TextStrokeColor3 = Color3.new(0, 0, 0)
+	text.Parent = billboard
+
+	-- 🌈 Rainbow animation
+	local start = os.clock()
+	local conn
+	conn = RunService.RenderStepped:Connect(function()
+		if not body.Parent or visited[body] then
+			conn:Disconnect()
+			if esp[body] then
+				esp[body].gui:Destroy()
+				esp[body] = nil
+			end
+			return
+		end
+
+		local t = (os.clock() - start) * 0.6
+		text.TextColor3 = Color3.fromHSV(t % 1, 1, 1)
+	end)
+
+	esp[body] = { gui = billboard, conn = conn }
+
+	-- Cleanup
+	body.AncestryChanged:Connect(function(_, parent)
+		if not parent and esp[body] then
+			esp[body].conn:Disconnect()
+			esp[body].gui:Destroy()
+			esp[body] = nil
+			visited[body] = nil
+		end
+	end)
+end
+
+--------------------------------------------------
+-- TELEPORT LOGIC
+--------------------------------------------------
 local function getNextBody()
 	for _, inst in ipairs(Workspace:GetDescendants()) do
 		if inst:IsA("BasePart")
@@ -17,22 +80,30 @@ local function getNextBody()
 	end
 end
 
--- Teleport
 local function teleportTo(body)
-	local character = player.Character
-	if not character then return end
+	local char = player.Character
+	if not char then return end
 
-	local hrp = character:FindFirstChild("HumanoidRootPart")
+	local hrp = char:FindFirstChild("HumanoidRootPart")
 	if not hrp then return end
 
 	visited[body] = true
+
+	-- remove ESP immediately
+	if esp[body] then
+		esp[body].conn:Disconnect()
+		esp[body].gui:Destroy()
+		esp[body] = nil
+	end
+
 	hrp.CFrame = body.CFrame * CFrame.new(0, 5, 0)
 end
 
--- Keybind: R
+--------------------------------------------------
+-- INPUT (R)
+--------------------------------------------------
 UserInputService.InputBegan:Connect(function(input, gp)
 	if gp then return end
-
 	if input.KeyCode == Enum.KeyCode.R then
 		local body = getNextBody()
 		if body then
@@ -41,7 +112,15 @@ UserInputService.InputBegan:Connect(function(input, gp)
 	end
 end)
 
--- Cleanup
+--------------------------------------------------
+-- LIVE UPDATES
+--------------------------------------------------
+for _, inst in ipairs(Workspace:GetDescendants()) do
+	createESP(inst)
+end
+
+Workspace.DescendantAdded:Connect(createESP)
+
 Workspace.DescendantRemoving:Connect(function(inst)
 	if visited[inst] then
 		visited[inst] = nil
