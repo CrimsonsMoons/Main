@@ -1,0 +1,49 @@
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local Workspace = game:GetService("Workspace")
+
+local player = Players.LocalPlayer
+local visited = {} -- [BodyPart] = true
+
+-- Get next unvisited Body
+local function getNextBody()
+	for _, inst in ipairs(Workspace:GetDescendants()) do
+		if inst:IsA("BasePart")
+			and inst.Name == "Body"
+			and inst.Parent
+			and not visited[inst] then
+			return inst
+		end
+	end
+end
+
+-- Teleport
+local function teleportTo(body)
+	local character = player.Character
+	if not character then return end
+
+	local hrp = character:FindFirstChild("HumanoidRootPart")
+	if not hrp then return end
+
+	visited[body] = true
+	hrp.CFrame = body.CFrame * CFrame.new(0, 5, 0)
+end
+
+-- Keybind: R
+UserInputService.InputBegan:Connect(function(input, gp)
+	if gp then return end
+
+	if input.KeyCode == Enum.KeyCode.R then
+		local body = getNextBody()
+		if body then
+			teleportTo(body)
+		end
+	end
+end)
+
+-- Cleanup
+Workspace.DescendantRemoving:Connect(function(inst)
+	if visited[inst] then
+		visited[inst] = nil
+	end
+end)
