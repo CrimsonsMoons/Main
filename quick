@@ -4,17 +4,18 @@ local Workspace = game:GetService("Workspace")
 local RunService = game:GetService("RunService")
 
 local player = Players.LocalPlayer
-local visited = {} -- [BodyPart] = true
-local esp = {}     -- [BodyPart] = { gui, conn }
+
+local visited = {} -- [Body] = true
+local esp = {}     -- [Body] = BillboardGui
 
 --------------------------------------------------
---- CREATE ESP
+-- CREATE ESP
 --------------------------------------------------
 local function createESP(body)
 	if esp[body] then return end
+	if visited[body] then return end
 	if not body:IsA("BasePart") then return end
 	if body.Name ~= "Body" then return end
-	if visited[body] then return end -- ❌ don't show if already visited
 
 	local billboard = Instance.new("BillboardGui")
 	billboard.Name = "BodyESP"
@@ -36,30 +37,24 @@ local function createESP(body)
 	text.TextStrokeColor3 = Color3.new(0, 0, 0)
 	text.Parent = billboard
 
-	-- 🌈 Rainbow animation
+	-- 🌈 Rainbow effect (SAFE)
 	local start = os.clock()
 	local conn
 	conn = RunService.RenderStepped:Connect(function()
-		if not body.Parent or visited[body] then
+		if not body.Parent or not esp[body] then
 			conn:Disconnect()
-			if esp[body] then
-				esp[body].gui:Destroy()
-				esp[body] = nil
-			end
 			return
 		end
-
 		local t = (os.clock() - start) * 0.6
 		text.TextColor3 = Color3.fromHSV(t % 1, 1, 1)
 	end)
 
-	esp[body] = { gui = billboard, conn = conn }
+	esp[body] = billboard
 
-	-- Cleanup
+	-- Cleanup if body removed
 	body.AncestryChanged:Connect(function(_, parent)
 		if not parent and esp[body] then
-			esp[body].conn:Disconnect()
-			esp[body].gui:Destroy()
+			esp[body]:Destroy()
 			esp[body] = nil
 			visited[body] = nil
 		end
@@ -67,7 +62,7 @@ local function createESP(body)
 end
 
 --------------------------------------------------
--- TELEPORT LOGIC
+-- TELEPORT
 --------------------------------------------------
 local function getNextBody()
 	for _, inst in ipairs(Workspace:GetDescendants()) do
@@ -89,10 +84,9 @@ local function teleportTo(body)
 
 	visited[body] = true
 
-	-- remove ESP immediately
+	-- REMOVE ESP AFTER VISIT
 	if esp[body] then
-		esp[body].conn:Disconnect()
-		esp[body].gui:Destroy()
+		esp[body]:Destroy()
 		esp[body] = nil
 	end
 
@@ -120,9 +114,3 @@ for _, inst in ipairs(Workspace:GetDescendants()) do
 end
 
 Workspace.DescendantAdded:Connect(createESP)
-
-Workspace.DescendantRemoving:Connect(function(inst)
-	if visited[inst] then
-		visited[inst] = nil
-	end
-end)
