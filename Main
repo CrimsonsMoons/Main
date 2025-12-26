@@ -1007,7 +1007,7 @@ local args = {
     [3] = "goldenAppleBasket";
 }
 
-game:GetService("ReplicatedStorage"):WaitForChild("Communication", 9e9):WaitForChild("Functions", 9e9):GetChildren()[16]:FireServer(unpack(args))
+game:GetService("ReplicatedStorage"):WaitForChild("Communication", 9e9):WaitForChild("Functions", 9e9):GetChildren()[15]:FireServer(unpack(args))
 
                 task.wait(0.06)
             end
