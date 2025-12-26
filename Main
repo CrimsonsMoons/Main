@@ -982,12 +982,13 @@ ShopSection:NewToggle("Auto Basket", "Fires Remote[16] every 0.1s with Trade arg
         task.spawn(function()
             while autoBasketEnabled do
 local args = {
-    [1] = "";
+    [1] = "";
     [2] = "Trade";
     [3] = "goldenAppleBasket";
 }
 
 game:GetService("ReplicatedStorage"):WaitForChild("Communication", 9e9):WaitForChild("Functions", 9e9):GetChildren()[15]:FireServer(unpack(args))
+
 
                 task.wait(0.06)
             end
@@ -1002,7 +1003,7 @@ ShopSection:NewToggle("Auto Basket", "Fires Remote[16] every 0.1s with Trade arg
         task.spawn(function()
             while autoBasketEnabled do
 local args = {
-    [1] = "";
+    [1] = "";
     [2] = "Trade";
     [3] = "goldenAppleBasket";
 }
