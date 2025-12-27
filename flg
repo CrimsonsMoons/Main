@@ -1,41 +1,47 @@
----// Universal Smart Fling GUI (Streaming + Custom Rig Safe)
+--// UNIVERSAL FLING GUI (RELIABLE PLAYER DETECTION)
 
 -- Services
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 
--- GUI
-local gui = Instance.new("ScreenGui", LocalPlayer:WaitForChild("PlayerGui"))
+-- =========================
+-- GUI SETUP
+-- =========================
+local gui = Instance.new("ScreenGui")
 gui.Name = "UniversalFlingGUI"
 gui.ResetOnSpawn = false
+gui.Parent = LocalPlayer:WaitForChild("PlayerGui")
 
 local frame = Instance.new("Frame", gui)
-frame.Size = UDim2.new(0, 260, 0, 360)
+frame.Size = UDim2.new(0, 260, 0, 340)
 frame.Position = UDim2.new(0, 10, 0.4, 0)
 frame.BackgroundColor3 = Color3.fromRGB(30,30,30)
 Instance.new("UICorner", frame).CornerRadius = UDim.new(0,8)
 
-local function makeBtn(text,y)
+local function makeBtn(text, y, color)
 	local b = Instance.new("TextButton", frame)
-	b.Size = UDim2.new(1,-20,0,24)
+	b.Size = UDim2.new(1,-20,0,26)
 	b.Position = UDim2.new(0,10,0,y)
 	b.Text = text
-	b.BackgroundColor3 = Color3.fromRGB(60,60,60)
+	b.BackgroundColor3 = color or Color3.fromRGB(60,60,60)
 	b.TextColor3 = Color3.new(1,1,1)
 	b.Font = Enum.Font.SourceSans
 	b.TextSize = 14
 	return b
 end
 
-local toggleBtn = makeBtn("Start Fling",10)
-toggleBtn.BackgroundColor3 = Color3.fromRGB(0,170,255)
+local toggleBtn   = makeBtn("Start Fling", 10, Color3.fromRGB(0,170,255))
+local dropdownBtn = makeBtn("Select Player", 45)
+local statusLbl   = makeBtn("Status: Idle", 290)
+statusLbl.BackgroundTransparency = 1
 
-local dropdownBtn = makeBtn("Select Player",40)
 local dropdown = Instance.new("ScrollingFrame", frame)
-dropdown.Position = UDim2.new(0,10,0,70)
-dropdown.Size = UDim2.new(1,-20,0,100)
+dropdown.Position = UDim2.new(0,10,0,75)
+dropdown.Size = UDim2.new(1,-20,0,120)
 dropdown.Visible = false
 dropdown.CanvasSize = UDim2.new()
 dropdown.ScrollBarThickness = 6
@@ -45,42 +51,48 @@ local list = Instance.new("UIListLayout", dropdown)
 list.Padding = UDim.new(0,2)
 
 local speedBox = Instance.new("TextBox", frame)
-speedBox.Position = UDim2.new(0,10,0,180)
+speedBox.Position = UDim2.new(0,10,0,205)
 speedBox.Size = UDim2.new(1,-20,0,22)
 speedBox.Text = "1500"
 speedBox.ClearTextOnFocus = false
 speedBox.BackgroundColor3 = Color3.fromRGB(50,50,50)
 speedBox.TextColor3 = Color3.new(1,1,1)
+speedBox.Font = Enum.Font.SourceSans
+speedBox.TextSize = 14
 
-local status = makeBtn("Status: Idle",210)
-status.BackgroundTransparency = 1
+local camToggle = makeBtn("Camera Lock: OFF", 235)
+local resetBtn  = makeBtn("Reset", 265, Color3.fromRGB(255,60,60))
 
-local cameraToggle = makeBtn("Camera Lock: OFF",240)
-local resetBtn = makeBtn("Reset",270)
-resetBtn.BackgroundColor3 = Color3.fromRGB(255,60,60)
+-- =========================
+-- DRAGGING
+-- =========================
+local dragging, dragStart, startPos
 
--- Drag
-local dragging, startPos, startInput
 frame.InputBegan:Connect(function(i)
 	if i.UserInputType == Enum.UserInputType.MouseButton1 then
 		dragging = true
+		dragStart = i.Position
 		startPos = frame.Position
-		startInput = i.Position
 		i.Changed:Connect(function()
-			if i.UserInputState == Enum.UserInputState.End then dragging = false end
+			if i.UserInputState == Enum.UserInputState.End then
+				dragging = false
+			end
 		end)
 	end
 end)
 
 RunService.RenderStepped:Connect(function()
 	if dragging then
-		local delta = game:GetService("UserInputService"):GetMouseLocation() - startInput
-		frame.Position = UDim2.new(startPos.X.Scale,startPos.X.Offset+delta.X,startPos.Y.Scale,startPos.Y.Offset+delta.Y)
+		local delta = UserInputService:GetMouseLocation() - dragStart
+		frame.Position = UDim2.new(
+			startPos.X.Scale, startPos.X.Offset + delta.X,
+			startPos.Y.Scale, startPos.Y.Offset + delta.Y
+		)
 	end
 end)
 
 -- =========================
--- SMART PLAYER DETECTION
+-- PLAYER DETECTION (FIXED)
 -- =========================
 
 local function getHRP(char)
@@ -94,19 +106,24 @@ local function isAlive(char)
 	return hum and hum.Health > 0
 end
 
-local function resolvePlayersFromWorkspace()
-	local found = {}
+local function getDetectedPlayers()
+	local detected = {}
 
-	for _,m in ipairs(workspace:GetChildren()) do
-		if m:IsA("Model") and isAlive(m) and getHRP(m) then
-			for _,p in ipairs(Players:GetPlayers()) do
-				if p ~= LocalPlayer and p.Character == m then
-					table.insert(found,p)
-				end
+	for _, obj in ipairs(workspace:GetDescendants()) do
+		if obj:IsA("Model") and obj:FindFirstChildOfClass("Humanoid") then
+			local plr = Players:GetPlayerFromCharacter(obj)
+			if plr and plr ~= LocalPlayer and isAlive(obj) and getHRP(obj) then
+				detected[plr] = true
 			end
 		end
 	end
-	return found
+
+	local list = {}
+	for p in pairs(detected) do
+		table.insert(list, p)
+	end
+
+	return list
 end
 
 -- =========================
@@ -116,24 +133,40 @@ end
 local selectedPlayer
 
 local function refreshDropdown()
-	for _,c in ipairs(dropdown:GetChildren()) do
-		if c:IsA("TextButton") then c:Destroy() end
+	for _, c in ipairs(dropdown:GetChildren()) do
+		if c:IsA("TextButton") or c:IsA("TextLabel") then
+			c:Destroy()
+		end
 	end
 
-	for _,p in ipairs(resolvePlayersFromWorkspace()) do
-		local b = Instance.new("TextButton", dropdown)
-		b.Size = UDim2.new(1,0,0,22)
-		b.Text = p.Name
-		b.BackgroundColor3 = Color3.fromRGB(60,60,60)
-		b.TextColor3 = Color3.new(1,1,1)
-		b.Font = Enum.Font.SourceSans
-		b.TextSize = 14
+	local players = getDetectedPlayers()
 
-		b.MouseButton1Click:Connect(function()
-			selectedPlayer = p
-			dropdownBtn.Text = "Target: "..p.Name
-			dropdown.Visible = false
-		end)
+	if #players == 0 then
+		local lbl = Instance.new("TextLabel", dropdown)
+		lbl.Size = UDim2.new(1,0,0,24)
+		lbl.Text = "No players detected"
+		lbl.TextColor3 = Color3.new(1,1,1)
+		lbl.BackgroundTransparency = 1
+		lbl.Font = Enum.Font.SourceSans
+		lbl.TextSize = 14
+		lbl.Parent = dropdown
+	else
+		for _, p in ipairs(players) do
+			local btn = Instance.new("TextButton", dropdown)
+			btn.Size = UDim2.new(1,0,0,24)
+			btn.Text = p.Name
+			btn.BackgroundColor3 = Color3.fromRGB(60,60,60)
+			btn.TextColor3 = Color3.new(1,1,1)
+			btn.Font = Enum.Font.SourceSans
+			btn.TextSize = 14
+			btn.Parent = dropdown
+
+			btn.MouseButton1Click:Connect(function()
+				selectedPlayer = p
+				dropdownBtn.Text = "Target: " .. p.Name
+				dropdown.Visible = false
+			end)
+		end
 	end
 
 	dropdown.CanvasSize = UDim2.new(0,0,0,list.AbsoluteContentSize.Y)
@@ -144,33 +177,42 @@ dropdownBtn.MouseButton1Click:Connect(function()
 	refreshDropdown()
 end)
 
-workspace.ChildAdded:Connect(function()
-	task.delay(0.5, refreshDropdown)
+-- live refresh for streaming games
+workspace.DescendantAdded:Connect(function(obj)
+	if obj:IsA("Model") and obj:FindFirstChildOfClass("Humanoid") then
+		task.delay(0.4, refreshDropdown)
+	end
+end)
+
+Players.PlayerAdded:Connect(function(plr)
+	plr.CharacterAdded:Connect(function()
+		task.delay(0.4, refreshDropdown)
+	end)
 end)
 
 -- =========================
 -- FLING LOGIC
 -- =========================
 
-local flingConn, camConn
+local flingConn
 local camLock = false
 
-cameraToggle.MouseButton1Click:Connect(function()
+camToggle.MouseButton1Click:Connect(function()
 	camLock = not camLock
-	cameraToggle.Text = "Camera Lock: "..(camLock and "ON" or "OFF")
+	camToggle.Text = "Camera Lock: " .. (camLock and "ON" or "OFF")
 end)
 
 local function stopFling()
 	if flingConn then flingConn:Disconnect() flingConn = nil end
-	if camConn then camConn:Disconnect() camConn = nil end
-	Camera.CameraSubject = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
-	status.Text = "Status: Stopped"
+	local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+	if hum then Camera.CameraSubject = hum end
+	statusLbl.Text = "Status: Stopped"
 	toggleBtn.Text = "Start Fling"
 end
 
 local function startFling()
 	if not selectedPlayer then
-		status.Text = "Status: No target"
+		statusLbl.Text = "Status: No target"
 		return
 	end
 
@@ -186,21 +228,21 @@ local function startFling()
 		local targetHRP = getHRP(selectedPlayer.Character)
 		if not targetHRP then return end
 
-		local speed = math.clamp(tonumber(speedBox.Text) or 1500,300,4000)
+		local speed = math.clamp(tonumber(speedBox.Text) or 1500, 300, 4000)
 		local t = os.clock() * speed * 0.002
-		local offset = Vector3.new(math.cos(t)*4,1.5,math.sin(t)*4)
+		local offset = Vector3.new(math.cos(t)*4, 1.5, math.sin(t)*4)
 
-		char:PivotTo(CFrame.lookAt(targetHRP.Position+offset,targetHRP.Position))
+		char:PivotTo(CFrame.lookAt(targetHRP.Position + offset, targetHRP.Position))
 		hrp.AssemblyAngularVelocity = Vector3.new(8000,8000,8000)
-		hrp.AssemblyLinearVelocity = (targetHRP.Position-hrp.Position)*12
+		hrp.AssemblyLinearVelocity = (targetHRP.Position - hrp.Position) * 12
 
 		if camLock then
 			Camera.CameraSubject = nil
-			Camera.CFrame = CFrame.new(Camera.CFrame.Position,targetHRP.Position)
+			Camera.CFrame = CFrame.new(Camera.CFrame.Position, targetHRP.Position)
 		end
 	end)
 
-	status.Text = "Status: Flinging "..selectedPlayer.Name
+	statusLbl.Text = "Status: Flinging " .. selectedPlayer.Name
 	toggleBtn.Text = "Stop Fling"
 end
 
