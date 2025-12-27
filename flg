@@ -153,92 +153,91 @@ end
 refreshPlayers()
 
 --// 🔮 ADVANCED PREDICTION
---// TIER-3 PREDICTION SYSTEM
-local Predict = {
-	BaseLead = 0.16,
-	MaxLead = 0.50,
-	AccelWeight = 0.6,
-	JerkWeight = 0.25,
-	Smoothing = 0.9,
-	AirMultiplier = 1.35,
-	GroundMultiplier = 0.85
+local Prediction = {
+	BaseLead = 0.18,
+	MaxLead = 0.45,
+	AccelWeight = 0.5,
+	Smoothing = 0.85
 }
 
-local history = {}
+local lastVelocity = {}
 
-local function advancedPredict(hrp, dt)
+local function predictPosition(hrp, dt)
 	if not hrp then return nil end
 
 	local vel = hrp.AssemblyLinearVelocity
 	local speed = vel.Magnitude
 
-	history[hrp] = history[hrp] or {
-		vel = vel,
-		accel = Vector3.zero
-	}
-
-	local last = history[hrp]
-
-	-- Acceleration
-	local accel = (vel - last.vel) / math.max(dt, 1/60)
-
-	-- Jerk (change in acceleration)
-	local jerk = (accel - last.accel) / math.max(dt, 1/60)
-
-	-- Ground / air detection
-	local grounded = math.abs(vel.Y) < 2
-	local stateMult = grounded and Predict.GroundMultiplier or Predict.AirMultiplier
-
-	-- Dynamic lead time
 	local lead = math.clamp(
-		(Predict.BaseLead + speed / 110) * stateMult,
-		Predict.BaseLead,
-		Predict.MaxLead
+		Prediction.BaseLead + speed / 120,
+		Prediction.BaseLead,
+		Prediction.MaxLead
 	)
 
-	-- Adaptive decay (prevents overshoot on sudden stops)
-	if speed < 8 then
-		lead *= 0.45
-	end
-
-	-- Save smoothed values
-	last.vel = last.vel:Lerp(vel, Predict.Smoothing)
-	last.accel = last.accel:Lerp(accel, Predict.Smoothing)
+	local prevVel = lastVelocity[hrp] or vel
+	local accel = (vel - prevVel) / math.max(dt, 1/60)
+	lastVelocity[hrp] = prevVel:Lerp(vel, Prediction.Smoothing)
 
 	return hrp.Position
 		+ vel * lead
-		+ accel * (lead^2 * Predict.AccelWeight)
-		+ jerk * (lead^3 * Predict.JerkWeight)
+		+ accel * (lead * lead * Prediction.AccelWeight)
 end
 
 --// FLING
-local predicted = advancedPredict(thrp, dt)
-if not predicted then return end
+local function startFling()
+	if not State.Target then
+		status.Text = "Status: No target selected"
+		return
+	end
 
-local speed = tonumber(speedBox.Text) or 1500
-local t = os.clock() * math.rad(speed)
+	State.Running = true
+	status.Text = "Status: Flinging " .. State.Target.Name
 
--- Distance-based orbit tightening
-local dist = (predicted - hrp.Position).Magnitude
-local radius = math.clamp(dist * 0.35, 2.5, 6)
+	local conn
+	conn = RunService.Heartbeat:Connect(function(dt)
+		local char = LocalPlayer.Character
+		local targetChar = State.Target.Character
+		if not char or not targetChar then return end
 
-local offset = Vector3.new(
-	math.cos(t),
-	0,
-	math.sin(t)
-) * radius
+		local hrp = char:FindFirstChild("HumanoidRootPart")
+		local thrp = targetChar:FindFirstChild("HumanoidRootPart")
+		if not hrp or not thrp then return end
 
-char:PivotTo(CFrame.new(predicted + offset))
+		local predicted = predictPosition(thrp, dt)
+		if not predicted then return end
 
--- Snap-assist force (very important)
-local dir = predicted - hrp.Position
-if dir.Magnitude > 0 then
-	local snap = math.clamp(dir.Magnitude * 7, 200, 520)
-	hrp.AssemblyLinearVelocity = dir.Unit * snap
+		local speed = tonumber(speedBox.Text) or 1500
+		local t = os.clock() * math.rad(speed)
+
+		local radius = 5
+		local offset = Vector3.new(math.cos(t), 0, math.sin(t)) * radius
+
+		char:PivotTo(CFrame.new(predicted + offset))
+
+		local dir = predicted - hrp.Position
+		if dir.Magnitude > 0 then
+			hrp.AssemblyLinearVelocity =
+				dir.Unit * math.clamp(dir.Magnitude * 6, 180, 420)
+		end
+
+		hrp.AssemblyAngularVelocity = Vector3.new(9000,9000,9000)
+
+		if State.CameraLock then
+			Camera.CameraSubject = thrp
+			Camera.CFrame = CFrame.new(Camera.CFrame.Position, thrp.Position)
+		end
+	end)
+
+	table.insert(State.Connections, conn)
 end
 
--- Angular amplification
-hrp.AssemblyAngularVelocity = Vector3.new(9500, 9500, 9500)
+local function stopFling()
+	State.Running = false
+	clearConnections()
+	status.Text = "Status: Stopped"
+	local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid")
+	if hum then Camera.CameraSubject = hum end
+end
 
 --// BUTTONS
 toggleBtn.MouseButton1Click:Connect(function()
