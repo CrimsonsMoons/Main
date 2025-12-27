@@ -1,0 +1,279 @@
+--// SERVICES
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+
+--// PLAYER
+local LocalPlayer = Players.LocalPlayer
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+local Camera = workspace.CurrentCamera
+
+--// STATE
+local State = {
+	Running = false,
+	AutoRefresh = true,
+	CameraLock = false,
+	Target = nil,
+	Connections = {}
+}
+
+--// UTILS
+local function disconnect(c)
+	if c then c:Disconnect() end
+end
+
+local function clearConnections()
+	for _, c in ipairs(State.Connections) do
+		disconnect(c)
+	end
+	table.clear(State.Connections)
+end
+
+--// GUI
+local gui = Instance.new("ScreenGui", PlayerGui)
+gui.Name = "FlingOrbitGUI"
+gui.ResetOnSpawn = false
+
+local frame = Instance.new("Frame", gui)
+frame.Size = UDim2.fromOffset(260, 360)
+frame.Position = UDim2.new(0, 10, 0.4, 0)
+frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 8)
+
+local function makeBtn(text, y, color)
+	local b = Instance.new("TextButton", frame)
+	b.Size = UDim2.new(1, -20, 0, 28)
+	b.Position = UDim2.new(0, 10, 0, y)
+	b.BackgroundColor3 = color
+	b.Text = text
+	b.TextColor3 = Color3.new(1,1,1)
+	b.Font = Enum.Font.SourceSansBold
+	b.TextSize = 14
+	Instance.new("UICorner", b).CornerRadius = UDim.new(0, 6)
+	return b
+end
+
+local toggleBtn = makeBtn("Start Fling", 10, Color3.fromRGB(0,170,255))
+local dropdownBtn = makeBtn("Select Player", 50, Color3.fromRGB(50,50,50))
+local autoBtn = makeBtn("Auto Refresh: ON", 90, Color3.fromRGB(40,40,40))
+local camBtn = makeBtn("Camera Lock: OFF", 125, Color3.fromRGB(40,40,40))
+local resetBtn = makeBtn("Reset", 310, Color3.fromRGB(255,60,60))
+
+--// SPEED
+local speedBox = Instance.new("TextBox", frame)
+speedBox.Size = UDim2.new(1, -20, 0, 28)
+speedBox.Position = UDim2.new(0, 10, 0, 160)
+speedBox.Text = "1500"
+speedBox.BackgroundColor3 = Color3.fromRGB(50,50,50)
+speedBox.TextColor3 = Color3.new(1,1,1)
+speedBox.Font = Enum.Font.SourceSans
+speedBox.TextSize = 14
+speedBox.ClearTextOnFocus = false
+Instance.new("UICorner", speedBox).CornerRadius = UDim.new(0, 6)
+
+--// STATUS
+local status = Instance.new("TextLabel", frame)
+status.Size = UDim2.new(1, -20, 0, 20)
+status.Position = UDim2.new(0, 10, 0, 195)
+status.Text = "Status: Idle"
+status.TextColor3 = Color3.new(1,1,1)
+status.BackgroundTransparency = 1
+status.TextXAlignment = Enum.TextXAlignment.Left
+status.Font = Enum.Font.SourceSans
+
+--// DROPDOWN
+local dropdown = Instance.new("ScrollingFrame", frame)
+dropdown.Size = UDim2.new(1, -20, 0, 90)
+dropdown.Position = UDim2.new(0, 10, 0, 225)
+dropdown.Visible = false
+dropdown.ScrollBarThickness = 6
+dropdown.BackgroundColor3 = Color3.fromRGB(35,35,35)
+
+local layout = Instance.new("UIListLayout", dropdown)
+layout.Padding = UDim.new(0, 4)
+
+--// DRAGGING
+do
+	local dragging, dragStart, startPos
+
+	frame.InputBegan:Connect(function(i)
+		if i.UserInputType == Enum.UserInputType.MouseButton1 then
+			dragging = true
+			dragStart = i.Position
+			startPos = frame.Position
+			i.Changed:Connect(function()
+				if i.UserInputState == Enum.UserInputState.End then
+					dragging = false
+				end
+			end)
+		end
+	end)
+
+	RunService.RenderStepped:Connect(function()
+		if dragging then
+			local delta = UserInputService:GetMouseLocation() - dragStart
+			frame.Position = UDim2.new(
+				startPos.X.Scale,
+				startPos.X.Offset + delta.X,
+				startPos.Y.Scale,
+				startPos.Y.Offset + delta.Y
+			)
+		end
+	end)
+end
+
+--// PLAYER LIST
+local function refreshPlayers()
+	for _, c in ipairs(dropdown:GetChildren()) do
+		if c:IsA("TextButton") then c:Destroy() end
+	end
+
+	for _, p in ipairs(Players:GetPlayers()) do
+		if p ~= LocalPlayer then
+			local b = Instance.new("TextButton", dropdown)
+			b.Size = UDim2.new(1, -6, 0, 26)
+			b.Text = p.Name
+			b.BackgroundColor3 = Color3.fromRGB(60,60,60)
+			b.TextColor3 = Color3.new(1,1,1)
+			b.Font = Enum.Font.SourceSans
+			b.TextSize = 14
+			Instance.new("UICorner", b).CornerRadius = UDim.new(0, 6)
+
+			b.MouseButton1Click:Connect(function()
+				State.Target = p
+				dropdownBtn.Text = "Target: " .. p.Name
+				dropdown.Visible = false
+			end)
+		end
+	end
+
+	dropdown.CanvasSize = UDim2.new(0,0,0,layout.AbsoluteContentSize.Y)
+end
+
+refreshPlayers()
+
+--// 🔮 ADVANCED PREDICTION
+local Prediction = {
+	BaseLead = 0.18,
+	MaxLead = 0.45,
+	AccelWeight = 0.5,
+	Smoothing = 0.85
+}
+
+local lastVelocity = {}
+
+local function predictPosition(hrp, dt)
+	if not hrp then return nil end
+
+	local vel = hrp.AssemblyLinearVelocity
+	local speed = vel.Magnitude
+
+	local lead = math.clamp(
+		Prediction.BaseLead + speed / 120,
+		Prediction.BaseLead,
+		Prediction.MaxLead
+	)
+
+	local prevVel = lastVelocity[hrp] or vel
+	local accel = (vel - prevVel) / math.max(dt, 1/60)
+	lastVelocity[hrp] = prevVel:Lerp(vel, Prediction.Smoothing)
+
+	return hrp.Position
+		+ vel * lead
+		+ accel * (lead * lead * Prediction.AccelWeight)
+end
+
+--// FLING
+local function startFling()
+	if not State.Target then
+		status.Text = "Status: No target selected"
+		return
+	end
+
+	State.Running = true
+	status.Text = "Status: Flinging " .. State.Target.Name
+
+	local conn
+	conn = RunService.Heartbeat:Connect(function(dt)
+		local char = LocalPlayer.Character
+		local targetChar = State.Target.Character
+		if not char or not targetChar then return end
+
+		local hrp = char:FindFirstChild("HumanoidRootPart")
+		local thrp = targetChar:FindFirstChild("HumanoidRootPart")
+		if not hrp or not thrp then return end
+
+		local predicted = predictPosition(thrp, dt)
+		if not predicted then return end
+
+		local speed = tonumber(speedBox.Text) or 1500
+		local t = os.clock() * math.rad(speed)
+
+		local radius = 5
+		local offset = Vector3.new(math.cos(t), 0, math.sin(t)) * radius
+
+		char:PivotTo(CFrame.new(predicted + offset))
+
+		local dir = predicted - hrp.Position
+		if dir.Magnitude > 0 then
+			hrp.AssemblyLinearVelocity =
+				dir.Unit * math.clamp(dir.Magnitude * 6, 180, 420)
+		end
+
+		hrp.AssemblyAngularVelocity = Vector3.new(9000,9000,9000)
+
+		if State.CameraLock then
+			Camera.CameraSubject = thrp
+			Camera.CFrame = CFrame.new(Camera.CFrame.Position, thrp.Position)
+		end
+	end)
+
+	table.insert(State.Connections, conn)
+end
+
+local function stopFling()
+	State.Running = false
+	clearConnections()
+	status.Text = "Status: Stopped"
+	local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid")
+	if hum then Camera.CameraSubject = hum end
+end
+
+--// BUTTONS
+toggleBtn.MouseButton1Click:Connect(function()
+	if State.Running then
+		stopFling()
+		toggleBtn.Text = "Start Fling"
+	else
+		startFling()
+		toggleBtn.Text = "Stop Fling"
+	end
+end)
+
+dropdownBtn.MouseButton1Click:Connect(function()
+	dropdown.Visible = not dropdown.Visible
+end)
+
+autoBtn.MouseButton1Click:Connect(function()
+	State.AutoRefresh = not State.AutoRefresh
+	autoBtn.Text = "Auto Refresh: " .. (State.AutoRefresh and "ON" or "OFF")
+end)
+
+camBtn.MouseButton1Click:Connect(function()
+	State.CameraLock = not State.CameraLock
+	camBtn.Text = "Camera Lock: " .. (State.CameraLock and "ON" or "OFF")
+end)
+
+resetBtn.MouseButton1Click:Connect(function()
+	stopFling()
+	gui:Destroy()
+end)
+
+--// PLAYER UPDATES
+Players.PlayerAdded:Connect(function()
+	if State.AutoRefresh then refreshPlayers() end
+end)
+
+Players.PlayerRemoving:Connect(function()
+	if State.AutoRefresh then refreshPlayers() end
+end)
