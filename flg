@@ -1,4 +1,4 @@
---// UNIVERSAL FLING GUI (RELIABLE PLAYER DETECTION)
+---// UNIVERSAL FLING GUI (RELIABLE PLAYER DETECTION)
 
 -- Services
 local Players = game:GetService("Players")
