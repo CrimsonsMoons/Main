@@ -1,4 +1,4 @@
---// Universal Smart Fling GUI (Streaming + Custom Rig Safe)
+---// Universal Smart Fling GUI (Streaming + Custom Rig Safe)
 
 -- Services
 local Players = game:GetService("Players")
