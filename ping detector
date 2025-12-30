@@ -1,67 +1,71 @@
+-- UNIVERSAL CLIENT-SIDE PING LABELS
+-- Works in ANY Roblox game
+
 local Players = game:GetService("Players")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Stats = game:GetService("Stats")
+local RunService = game:GetService("RunService")
 
-local PingEvent = ReplicatedStorage:WaitForChild("PingEvent")
 local localPlayer = Players.LocalPlayer
-
--- Store labels
 local labels = {}
 
-local function getPingColor(ping)
-	if ping < 80 then
-		return Color3.fromRGB(0, 255, 0) -- green
-	elseif ping < 150 then
-		return Color3.fromRGB(255, 170, 0) -- yellow
+-- 🎨 Color based on ping
+local function getColor(ms)
+	if ms < 80 then
+		return Color3.fromRGB(0,255,0)
+	elseif ms < 150 then
+		return Color3.fromRGB(255,170,0)
 	else
-		return Color3.fromRGB(255, 0, 0) -- red
+		return Color3.fromRGB(255,0,0)
 	end
 end
 
-local function createPingLabel(player, character)
-	if labels[player] then return end
+-- 🏷️ Create label
+local function attachLabel(player)
+	player.CharacterAdded:Connect(function(char)
+		local head = char:WaitForChild("Head", 5)
+		if not head then return end
 
-	local head = character:WaitForChild("Head")
+		-- Remove old
+		if head:FindFirstChild("PingGui") then
+			head.PingGui:Destroy()
+		end
 
-	local billboard = Instance.new("BillboardGui")
-	billboard.Name = "PingLabel"
-	billboard.Adornee = head
-	billboard.Size = UDim2.fromScale(4, 1)
-	billboard.StudsOffset = Vector3.new(0, 2.5, 0)
-	billboard.AlwaysOnTop = true
-	billboard.Parent = head
+		local gui = Instance.new("BillboardGui")
+		gui.Name = "PingGui"
+		gui.Adornee = head
+		gui.Size = UDim2.new(0, 100, 0, 25)
+		gui.StudsOffset = Vector3.new(0, 2.5, 0)
+		gui.AlwaysOnTop = true
+		gui.Parent = head
 
-	local text = Instance.new("TextLabel")
-	text.Size = UDim2.fromScale(1, 1)
-	text.BackgroundTransparency = 1
-	text.TextScaled = true
-	text.Font = Enum.Font.GothamBold
-	text.TextStrokeTransparency = 0.5
-	text.Text = "-- ms"
-	text.Parent = billboard
+		local text = Instance.new("TextLabel")
+		text.Size = UDim2.fromScale(1,1)
+		text.BackgroundTransparency = 1
+		text.TextScaled = true
+		text.Font = Enum.Font.GothamBold
+		text.TextStrokeTransparency = 0.3
+		text.Parent = gui
 
-	labels[player] = text
-end
-
-local function setupPlayer(player)
-	player.CharacterAdded:Connect(function(character)
-		task.wait(0.5)
-		createPingLabel(player, character)
+		labels[player] = text
 	end)
 end
 
--- Existing players
-for _, player in ipairs(Players:GetPlayers()) do
-	setupPlayer(player)
+-- Attach to players
+for _, p in ipairs(Players:GetPlayers()) do
+	attachLabel(p)
 end
 
--- New players
-Players.PlayerAdded:Connect(setupPlayer)
+Players.PlayerAdded:Connect(attachLabel)
 
--- Receive ping updates
-PingEvent.OnClientEvent:Connect(function(player, pingMs)
-	local label = labels[player]
-	if not label then return end
+-- 🔄 Update ping constantly
+RunService.RenderStepped:Connect(function()
+	local pingStat = Stats.Network.ServerStatsItem["Data Ping"]
+	if not pingStat then return end
 
-	label.Text = pingMs .. " ms"
-	label.TextColor3 = getPingColor(pingMs)
+	local ping = math.floor(tonumber(pingStat:GetValueString():match("%d+")) or 0)
+
+	for _, label in pairs(labels) do
+		label.Text = ping .. " ms"
+		label.TextColor3 = getColor(ping)
+	end
 end)
