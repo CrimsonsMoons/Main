@@ -1,4 +1,4 @@
--- UNIVERSAL PLAYER SELECT + PING GUI
+--- UNIVERSAL PLAYER SELECT + PING GUI
 -- Works in ANY Roblox game (client-side only)
 
 local Players = game:GetService("Players")
