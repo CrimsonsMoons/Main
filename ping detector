@@ -1,4 +1,4 @@
--- UNIVERSAL CLIENT-SIDE PING LABELS
+--- UNIVERSAL CLIENT-SIDE PING LABELS
 -- Works in ANY Roblox game
 
 local Players = game:GetService("Players")
