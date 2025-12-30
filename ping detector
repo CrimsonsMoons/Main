@@ -8,7 +8,7 @@ local localPlayer = Players.LocalPlayer
 local pingData = {}
 local selectedUserId = nil
 
--- ================= SEND PING =================
+--- ================= SEND PING =================
 task.spawn(function()
 	while task.wait(2) do
 		PingEvent:FireServer(os.clock())
