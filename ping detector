@@ -1,70 +1,84 @@
 local Players = game:GetService("Players")
-local Stats = game:GetService("Stats")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
-local player = Players.LocalPlayer
+local PingEvent = ReplicatedStorage:WaitForChild("PingEvent")
+local localPlayer = Players.LocalPlayer
 
---- GUI
-local gui = Instance.new("ScreenGui")
-gui.Name = "PlayerPingGui"
+local pingData = {}
+local selectedUserId = nil
+
+-- ================= SEND PING =================
+task.spawn(function()
+	while task.wait(2) do
+		PingEvent:FireServer(os.clock())
+	end
+end)
+
+-- ================= GUI =================
+local gui = Instance.new("ScreenGui", localPlayer:WaitForChild("PlayerGui"))
+gui.Name = "PingGui"
 gui.ResetOnSpawn = false
-gui.Parent = player:WaitForChild("PlayerGui")
 
 local frame = Instance.new("Frame", gui)
-frame.Size = UDim2.new(0, 320, 0, 220)
+frame.Size = UDim2.new(0, 360, 0, 260)
 frame.Position = UDim2.fromScale(0.05, 0.3)
 frame.BackgroundColor3 = Color3.fromRGB(20,20,20)
 
 local title = Instance.new("TextLabel", frame)
 title.Size = UDim2.new(1,0,0,30)
 title.BackgroundTransparency = 1
-title.Text = "Player Ping Viewer"
-title.TextColor3 = Color3.new(1,1,1)
-title.TextScaled = true
+title.Text = "Player Network Monitor"
 title.Font = Enum.Font.GothamBold
+title.TextScaled = true
+title.TextColor3 = Color3.new(1,1,1)
 
 local list = Instance.new("ScrollingFrame", frame)
 list.Position = UDim2.new(0,10,0,40)
-list.Size = UDim2.new(0,130,1,-50)
+list.Size = UDim2.new(0,150,1,-50)
 list.CanvasSize = UDim2.new(0,0,0,0)
 list.ScrollBarImageTransparency = 1
 list.BackgroundTransparency = 1
 
 local layout = Instance.new("UIListLayout", list)
-layout.Padding = UDim.new(0,5)
+layout.Padding = UDim.new(0,6)
 
 local info = Instance.new("TextLabel", frame)
-info.Position = UDim2.new(0,150,0,80)
-info.Size = UDim2.new(0,160,0,80)
+info.Position = UDim2.new(0,170,0,90)
+info.Size = UDim2.new(0,180,0,100)
 info.BackgroundTransparency = 1
-info.TextColor3 = Color3.new(1,1,1)
-info.TextScaled = true
 info.Font = Enum.Font.GothamBold
+info.TextScaled = true
+info.TextColor3 = Color3.new(1,1,1)
 info.Text = "Select a player"
 
-local selected = nil
-
-local function getPing()
-	local stat = Stats.Network.ServerStatsItem:FindFirstChild("Data Ping")
-	if not stat then return "--" end
-	return stat:GetValueString()
+-- ================= FUNCTIONS =================
+local function statusFromPing(ms)
+	if ms < 80 then
+		return "GOOD 🟢"
+	elseif ms < 150 then
+		return "AVERAGE 🟡"
+	else
+		return "POOR 🔴"
+	end
 end
 
-local function addPlayer(p)
+local function addPlayer(player)
 	local btn = Instance.new("TextButton")
-	btn.Size = UDim2.new(1,0,0,30)
-	btn.Text = p.Name
-	btn.Font = Enum.Font.Gotham
+	btn.Size = UDim2.new(1,0,0,32)
+	btn.Text = player.Name
 	btn.TextScaled = true
+	btn.Font = Enum.Font.Gotham
 	btn.TextColor3 = Color3.new(1,1,1)
 	btn.BackgroundColor3 = Color3.fromRGB(40,40,40)
 	btn.Parent = list
 
 	btn.MouseButton1Click:Connect(function()
-		selected = p
+		selectedUserId = player.UserId
 	end)
 end
 
+-- ================= PLAYER LIST =================
 for _, p in ipairs(Players:GetPlayers()) do
 	addPlayer(p)
 end
@@ -72,11 +86,24 @@ end
 Players.PlayerAdded:Connect(addPlayer)
 
 layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-	list.CanvasSize = UDim2.new(0,0,0,layout.AbsoluteContentSize.Y + 5)
+	list.CanvasSize = UDim2.new(0,0,0,layout.AbsoluteContentSize.Y + 10)
 end)
 
+-- ================= RECEIVE PINGS =================
+PingEvent.OnClientEvent:Connect(function(userId, pingMs)
+	pingData[userId] = pingMs
+end)
+
+-- ================= UPDATE DISPLAY =================
 RunService.RenderStepped:Connect(function()
-	if selected then
-		info.Text = selected.Name .. "\nPing: " .. getPing()
+	if not selectedUserId then return end
+	local ping = pingData[selectedUserId]
+	if not ping then
+		info.Text = "Waiting for data..."
+		return
 	end
+
+	info.Text =
+		"Ping: " .. ping .. " ms\n" ..
+		"Status: " .. statusFromPing(ping)
 end)
