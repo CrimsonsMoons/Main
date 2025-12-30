@@ -1,128 +1,82 @@
---- UNIVERSAL PLAYER SELECT + PING GUI
--- Works in ANY Roblox game (client-side only)
-
 local Players = game:GetService("Players")
 local Stats = game:GetService("Stats")
 local RunService = game:GetService("RunService")
 
-local localPlayer = Players.LocalPlayer
+local player = Players.LocalPlayer
 
--- ================= GUI SETUP =================
-
+-- GUI
 local gui = Instance.new("ScreenGui")
 gui.Name = "PlayerPingGui"
 gui.ResetOnSpawn = false
-gui.Parent = localPlayer:WaitForChild("PlayerGui")
+gui.Parent = player:WaitForChild("PlayerGui")
 
 local frame = Instance.new("Frame", gui)
-frame.Size = UDim2.new(0, 350, 0, 250)
+frame.Size = UDim2.new(0, 320, 0, 220)
 frame.Position = UDim2.fromScale(0.05, 0.3)
-frame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-frame.BorderSizePixel = 0
+frame.BackgroundColor3 = Color3.fromRGB(20,20,20)
 
-local corner = Instance.new("UICorner", frame)
-corner.CornerRadius = UDim.new(0, 10)
-
--- Title
 local title = Instance.new("TextLabel", frame)
-title.Size = UDim2.new(1, 0, 0, 35)
+title.Size = UDim2.new(1,0,0,30)
 title.BackgroundTransparency = 1
-title.Text = "Player Network Status"
+title.Text = "Player Ping Viewer"
 title.TextColor3 = Color3.new(1,1,1)
-title.Font = Enum.Font.GothamBold
 title.TextScaled = true
+title.Font = Enum.Font.GothamBold
 
--- Player List
 local list = Instance.new("ScrollingFrame", frame)
-list.Position = UDim2.new(0, 10, 0, 45)
-list.Size = UDim2.new(0, 140, 1, -55)
+list.Position = UDim2.new(0,10,0,40)
+list.Size = UDim2.new(0,130,1,-50)
 list.CanvasSize = UDim2.new(0,0,0,0)
 list.ScrollBarImageTransparency = 1
 list.BackgroundTransparency = 1
 
 local layout = Instance.new("UIListLayout", list)
-layout.Padding = UDim.new(0, 6)
+layout.Padding = UDim.new(0,5)
 
--- Info Panel
-local info = Instance.new("Frame", frame)
-info.Position = UDim2.new(0, 160, 0, 45)
-info.Size = UDim2.new(1, -170, 1, -55)
+local info = Instance.new("TextLabel", frame)
+info.Position = UDim2.new(0,150,0,80)
+info.Size = UDim2.new(0,160,0,80)
 info.BackgroundTransparency = 1
+info.TextColor3 = Color3.new(1,1,1)
+info.TextScaled = true
+info.Font = Enum.Font.GothamBold
+info.Text = "Select a player"
 
-local pingLabel = Instance.new("TextLabel", info)
-pingLabel.Size = UDim2.new(1,0,0,40)
-pingLabel.BackgroundTransparency = 1
-pingLabel.Text = "Ping: -- ms"
-pingLabel.Font = Enum.Font.GothamBold
-pingLabel.TextScaled = true
-pingLabel.TextColor3 = Color3.new(1,1,1)
-
-local statusLabel = Instance.new("TextLabel", info)
-statusLabel.Position = UDim2.new(0,0,0,50)
-statusLabel.Size = UDim2.new(1,0,0,40)
-statusLabel.BackgroundTransparency = 1
-statusLabel.Text = "Status: --"
-statusLabel.Font = Enum.Font.GothamBold
-statusLabel.TextScaled = true
-statusLabel.TextColor3 = Color3.new(1,1,1)
-
--- ================= LOGIC =================
-
-local selectedPlayer = nil
+local selected = nil
 
 local function getPing()
-	local stat = Stats.Network.ServerStatsItem["Data Ping"]
-	if not stat then return 0 end
-	return tonumber(stat:GetValueString():match("%d+")) or 0
+	local stat = Stats.Network.ServerStatsItem:FindFirstChild("Data Ping")
+	if not stat then return "--" end
+	return stat:GetValueString()
 end
 
-local function getStatus(ms)
-	if ms < 80 then
-		return "GOOD 🟢", Color3.fromRGB(0,255,0)
-	elseif ms < 150 then
-		return "AVERAGE 🟡", Color3.fromRGB(255,170,0)
-	else
-		return "POOR 🔴", Color3.fromRGB(255,0,0)
-	end
-end
-
-local function createButton(player)
+local function addPlayer(p)
 	local btn = Instance.new("TextButton")
 	btn.Size = UDim2.new(1,0,0,30)
-	btn.Text = player.Name
-	btn.BackgroundColor3 = Color3.fromRGB(35,35,35)
-	btn.TextColor3 = Color3.new(1,1,1)
+	btn.Text = p.Name
 	btn.Font = Enum.Font.Gotham
 	btn.TextScaled = true
-	btn.AutoButtonColor = true
+	btn.TextColor3 = Color3.new(1,1,1)
+	btn.BackgroundColor3 = Color3.fromRGB(40,40,40)
 	btn.Parent = list
 
 	btn.MouseButton1Click:Connect(function()
-		selectedPlayer = player
+		selected = p
 	end)
 end
 
--- Populate list
 for _, p in ipairs(Players:GetPlayers()) do
-	createButton(p)
+	addPlayer(p)
 end
 
-Players.PlayerAdded:Connect(createButton)
+Players.PlayerAdded:Connect(addPlayer)
 
--- Resize canvas
 layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-	list.CanvasSize = UDim2.new(0,0,0,layout.AbsoluteContentSize.Y + 10)
+	list.CanvasSize = UDim2.new(0,0,0,layout.AbsoluteContentSize.Y + 5)
 end)
 
--- ================= UPDATE LOOP =================
-
 RunService.RenderStepped:Connect(function()
-	if not selectedPlayer then return end
-
-	local ping = getPing()
-	local status, color = getStatus(ping)
-
-	pingLabel.Text = "Ping: " .. ping .. " ms"
-	statusLabel.Text = "Status: " .. status
-	statusLabel.TextColor3 = color
+	if selected then
+		info.Text = selected.Name .. "\nPing: " .. getPing()
+	end
 end)
