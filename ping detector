@@ -1,71 +1,128 @@
---- UNIVERSAL CLIENT-SIDE PING LABELS
--- Works in ANY Roblox game
+-- UNIVERSAL PLAYER SELECT + PING GUI
+-- Works in ANY Roblox game (client-side only)
 
 local Players = game:GetService("Players")
 local Stats = game:GetService("Stats")
 local RunService = game:GetService("RunService")
 
 local localPlayer = Players.LocalPlayer
-local labels = {}
 
--- 🎨 Color based on ping
-local function getColor(ms)
+-- ================= GUI SETUP =================
+
+local gui = Instance.new("ScreenGui")
+gui.Name = "PlayerPingGui"
+gui.ResetOnSpawn = false
+gui.Parent = localPlayer:WaitForChild("PlayerGui")
+
+local frame = Instance.new("Frame", gui)
+frame.Size = UDim2.new(0, 350, 0, 250)
+frame.Position = UDim2.fromScale(0.05, 0.3)
+frame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+frame.BorderSizePixel = 0
+
+local corner = Instance.new("UICorner", frame)
+corner.CornerRadius = UDim.new(0, 10)
+
+-- Title
+local title = Instance.new("TextLabel", frame)
+title.Size = UDim2.new(1, 0, 0, 35)
+title.BackgroundTransparency = 1
+title.Text = "Player Network Status"
+title.TextColor3 = Color3.new(1,1,1)
+title.Font = Enum.Font.GothamBold
+title.TextScaled = true
+
+-- Player List
+local list = Instance.new("ScrollingFrame", frame)
+list.Position = UDim2.new(0, 10, 0, 45)
+list.Size = UDim2.new(0, 140, 1, -55)
+list.CanvasSize = UDim2.new(0,0,0,0)
+list.ScrollBarImageTransparency = 1
+list.BackgroundTransparency = 1
+
+local layout = Instance.new("UIListLayout", list)
+layout.Padding = UDim.new(0, 6)
+
+-- Info Panel
+local info = Instance.new("Frame", frame)
+info.Position = UDim2.new(0, 160, 0, 45)
+info.Size = UDim2.new(1, -170, 1, -55)
+info.BackgroundTransparency = 1
+
+local pingLabel = Instance.new("TextLabel", info)
+pingLabel.Size = UDim2.new(1,0,0,40)
+pingLabel.BackgroundTransparency = 1
+pingLabel.Text = "Ping: -- ms"
+pingLabel.Font = Enum.Font.GothamBold
+pingLabel.TextScaled = true
+pingLabel.TextColor3 = Color3.new(1,1,1)
+
+local statusLabel = Instance.new("TextLabel", info)
+statusLabel.Position = UDim2.new(0,0,0,50)
+statusLabel.Size = UDim2.new(1,0,0,40)
+statusLabel.BackgroundTransparency = 1
+statusLabel.Text = "Status: --"
+statusLabel.Font = Enum.Font.GothamBold
+statusLabel.TextScaled = true
+statusLabel.TextColor3 = Color3.new(1,1,1)
+
+-- ================= LOGIC =================
+
+local selectedPlayer = nil
+
+local function getPing()
+	local stat = Stats.Network.ServerStatsItem["Data Ping"]
+	if not stat then return 0 end
+	return tonumber(stat:GetValueString():match("%d+")) or 0
+end
+
+local function getStatus(ms)
 	if ms < 80 then
-		return Color3.fromRGB(0,255,0)
+		return "GOOD 🟢", Color3.fromRGB(0,255,0)
 	elseif ms < 150 then
-		return Color3.fromRGB(255,170,0)
+		return "AVERAGE 🟡", Color3.fromRGB(255,170,0)
 	else
-		return Color3.fromRGB(255,0,0)
+		return "POOR 🔴", Color3.fromRGB(255,0,0)
 	end
 end
 
--- 🏷️ Create label
-local function attachLabel(player)
-	player.CharacterAdded:Connect(function(char)
-		local head = char:WaitForChild("Head", 5)
-		if not head then return end
+local function createButton(player)
+	local btn = Instance.new("TextButton")
+	btn.Size = UDim2.new(1,0,0,30)
+	btn.Text = player.Name
+	btn.BackgroundColor3 = Color3.fromRGB(35,35,35)
+	btn.TextColor3 = Color3.new(1,1,1)
+	btn.Font = Enum.Font.Gotham
+	btn.TextScaled = true
+	btn.AutoButtonColor = true
+	btn.Parent = list
 
-		-- Remove old
-		if head:FindFirstChild("PingGui") then
-			head.PingGui:Destroy()
-		end
-
-		local gui = Instance.new("BillboardGui")
-		gui.Name = "PingGui"
-		gui.Adornee = head
-		gui.Size = UDim2.new(0, 100, 0, 25)
-		gui.StudsOffset = Vector3.new(0, 2.5, 0)
-		gui.AlwaysOnTop = true
-		gui.Parent = head
-
-		local text = Instance.new("TextLabel")
-		text.Size = UDim2.fromScale(1,1)
-		text.BackgroundTransparency = 1
-		text.TextScaled = true
-		text.Font = Enum.Font.GothamBold
-		text.TextStrokeTransparency = 0.3
-		text.Parent = gui
-
-		labels[player] = text
+	btn.MouseButton1Click:Connect(function()
+		selectedPlayer = player
 	end)
 end
 
--- Attach to players
+-- Populate list
 for _, p in ipairs(Players:GetPlayers()) do
-	attachLabel(p)
+	createButton(p)
 end
 
-Players.PlayerAdded:Connect(attachLabel)
+Players.PlayerAdded:Connect(createButton)
 
--- 🔄 Update ping constantly
+-- Resize canvas
+layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+	list.CanvasSize = UDim2.new(0,0,0,layout.AbsoluteContentSize.Y + 10)
+end)
+
+-- ================= UPDATE LOOP =================
+
 RunService.RenderStepped:Connect(function()
-	local pingStat = Stats.Network.ServerStatsItem["Data Ping"]
-	if not pingStat then return end
+	if not selectedPlayer then return end
 
-	local ping = math.floor(tonumber(pingStat:GetValueString():match("%d+")) or 0)
+	local ping = getPing()
+	local status, color = getStatus(ping)
 
-	for _, label in pairs(labels) do
-		label.Text = ping .. " ms"
-		label.TextColor3 = getColor(ping)
-	end
+	pingLabel.Text = "Ping: " .. ping .. " ms"
+	statusLabel.Text = "Status: " .. status
+	statusLabel.TextColor3 = color
 end)
