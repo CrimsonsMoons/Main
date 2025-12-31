@@ -296,7 +296,7 @@ TrainSection:NewButton("Loop", "Runs Single Route Script", function()
         local ReplicatedStorage = game:GetService("ReplicatedStorage")
         local Communication = ReplicatedStorage:WaitForChild("Communication", 9e9)
         local Events = Communication:WaitForChild("Events", 9e9)
-        local targetEvent = Events:GetChildren()[36]
+        local targetEvent = Events:GetChildren()[37]
 
         local function runSequence()
             -- Fire "Quit"
