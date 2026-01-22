@@ -1,4 +1,4 @@
---- =========================
+-- =========================
 -- SERVICES
 -- =========================
 local Players = game:GetService("Players")
@@ -7,6 +7,7 @@ local player = Players.LocalPlayer
 
 local Events = ReplicatedStorage:WaitForChild("Events", 9e9)
 local buyRemote = Events:WaitForChild("buy", 9e9)
+local sellRemote = Events:WaitForChild("sell", 9e9)
 
 -- Auto Roll Remote
 local rollRemote = Players
@@ -37,17 +38,17 @@ local gui = Instance.new("ScreenGui", player.PlayerGui)
 gui.Name = "AutoFarmGUI"
 
 local frame = Instance.new("Frame", gui)
-frame.Size = UDim2.fromScale(0.25, 0.55)
-frame.Position = UDim2.fromScale(0.05, 0.2)
+frame.Size = UDim2.fromScale(0.25, 0.65)
+frame.Position = UDim2.fromScale(0.05, 0.18)
 frame.BackgroundColor3 = Color3.fromRGB(25,25,25)
 frame.BorderSizePixel = 0
 frame.Active = true
 frame.Draggable = true
 Instance.new("UICorner", frame).CornerRadius = UDim.new(0,12)
 
-local function createButton(text, yPos, toggleKey)
+local function createToggleButton(text, yPos, toggleKey)
     local btn = Instance.new("TextButton", frame)
-    btn.Size = UDim2.fromScale(0.9, 0.13)
+    btn.Size = UDim2.fromScale(0.9, 0.11)
     btn.Position = UDim2.fromScale(0.05, yPos)
     btn.Text = text .. ": OFF"
     btn.TextScaled = true
@@ -65,11 +66,33 @@ local function createButton(text, yPos, toggleKey)
     end)
 end
 
+local function createActionButton(text, yPos, callback)
+    local btn = Instance.new("TextButton", frame)
+    btn.Size = UDim2.fromScale(0.9, 0.11)
+    btn.Position = UDim2.fromScale(0.05, yPos)
+    btn.Text = text
+    btn.TextScaled = true
+    btn.TextColor3 = Color3.new(1,1,1)
+    btn.BackgroundColor3 = Color3.fromRGB(70,70,170)
+    btn.BorderSizePixel = 0
+    Instance.new("UICorner", btn)
+
+    btn.MouseButton1Click:Connect(function()
+        pcall(callback)
+    end)
+end
+
+-- =========================
 -- BUTTONS
-createButton("AUTO BUY", 0.03, "AutoBuy")
-createButton("AUTO ROLL", 0.19, "AutoRoll")
-createButton("AUTO COLLECT", 0.35, "AutoCollect")
-createButton("BULK BUY", 0.51, "BulkBuy")
+-- =========================
+createToggleButton("AUTO BUY", 0.03, "AutoBuy")
+createToggleButton("AUTO ROLL", 0.15, "AutoRoll")
+createToggleButton("AUTO COLLECT", 0.27, "AutoCollect")
+createToggleButton("BULK BUY", 0.39, "BulkBuy")
+
+createActionButton("SELL ALL", 0.55, function()
+    sellRemote:InvokeServer("all")
+end)
 
 -- =========================
 -- BUY LIST
