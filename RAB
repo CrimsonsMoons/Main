@@ -1,3 +1,4 @@
+-- =========================
 -- SERVICES
 -- =========================
 local Players = game:GetService("Players")
@@ -122,34 +123,57 @@ local lastBulkBuy = 0
 local bulkBuyDelay = 30
 
 -- =========================
--- BULK BUY FUNCTION
+-- BULK BUY FUNCTION (DICE + POTIONS)
 -- =========================
-local function bulkBuyAllDice()
-    local scrollingFrame = player.PlayerGui
-        :WaitForChild("Main", 9e9)
+local function bulkBuyAllItems()
+    local mainGui = player.PlayerGui:WaitForChild("Main", 9e9)
+
+    -- ===== DICE =====
+    local diceFrame = mainGui
         :WaitForChild("Restock", 9e9)
         :WaitForChild("ScrollingFrame", 9e9)
 
-    for _, diceFrame in ipairs(scrollingFrame:GetChildren()) do
-        if diceFrame:IsA("Frame") and diceFrame:FindFirstChild("stock") then
-            local diceName = diceFrame.Name
-            local stock = tonumber(diceFrame.stock.Text:match("%d+"))
-
+    for _, item in ipairs(diceFrame:GetChildren()) do
+        if item:IsA("Frame") and item:FindFirstChild("stock") then
+            local stock = tonumber(item.stock.Text:match("%d+"))
             if stock and stock > 0 then
                 local success = pcall(function()
-                    buyRemote:InvokeServer(diceName, stock, "dice")
+                    buyRemote:InvokeServer(item.Name, stock, "dice")
                 end)
 
                 if not success then
                     for i = 1, stock do
                         pcall(function()
-                            buyRemote:InvokeServer(diceName, 1, "dice")
+                            buyRemote:InvokeServer(item.Name, 1, "dice")
                         end)
                         task.wait(0.1)
                     end
                 end
+                task.wait(0.25)
+            end
+        end
+    end
 
-                task.wait(0.3)
+    -- ===== POTIONS =====
+    local potionFrame = mainGui:WaitForChild("Potions", 9e9)
+
+    for _, item in ipairs(potionFrame:GetChildren()) do
+        if item:IsA("Frame") and item:FindFirstChild("stock") then
+            local stock = tonumber(item.stock.Text:match("%d+"))
+            if stock and stock > 0 then
+                local success = pcall(function()
+                    buyRemote:InvokeServer(item.Name, stock, "potion")
+                end)
+
+                if not success then
+                    for i = 1, stock do
+                        pcall(function()
+                            buyRemote:InvokeServer(item.Name, 1, "potion")
+                        end)
+                        task.wait(0.1)
+                    end
+                end
+                task.wait(0.25)
             end
         end
     end
@@ -179,14 +203,14 @@ task.spawn(function()
             end
         end
 
-        -- AUTO ROLL (0.5s)
+        -- AUTO ROLL
         if toggles.AutoRoll then
             pcall(function()
                 rollRemote:InvokeServer()
             end)
         end
 
-        -- AUTO COLLECT (10s)
+        -- AUTO COLLECT
         if toggles.AutoCollect and os.clock() - lastCollect >= collectDelay then
             lastCollect = os.clock()
             for _, plot in ipairs(workspace.Map.Plots:GetChildren()) do
@@ -207,10 +231,10 @@ task.spawn(function()
             end
         end
 
-        -- BULK BUY (30s)
+        -- BULK BUY
         if toggles.BulkBuy and os.clock() - lastBulkBuy >= bulkBuyDelay then
             lastBulkBuy = os.clock()
-            bulkBuyAllDice()
+            bulkBuyAllItems()
         end
 
         task.wait(0.5)
