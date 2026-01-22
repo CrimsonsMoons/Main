@@ -1,4 +1,4 @@
---- =========================
+-- =========================
 -- SERVICES
 -- =========================
 local Players = game:GetService("Players")
@@ -25,11 +25,21 @@ local hrp = character:WaitForChild("HumanoidRootPart")
 -- TOGGLES
 -- =========================
 local toggles = {
-    AutoBuy = false,
     AutoRoll = false,
     AutoCollect = false,
     BulkBuy = false,
 }
+
+-- =========================
+-- TIMERS + STATS
+-- =========================
+local lastCollect = 0
+local collectDelay = 10
+
+local lastBulkBuy = 0
+local bulkBuyDelay = 30
+
+local rollCount = 0
 
 -- =========================
 -- GUI
@@ -38,38 +48,65 @@ local gui = Instance.new("ScreenGui", player.PlayerGui)
 gui.Name = "AutoFarmGUI"
 
 local frame = Instance.new("Frame", gui)
-frame.Size = UDim2.fromScale(0.25, 0.72)
-frame.Position = UDim2.fromScale(0.05, 0.15)
+frame.Size = UDim2.fromScale(0.25, 0.78)
+frame.Position = UDim2.fromScale(0.05, 0.12)
 frame.BackgroundColor3 = Color3.fromRGB(25,25,25)
 frame.BorderSizePixel = 0
 frame.Active = true
 frame.Draggable = true
 Instance.new("UICorner", frame).CornerRadius = UDim.new(0,12)
 
--- STATUS LABEL
+-- STATUS
 local statusLabel = Instance.new("TextLabel", frame)
-statusLabel.Size = UDim2.fromScale(0.9, 0.08)
+statusLabel.Size = UDim2.fromScale(0.9, 0.07)
 statusLabel.Position = UDim2.fromScale(0.05, 0.02)
 statusLabel.BackgroundTransparency = 1
 statusLabel.Text = "STATUS: IDLE"
 statusLabel.TextScaled = true
-statusLabel.TextColor3 = Color3.fromRGB(255,255,255)
 statusLabel.Font = Enum.Font.GothamBold
+statusLabel.TextColor3 = Color3.new(1,1,1)
 
 local function setStatus(text, color)
     statusLabel.Text = "STATUS: " .. text
     statusLabel.TextColor3 = color
 end
 
-local function createToggleButton(text, yPos, key)
+-- TIMER LABELS
+local collectTimerLabel = Instance.new("TextLabel", frame)
+collectTimerLabel.Size = UDim2.fromScale(0.9, 0.05)
+collectTimerLabel.Position = UDim2.fromScale(0.05, 0.10)
+collectTimerLabel.BackgroundTransparency = 1
+collectTimerLabel.TextScaled = true
+collectTimerLabel.Font = Enum.Font.Gotham
+collectTimerLabel.TextColor3 = Color3.fromRGB(255,170,0)
+
+local bulkTimerLabel = Instance.new("TextLabel", frame)
+bulkTimerLabel.Size = UDim2.fromScale(0.9, 0.05)
+bulkTimerLabel.Position = UDim2.fromScale(0.05, 0.16)
+bulkTimerLabel.BackgroundTransparency = 1
+bulkTimerLabel.TextScaled = true
+bulkTimerLabel.Font = Enum.Font.Gotham
+bulkTimerLabel.TextColor3 = Color3.fromRGB(255,170,0)
+
+-- ROLL COUNT
+local rollCountLabel = Instance.new("TextLabel", frame)
+rollCountLabel.Size = UDim2.fromScale(0.9, 0.05)
+rollCountLabel.Position = UDim2.fromScale(0.05, 0.22)
+rollCountLabel.BackgroundTransparency = 1
+rollCountLabel.Text = "ROLLS: 0"
+rollCountLabel.TextScaled = true
+rollCountLabel.Font = Enum.Font.GothamBold
+rollCountLabel.TextColor3 = Color3.fromRGB(255,255,255)
+
+-- BUTTON CREATOR
+local function toggleButton(text, y, key)
     local btn = Instance.new("TextButton", frame)
-    btn.Size = UDim2.fromScale(0.9, 0.1)
-    btn.Position = UDim2.fromScale(0.05, yPos)
+    btn.Size = UDim2.fromScale(0.9, 0.09)
+    btn.Position = UDim2.fromScale(0.05, y)
     btn.Text = text .. ": OFF"
     btn.TextScaled = true
     btn.TextColor3 = Color3.new(1,1,1)
     btn.BackgroundColor3 = Color3.fromRGB(170,60,60)
-    btn.BorderSizePixel = 0
     Instance.new("UICorner", btn)
 
     btn.MouseButton1Click:Connect(function()
@@ -81,65 +118,39 @@ local function createToggleButton(text, yPos, key)
     end)
 end
 
-local function createActionButton(text, yPos, callback)
-    local btn = Instance.new("TextButton", frame)
-    btn.Size = UDim2.fromScale(0.9, 0.1)
-    btn.Position = UDim2.fromScale(0.05, yPos)
-    btn.Text = text
-    btn.TextScaled = true
-    btn.TextColor3 = Color3.new(1,1,1)
-    btn.BackgroundColor3 = Color3.fromRGB(70,70,170)
-    btn.BorderSizePixel = 0
-    Instance.new("UICorner", btn)
-
-    btn.MouseButton1Click:Connect(function()
-        pcall(callback)
-    end)
-end
-
--- =========================
 -- BUTTONS
--- =========================
-createToggleButton("AUTO BUY", 0.12, "AutoBuy")
-createToggleButton("AUTO ROLL", 0.23, "AutoRoll")
-createToggleButton("AUTO COLLECT", 0.34, "AutoCollect")
-createToggleButton("BULK BUY", 0.45, "BulkBuy")
+toggleButton("AUTO ROLL", 0.30, "AutoRoll")
+toggleButton("AUTO COLLECT", 0.41, "AutoCollect")
+toggleButton("BULK BUY", 0.52, "BulkBuy")
 
-createActionButton("SELL ALL", 0.58, function()
+local sellBtn = Instance.new("TextButton", frame)
+sellBtn.Size = UDim2.fromScale(0.9, 0.09)
+sellBtn.Position = UDim2.fromScale(0.05, 0.64)
+sellBtn.Text = "SELL ALL"
+sellBtn.TextScaled = true
+sellBtn.TextColor3 = Color3.new(1,1,1)
+sellBtn.BackgroundColor3 = Color3.fromRGB(70,70,170)
+Instance.new("UICorner", sellBtn)
+
+sellBtn.MouseButton1Click:Connect(function()
     sellRemote:InvokeServer("all")
 end)
 
 -- =========================
--- TIMERS
--- =========================
-local lastCollect = 0
-local collectDelay = 10
-
-local lastBulkBuy = 0
-local bulkBuyDelay = 30
-
--- =========================
--- BULK BUY FUNCTION
+-- BULK BUY
 -- =========================
 local function bulkBuyAllItems()
     setStatus("BULK BUYING", Color3.fromRGB(255,170,0))
-
-    local mainGui = player.PlayerGui:WaitForChild("Main", 9e9)
+    local mainGui = player.PlayerGui.Main
 
     -- DICE
     for _, item in ipairs(mainGui.Restock.ScrollingFrame:GetChildren()) do
         if item:IsA("Frame") and item:FindFirstChild("stock") then
             local stock = tonumber(item.stock.Text:match("%d+"))
             if stock and stock > 0 then
-                local ok = pcall(function()
+                pcall(function()
                     buyRemote:InvokeServer(item.Name, stock, "dice")
                 end)
-                if not ok then
-                    for i = 1, stock do
-                        buyRemote:InvokeServer(item.Name, 1, "dice")
-                        task.wait(0.1)
-                    end
-                end
             end
         end
     end
@@ -149,15 +160,9 @@ local function bulkBuyAllItems()
         if item:IsA("Frame") and item:FindFirstChild("stock") then
             local stock = tonumber(item.stock.Text:match("%d+"))
             if stock and stock > 0 then
-                local ok = pcall(function()
+                pcall(function()
                     buyRemote:InvokeServer(item.Name, stock, "potion")
                 end)
-                if not ok then
-                    for i = 1, stock do
-                        buyRemote:InvokeServer(item.Name, 1, "potion")
-                        task.wait(0.1)
-                    end
-                end
             end
         end
     end
@@ -168,22 +173,35 @@ end
 -- =========================
 task.spawn(function()
     while true do
+        -- TIMERS
+        if toggles.AutoCollect then
+            local t = math.max(0, math.ceil(collectDelay - (os.clock() - lastCollect)))
+            collectTimerLabel.Text = t > 0 and ("COLLECT IN: "..t.."s") or "COLLECT: READY"
+        else
+            collectTimerLabel.Text = "COLLECT: OFF"
+        end
+
+        if toggles.BulkBuy then
+            local t = math.max(0, math.ceil(bulkBuyDelay - (os.clock() - lastBulkBuy)))
+            bulkTimerLabel.Text = t > 0 and ("BULK BUY IN: "..t.."s") or "BULK BUY: READY"
+        else
+            bulkTimerLabel.Text = "BULK BUY: OFF"
+        end
+
         setStatus("IDLE", Color3.fromRGB(200,200,200))
 
-        -- AUTO COLLECT (PAUSES ROLL)
+        -- COLLECT (PAUSES ROLL)
         if toggles.AutoCollect and os.clock() - lastCollect >= collectDelay then
             setStatus("COLLECTING", Color3.fromRGB(0,170,255))
             lastCollect = os.clock()
 
             for _, plot in ipairs(workspace.Map.Plots:GetChildren()) do
-                if plot:FindFirstChild("Slots") then
-                    for _, slot in ipairs(plot.Slots:GetChildren()) do
-                        if slot:FindFirstChild("Collect") then
-                            for _, obj in ipairs(slot.Collect:GetDescendants()) do
-                                if obj:IsA("TouchTransmitter") then
-                                    firetouchinterest(hrp, obj.Parent, 0)
-                                    firetouchinterest(hrp, obj.Parent, 1)
-                                end
+                for _, slot in ipairs(plot.Slots:GetChildren()) do
+                    if slot:FindFirstChild("Collect") then
+                        for _, obj in ipairs(slot.Collect:GetDescendants()) do
+                            if obj:IsA("TouchTransmitter") then
+                                firetouchinterest(hrp, obj.Parent, 0)
+                                firetouchinterest(hrp, obj.Parent, 1)
                             end
                         end
                     end
@@ -191,12 +209,13 @@ task.spawn(function()
             end
         end
 
-        -- AUTO ROLL (PAUSED WHILE COLLECTING)
+        -- AUTO ROLL
         if toggles.AutoRoll and not toggles.AutoCollect then
             setStatus("ROLLING", Color3.fromRGB(0,255,120))
-            pcall(function()
-                rollRemote:InvokeServer()
-            end)
+            if pcall(function() rollRemote:InvokeServer() end) then
+                rollCount += 1
+                rollCountLabel.Text = "ROLLS: " .. rollCount
+            end
         end
 
         -- BULK BUY
