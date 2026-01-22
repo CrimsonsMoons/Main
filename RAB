@@ -1,4 +1,4 @@
---- =========================
+-- =========================
 -- SERVICES
 -- =========================
 local Players = game:GetService("Players")
@@ -46,7 +46,7 @@ frame.Active = true
 frame.Draggable = true
 Instance.new("UICorner", frame).CornerRadius = UDim.new(0,12)
 
-local function createToggleButton(text, yPos, toggleKey)
+local function createToggleButton(text, yPos, key)
     local btn = Instance.new("TextButton", frame)
     btn.Size = UDim2.fromScale(0.9, 0.11)
     btn.Position = UDim2.fromScale(0.05, yPos)
@@ -58,9 +58,9 @@ local function createToggleButton(text, yPos, toggleKey)
     Instance.new("UICorner", btn)
 
     btn.MouseButton1Click:Connect(function()
-        toggles[toggleKey] = not toggles[toggleKey]
-        btn.Text = text .. ": " .. (toggles[toggleKey] and "ON" or "OFF")
-        btn.BackgroundColor3 = toggles[toggleKey]
+        toggles[key] = not toggles[key]
+        btn.Text = text .. ": " .. (toggles[key] and "ON" or "OFF")
+        btn.BackgroundColor3 = toggles[key]
             and Color3.fromRGB(60,170,60)
             or Color3.fromRGB(170,60,60)
     end)
@@ -95,7 +95,7 @@ createActionButton("SELL ALL", 0.55, function()
 end)
 
 -- =========================
--- BUY LIST
+-- BUY LIST (AUTO BUY)
 -- =========================
 local buyList = {
     { name = "Basic Dice", amount = 999, category = "dice", delay = 5 },
@@ -137,11 +137,10 @@ local function bulkBuyAllItems()
         if item:IsA("Frame") and item:FindFirstChild("stock") then
             local stock = tonumber(item.stock.Text:match("%d+"))
             if stock and stock > 0 then
-                local success = pcall(function()
+                local ok = pcall(function()
                     buyRemote:InvokeServer(item.Name, stock, "dice")
                 end)
-
-                if not success then
+                if not ok then
                     for i = 1, stock do
                         pcall(function()
                             buyRemote:InvokeServer(item.Name, 1, "dice")
@@ -161,11 +160,10 @@ local function bulkBuyAllItems()
         if item:IsA("Frame") and item:FindFirstChild("stock") then
             local stock = tonumber(item.stock.Text:match("%d+"))
             if stock and stock > 0 then
-                local success = pcall(function()
+                local ok = pcall(function()
                     buyRemote:InvokeServer(item.Name, stock, "potion")
                 end)
-
-                if not success then
+                if not ok then
                     for i = 1, stock do
                         pcall(function()
                             buyRemote:InvokeServer(item.Name, 1, "potion")
@@ -203,14 +201,14 @@ task.spawn(function()
             end
         end
 
-        -- AUTO ROLL
+        -- AUTO ROLL (0.5s)
         if toggles.AutoRoll then
             pcall(function()
                 rollRemote:InvokeServer()
             end)
         end
 
-        -- AUTO COLLECT
+        -- AUTO COLLECT (10s)
         if toggles.AutoCollect and os.clock() - lastCollect >= collectDelay then
             lastCollect = os.clock()
             for _, plot in ipairs(workspace.Map.Plots:GetChildren()) do
@@ -231,7 +229,7 @@ task.spawn(function()
             end
         end
 
-        -- BULK BUY
+        -- BULK BUY (30s)
         if toggles.BulkBuy and os.clock() - lastBulkBuy >= bulkBuyDelay then
             lastBulkBuy = os.clock()
             bulkBuyAllItems()
