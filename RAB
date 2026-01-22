@@ -1,4 +1,6 @@
---- SERVICES
+-- =========================
+-- SERVICES
+-- =========================
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local player = Players.LocalPlayer
@@ -30,8 +32,9 @@ local toggles = {
 -- =========================
 -- GUI
 -- =========================
-local gui = Instance.new("ScreenGui", player.PlayerGui)
+local gui = Instance.new("ScreenGui")
 gui.Name = "AutoFarmGUI"
+gui.Parent = player.PlayerGui
 
 local frame = Instance.new("Frame", gui)
 frame.Size = UDim2.fromScale(0.25, 0.45)
@@ -87,6 +90,12 @@ local buyList = {
 }
 
 -- =========================
+-- TIMERS
+-- =========================
+local lastCollect = 0
+local collectDelay = 10 -- seconds
+
+-- =========================
 -- MAIN LOOP
 -- =========================
 task.spawn(function()
@@ -110,15 +119,17 @@ task.spawn(function()
             end
         end
 
-        -- AUTO ROLL (0.5s)
+        -- AUTO ROLL (every 0.5s)
         if toggles.AutoRoll then
             pcall(function()
                 rollRemote:InvokeServer()
             end)
         end
 
-        -- AUTO COLLECT (Plots)
-        if toggles.AutoCollect then
+        -- AUTO COLLECT (every 10s)
+        if toggles.AutoCollect and os.clock() - lastCollect >= collectDelay then
+            lastCollect = os.clock()
+
             for _, plot in ipairs(workspace.Map.Plots:GetChildren()) do
                 if plot:FindFirstChild("Slots") then
                     for _, slot in ipairs(plot.Slots:GetChildren()) do
