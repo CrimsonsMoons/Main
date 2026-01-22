@@ -44,6 +44,9 @@ local eggEnabled = {}
 local eggBuyAmount = 1
 local eggDelay = 0.15
 
+local lastRoll = 0
+local rollDelay = 0.05 -- FAST AUTO ROLL (20/sec)
+
 -- =========================
 -- GUI
 -- =========================
@@ -317,12 +320,19 @@ task.spawn(function()
             end
         end
 
-        if toggles.AutoRoll and not toggles.AutoCollect then
-            if pcall(function() rollRemote:InvokeServer() end) then
-                rollCount+=1
-                rolls.Text="ROLLS: "..rollCount
-            end
-        end
+ if toggles.AutoRoll
+    and not toggles.AutoCollect
+    and os.clock() - lastRoll >= rollDelay
+then
+    lastRoll = os.clock()
+    if pcall(function()
+        rollRemote:InvokeServer()
+    end) then
+        rollCount += 1
+        rolls.Text = "ROLLS: " .. rollCount
+    end
+end
+
 
         if toggles.BulkBuy and os.clock()-lastBulkBuy>=bulkBuyDelay then
             lastBulkBuy=os.clock()
