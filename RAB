@@ -1,4 +1,4 @@
---- =========================
+-- =========================
 -- SERVICES
 -- =========================
 local Players = game:GetService("Players")
@@ -60,25 +60,25 @@ end)
 -- =========================
 -- LABEL HELPER
 -- =========================
-local function makeLabel(text, y)
+local function makeLabel(text, y, size)
     local l = Instance.new("TextLabel", frame)
     l.Size = UDim2.fromScale(0.9, 0.04)
     l.Position = UDim2.fromScale(0.05, y)
     l.BackgroundTransparency = 1
     l.TextScaled = false
-    l.TextSize = 18
+    l.TextSize = size or 18
     l.Font = Enum.Font.GothamBold
     l.TextColor3 = Color3.new(1,1,1)
     l.Text = text
     return l
 end
 
-local status = makeLabel("STATUS: IDLE", 0.02)
-local collectTimer = makeLabel("COLLECT: OFF", 0.06)
-local bulkTimer = makeLabel("BULK BUY: OFF", 0.10)
-local rolls = makeLabel("ROLLS: 0", 0.14)
-local collects = makeLabel("COLLECTS: 0", 0.18)
-local bulks = makeLabel("BULK BUYS: 0", 0.22)
+local status = makeLabel("STATUS: IDLE", 0.02, 20)
+local collectTimer = makeLabel("COLLECT: OFF", 0.07)
+local bulkTimer = makeLabel("BULK BUY: OFF", 0.11)
+local rolls = makeLabel("ROLLS: 0", 0.15)
+local collects = makeLabel("COLLECTS: 0", 0.19)
+local bulks = makeLabel("BULK BUYS: 0", 0.23)
 
 local function setStatus(text, color)
     status.Text = "STATUS: " .. text
@@ -109,14 +109,14 @@ local function toggleBtn(text, y, key)
     end)
 end
 
-toggleBtn("AUTO ROLL", 0.27, "AutoRoll")
-toggleBtn("AUTO COLLECT", 0.34, "AutoCollect")
-toggleBtn("BULK BUY", 0.41, "BulkBuy")
+toggleBtn("AUTO ROLL", 0.28, "AutoRoll")
+toggleBtn("AUTO COLLECT", 0.35, "AutoCollect")
+toggleBtn("BULK BUY", 0.42, "BulkBuy")
 
--- SELL ALL
+-- SELL
 local sell = Instance.new("TextButton", frame)
 sell.Size = UDim2.fromScale(0.9, 0.055)
-sell.Position = UDim2.fromScale(0.05, 0.48)
+sell.Position = UDim2.fromScale(0.05, 0.49)
 sell.Text = "SELL ALL"
 sell.TextScaled = false
 sell.TextSize = 20
@@ -129,14 +129,24 @@ sell.MouseButton1Click:Connect(function()
 end)
 
 -- =========================
--- ALWAYS-VISIBLE DROPDOWN
+-- DROPDOWN (CLICK TO OPEN)
 -- =========================
-local function createList(title, sourceFolder, enabledTable, startY)
-    local titleLabel = makeLabel(title, startY)
+local function createDropdown(title, sourceFolder, enabledTable, startY)
+    local header = Instance.new("TextButton", frame)
+    header.Size = UDim2.fromScale(0.9, 0.045)
+    header.Position = UDim2.fromScale(0.05, startY)
+    header.Text = title .. " ▼"
+    header.TextScaled = false
+    header.TextSize = 18
+    header.Font = Enum.Font.GothamBold
+    header.TextColor3 = Color3.new(1,1,1)
+    header.BackgroundColor3 = Color3.fromRGB(40,40,40)
+    Instance.new("UICorner", header)
 
     local container = Instance.new("Frame", frame)
-    container.Position = UDim2.fromScale(0.05, startY + 0.035)
+    container.Position = UDim2.fromScale(0.05, startY + 0.05)
     container.Size = UDim2.fromScale(0.9, 0)
+    container.Visible = false
     container.BackgroundColor3 = Color3.fromRGB(30,30,30)
     Instance.new("UICorner", container)
 
@@ -145,9 +155,7 @@ local function createList(title, sourceFolder, enabledTable, startY)
 
     local function refresh()
         for _, c in ipairs(container:GetChildren()) do
-            if c:IsA("TextButton") then
-                c:Destroy()
-            end
+            if c:IsA("TextButton") then c:Destroy() end
         end
 
         for _, item in ipairs(sourceFolder:GetChildren()) do
@@ -182,18 +190,23 @@ local function createList(title, sourceFolder, enabledTable, startY)
         end
 
         task.wait()
-        container.Size = UDim2.fromOffset(container.AbsoluteSize.X, layout.AbsoluteContentSize.Y + 8)
+        container.Size = UDim2.fromOffset(container.AbsoluteSize.X, layout.AbsoluteContentSize.Y + 6)
     end
 
-    refresh()
+    header.MouseButton1Click:Connect(function()
+        container.Visible = not container.Visible
+        header.Text = title .. (container.Visible and " ▲" or " ▼")
+        if container.Visible then refresh() end
+    end)
+
     sourceFolder.ChildAdded:Connect(refresh)
     sourceFolder.ChildRemoved:Connect(refresh)
 end
 
--- BUILD LISTS
+-- BUILD DROPDOWNS
 local mainGui = player.PlayerGui:WaitForChild("Main", 9e9)
-createList("BULK DICE", mainGui.Restock.ScrollingFrame, bulkDiceEnabled, 0.56)
-createList("BULK POTIONS", mainGui.Potions.ScrollingFrame, bulkPotionEnabled, 0.72)
+createDropdown("BULK DICE", mainGui.Restock.ScrollingFrame, bulkDiceEnabled, 0.56)
+createDropdown("BULK POTIONS", mainGui.Potions.ScrollingFrame, bulkPotionEnabled, 0.70)
 
 -- =========================
 -- BULK BUY
