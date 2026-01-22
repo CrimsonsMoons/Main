@@ -12,7 +12,6 @@ local buyRemote = Events:WaitForChild("buy", 9e9)
 local sellRemote = Events:WaitForChild("sell", 9e9)
 local eggRemote = Events:WaitForChild("RegularPet", 9e9)
 
--- Auto Roll Remote
 local rollRemote = Players
     :WaitForChild("CrimsonsMoons", 9e9)
     :WaitForChild("PlayerGui", 9e9)
@@ -33,19 +32,37 @@ local toggles = {
     AutoEggs = false,
 }
 
-local rollCount, collectCount, bulkCount, eggBuyCount = 0, 0, 0, 0
-local lastCollect, lastBulkBuy = 0, 0
-local collectDelay, bulkBuyDelay = 10, 30
+local rollCount, collectCount, bulkCount, eggBuyCount = 0,0,0,0
+local lastCollect, lastBulkBuy, lastRoll, lastEgg = 0,0,0,0
+
+local collectDelay = 10
+local bulkBuyDelay = 30
+local rollDelay = 0.05 -- 20/sec
+local eggDelay = 0.15
+local eggCooldown = 0.4
 
 local bulkDiceEnabled = {}
 local bulkPotionEnabled = {}
 local eggEnabled = {}
 
 local eggBuyAmount = 1
-local eggDelay = 0.15
 
-local lastRoll = 0
-local rollDelay = 0.1 -- FAST AUTO ROLL (20/sec)
+-- =========================
+-- BULK BLACKLIST
+-- =========================
+local bulkBlacklist = {
+    UIPadding = true,
+    Folder = true,
+    Template = true,
+    UIListLayout = true,
+}
+
+local function isValidBulkItem(inst)
+    if not inst or not inst:IsA("Frame") then return false end
+    if bulkBlacklist[inst.Name] then return false end
+    if inst.Name:lower():find("template") then return false end
+    return inst:FindFirstChild("stock") ~= nil
+end
 
 -- =========================
 -- GUI
@@ -54,14 +71,13 @@ local gui = Instance.new("ScreenGui", player.PlayerGui)
 gui.Name = "AutoFarmGUI"
 
 local frame = Instance.new("Frame", gui)
-frame.Size = UDim2.fromScale(0.38, 0.95)
-frame.Position = UDim2.fromScale(0.02, 0.03)
+frame.Size = UDim2.fromScale(0.38,0.95)
+frame.Position = UDim2.fromScale(0.02,0.03)
 frame.BackgroundColor3 = Color3.fromRGB(25,25,25)
 frame.Active = true
 frame.Draggable = true
 Instance.new("UICorner", frame)
 
--- Toggle GUI with J
 UserInputService.InputBegan:Connect(function(i,gp)
     if not gp and i.KeyCode == Enum.KeyCode.J then
         frame.Visible = not frame.Visible
@@ -77,7 +93,6 @@ local function label(text,y,size)
     l.Position = UDim2.fromScale(0.05,y)
     l.BackgroundTransparency = 1
     l.Text = text
-    l.TextScaled = false
     l.TextSize = size or 18
     l.Font = Enum.Font.GothamBold
     l.TextColor3 = Color3.new(1,1,1)
@@ -105,7 +120,7 @@ local function toggleBtn(text,y,key)
 end
 
 -- =========================
--- STATUS + COUNTERS
+-- STATUS
 -- =========================
 local status = label("STATUS: IDLE",0.02,20)
 local collectTimer = label("COLLECT: OFF",0.07)
@@ -142,7 +157,7 @@ sell.MouseButton1Click:Connect(function()
 end)
 
 -- =========================
--- EGG AMOUNT SELECTOR
+-- EGG AMOUNT
 -- =========================
 label("EGG BUY AMOUNT",0.67,16)
 
@@ -174,7 +189,7 @@ eggAmountBtn("1x",1,0.05)
 eggAmountBtn("3x",3,0.53)
 
 -- =========================
--- DROPDOWN FUNCTION
+-- DROPDOWNS
 -- =========================
 local function createDropdown(title, folder, enabled, y)
     local h = Instance.new("TextButton", frame)
@@ -198,16 +213,15 @@ local function createDropdown(title, folder, enabled, y)
     local s = Instance.new("ScrollingFrame", c)
     s.Size = UDim2.fromScale(1,1)
     s.AutomaticCanvasSize = Enum.AutomaticSize.Y
-    s.CanvasSize = UDim2.new()
     s.ScrollBarThickness = 6
     s.BackgroundTransparency = 1
 
     Instance.new("UIListLayout", s).Padding = UDim.new(0,4)
 
     local function refresh()
-        for _,x in ipairs(s:GetChildren()) do
-            if x:IsA("TextButton") then x:Destroy() end
-        end
+        s:ClearAllChildren()
+        Instance.new("UIListLayout", s).Padding = UDim.new(0,4)
+
         for _,i in ipairs(folder:GetChildren()) do
             enabled[i.Name] = enabled[i.Name] ~= false
             local b = Instance.new("TextButton", s)
@@ -232,6 +246,7 @@ local function createDropdown(title, folder, enabled, y)
 
             draw()
         end
+
         task.wait()
         c.Size = UDim2.fromOffset(c.AbsoluteSize.X, math.min(200, s.AbsoluteCanvasSize.Y+6))
     end
@@ -241,34 +256,36 @@ local function createDropdown(title, folder, enabled, y)
         h.Text = title..(c.Visible and " ▲" or " ▼")
         if c.Visible then refresh() end
     end)
-
-    folder.ChildAdded:Connect(refresh)
-    folder.ChildRemoved:Connect(refresh)
 end
 
 local mainGui = player.PlayerGui:WaitForChild("Main",9e9)
 createDropdown("BULK DICE", mainGui.Restock.ScrollingFrame, bulkDiceEnabled, 0.79)
-createDropdown("BULK POTIONS", mainGui.Potions.ScrollingFrame, bulkPotionEnabled, 0.88)
-createDropdown("EGGS", workspace.Eggs, eggEnabled, 0.97)
+createDropdown("BULK POTIONS", mainGui.Potions.ScrollingFrame, bulkPotionEnabled, 0.87)
+createDropdown("EGGS", workspace.Eggs, eggEnabled, 0.94)
 
 -- =========================
--- LOGIC FUNCTIONS
+-- LOGIC
 -- =========================
 local function bulkBuy()
     bulkCount += 1
     bulks.Text = "BULK BUYS: "..bulkCount
+    setStatus("BULK BUYING", Color3.fromRGB(120,170,255))
 
     for _,i in ipairs(mainGui.Restock.ScrollingFrame:GetChildren()) do
-        if i:FindFirstChild("stock") and bulkDiceEnabled[i.Name] then
+        if isValidBulkItem(i) and bulkDiceEnabled[i.Name] then
             local s = tonumber(i.stock.Text:match("%d+"))
-            if s and s>0 then buyRemote:InvokeServer(i.Name,s,"dice") end
+            if s and s > 0 then
+                buyRemote:InvokeServer(i.Name, s, "dice")
+            end
         end
     end
 
     for _,i in ipairs(mainGui.Potions.ScrollingFrame:GetChildren()) do
-        if i:FindFirstChild("stock") and bulkPotionEnabled[i.Name] then
+        if isValidBulkItem(i) and bulkPotionEnabled[i.Name] then
             local s = tonumber(i.stock.Text:match("%d+"))
-            if s and s>0 then buyRemote:InvokeServer(i.Name,s,"potion") end
+            if s and s > 0 then
+                buyRemote:InvokeServer(i.Name, s, "potion")
+            end
         end
     end
 end
@@ -292,6 +309,8 @@ end
 -- =========================
 task.spawn(function()
     while true do
+        local didSomething = false
+
         collectTimer.Text = toggles.AutoCollect
             and "COLLECT IN: "..math.max(0,math.ceil(collectDelay-(os.clock()-lastCollect))).."s"
             or "COLLECT: OFF"
@@ -300,19 +319,24 @@ task.spawn(function()
             and "BULK BUY IN: "..math.max(0,math.ceil(bulkBuyDelay-(os.clock()-lastBulkBuy))).."s"
             or "BULK BUY: OFF"
 
-        setStatus("IDLE",Color3.fromRGB(200,200,200))
-
         if toggles.AutoCollect and os.clock()-lastCollect>=collectDelay then
             lastCollect=os.clock()
             collectCount+=1
             collects.Text="COLLECTS: "..collectCount
-            for _,p in ipairs(workspace.Map.Plots:GetChildren()) do
-                for _,s in ipairs(p.Slots:GetChildren()) do
-                    if s:FindFirstChild("Collect") then
-                        for _,o in ipairs(s.Collect:GetDescendants()) do
-                            if o:IsA("TouchTransmitter") then
-                                firetouchinterest(hrp,o.Parent,0)
-                                firetouchinterest(hrp,o.Parent,1)
+            didSomething = true
+            setStatus("COLLECTING", Color3.fromRGB(255,200,120))
+
+            if workspace:FindFirstChild("Map") then
+                for _,p in ipairs(workspace.Map.Plots:GetChildren()) do
+                    if p:FindFirstChild("Slots") then
+                        for _,s in ipairs(p.Slots:GetChildren()) do
+                            if s:FindFirstChild("Collect") then
+                                for _,o in ipairs(s.Collect:GetDescendants()) do
+                                    if o:IsA("TouchTransmitter") and o.Parent then
+                                        firetouchinterest(hrp,o.Parent,0)
+                                        firetouchinterest(hrp,o.Parent,1)
+                                    end
+                                end
                             end
                         end
                     end
@@ -320,27 +344,31 @@ task.spawn(function()
             end
         end
 
- if toggles.AutoRoll
-    and not toggles.AutoCollect
-    and os.clock() - lastRoll >= rollDelay
-then
-    lastRoll = os.clock()
-    if pcall(function()
-        rollRemote:InvokeServer()
-    end) then
-        rollCount += 1
-        rolls.Text = "ROLLS: " .. rollCount
-    end
-end
-
+        if toggles.AutoRoll and os.clock()-lastRoll>=rollDelay then
+            lastRoll=os.clock()
+            if pcall(function() rollRemote:InvokeServer() end) then
+                rollCount+=1
+                rolls.Text="ROLLS: "..rollCount
+                didSomething = true
+                setStatus("AUTO ROLLING", Color3.fromRGB(120,255,120))
+            end
+        end
 
         if toggles.BulkBuy and os.clock()-lastBulkBuy>=bulkBuyDelay then
             lastBulkBuy=os.clock()
+            didSomething = true
             bulkBuy()
         end
 
-        if toggles.AutoEggs then
+        if toggles.AutoEggs and os.clock()-lastEgg>=eggCooldown then
+            lastEgg=os.clock()
+            didSomething = true
+            setStatus("BUYING EGGS", Color3.fromRGB(255,200,120))
             autoEggs()
+        end
+
+        if not didSomething then
+            setStatus("IDLE", Color3.fromRGB(200,200,200))
         end
 
         task.wait(0.1)
