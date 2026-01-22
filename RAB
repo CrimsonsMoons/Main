@@ -5,9 +5,8 @@ local player = Players.LocalPlayer
 
 local Events = ReplicatedStorage:WaitForChild("Events", 9e9)
 local buyRemote = Events:WaitForChild("buy", 9e9)
-local claimAllRemote = Events:WaitForChild("claimAll", 9e9)
 
--- Auto Roll Remote (from PlayerGui)
+-- Auto Roll Remote
 local rollRemote = Players
     :WaitForChild("CrimsonsMoons", 9e9)
     :WaitForChild("PlayerGui", 9e9)
@@ -15,13 +14,17 @@ local rollRemote = Players
     :WaitForChild("Dice", 9e9)
     :WaitForChild("RollState", 9e9)
 
+-- Character
+local character = player.Character or player.CharacterAdded:Wait()
+local hrp = character:WaitForChild("HumanoidRootPart")
+
 -- =========================
 -- TOGGLES
 -- =========================
 local toggles = {
     AutoBuy = false,
-    ClaimAll = false,
     AutoRoll = false,
+    AutoCollect = false,
 }
 
 -- =========================
@@ -41,7 +44,7 @@ Instance.new("UICorner", frame).CornerRadius = UDim.new(0,12)
 
 local function createButton(text, yPos, toggleKey)
     local btn = Instance.new("TextButton", frame)
-    btn.Size = UDim2.fromScale(0.9, 0.15)
+    btn.Size = UDim2.fromScale(0.9, 0.16)
     btn.Position = UDim2.fromScale(0.05, yPos)
     btn.Text = text .. ": OFF"
     btn.TextScaled = true
@@ -61,8 +64,8 @@ end
 
 -- BUTTONS
 createButton("AUTO BUY", 0.05, "AutoBuy")
-createButton("CLAIM ALL", 0.23, "ClaimAll")
-createButton("AUTO ROLL", 0.41, "AutoRoll")
+createButton("AUTO ROLL", 0.25, "AutoRoll")
+createButton("AUTO COLLECT", 0.45, "AutoCollect")
 
 -- =========================
 -- BUY LIST (ADD MORE HERE)
@@ -107,20 +110,33 @@ task.spawn(function()
             end
         end
 
-        -- CLAIM ALL
-        if toggles.ClaimAll then
-            pcall(function()
-                claimAllRemote:InvokeServer()
-            end)
-        end
-
-        -- AUTO ROLL
+        -- AUTO ROLL (0.5s)
         if toggles.AutoRoll then
             pcall(function()
                 rollRemote:InvokeServer()
             end)
         end
 
-        task.wait(1) -- loop speed
+        -- AUTO COLLECT (Plots)
+        if toggles.AutoCollect then
+            for _, plot in ipairs(workspace.Map.Plots:GetChildren()) do
+                if plot:FindFirstChild("Slots") then
+                    for _, slot in ipairs(plot.Slots:GetChildren()) do
+                        if slot:FindFirstChild("Collect") then
+                            for _, obj in ipairs(slot.Collect:GetDescendants()) do
+                                if obj:IsA("TouchTransmitter") then
+                                    pcall(function()
+                                        firetouchinterest(hrp, obj.Parent, 0)
+                                        firetouchinterest(hrp, obj.Parent, 1)
+                                    end)
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+
+        task.wait(0.5)
     end
 end)
