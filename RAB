@@ -1,8 +1,10 @@
---- =========================
+-- =========================
 -- SERVICES
 -- =========================
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local UserInputService = game:GetService("UserInputService")
+
 local player = Players.LocalPlayer
 
 local Events = ReplicatedStorage:WaitForChild("Events", 9e9)
@@ -35,11 +37,12 @@ local toggles = {
 -- =========================
 local lastCollect = 0
 local collectDelay = 10
-
 local lastBulkBuy = 0
 local bulkBuyDelay = 30
 
 local rollCount = 0
+local collectCount = 0
+local bulkCount = 0
 
 -- =========================
 -- GUI
@@ -48,17 +51,27 @@ local gui = Instance.new("ScreenGui", player.PlayerGui)
 gui.Name = "AutoFarmGUI"
 
 local frame = Instance.new("Frame", gui)
-frame.Size = UDim2.fromScale(0.25, 0.78)
-frame.Position = UDim2.fromScale(0.05, 0.12)
+frame.Size = UDim2.fromScale(0.32, 0.85)
+frame.Position = UDim2.fromScale(0.03, 0.08)
 frame.BackgroundColor3 = Color3.fromRGB(25,25,25)
 frame.BorderSizePixel = 0
 frame.Active = true
 frame.Draggable = true
-Instance.new("UICorner", frame).CornerRadius = UDim.new(0,12)
+Instance.new("UICorner", frame).CornerRadius = UDim.new(0,14)
 
--- STATUS
+-- GUI TOGGLE KEY (J)
+UserInputService.InputBegan:Connect(function(input, gp)
+    if gp then return end
+    if input.KeyCode == Enum.KeyCode.J then
+        frame.Visible = not frame.Visible
+    end
+end)
+
+-- =========================
+-- STATUS LABEL
+-- =========================
 local statusLabel = Instance.new("TextLabel", frame)
-statusLabel.Size = UDim2.fromScale(0.9, 0.07)
+statusLabel.Size = UDim2.fromScale(0.9, 0.06)
 statusLabel.Position = UDim2.fromScale(0.05, 0.02)
 statusLabel.BackgroundTransparency = 1
 statusLabel.Text = "STATUS: IDLE"
@@ -71,37 +84,61 @@ local function setStatus(text, color)
     statusLabel.TextColor3 = color
 end
 
+-- =========================
 -- TIMER LABELS
+-- =========================
 local collectTimerLabel = Instance.new("TextLabel", frame)
-collectTimerLabel.Size = UDim2.fromScale(0.9, 0.05)
-collectTimerLabel.Position = UDim2.fromScale(0.05, 0.10)
+collectTimerLabel.Size = UDim2.fromScale(0.9, 0.045)
+collectTimerLabel.Position = UDim2.fromScale(0.05, 0.09)
 collectTimerLabel.BackgroundTransparency = 1
 collectTimerLabel.TextScaled = true
 collectTimerLabel.Font = Enum.Font.Gotham
 collectTimerLabel.TextColor3 = Color3.fromRGB(255,170,0)
 
 local bulkTimerLabel = Instance.new("TextLabel", frame)
-bulkTimerLabel.Size = UDim2.fromScale(0.9, 0.05)
-bulkTimerLabel.Position = UDim2.fromScale(0.05, 0.16)
+bulkTimerLabel.Size = UDim2.fromScale(0.9, 0.045)
+bulkTimerLabel.Position = UDim2.fromScale(0.05, 0.14)
 bulkTimerLabel.BackgroundTransparency = 1
 bulkTimerLabel.TextScaled = true
 bulkTimerLabel.Font = Enum.Font.Gotham
 bulkTimerLabel.TextColor3 = Color3.fromRGB(255,170,0)
 
--- ROLL COUNT
-local rollCountLabel = Instance.new("TextLabel", frame)
-rollCountLabel.Size = UDim2.fromScale(0.9, 0.05)
-rollCountLabel.Position = UDim2.fromScale(0.05, 0.22)
-rollCountLabel.BackgroundTransparency = 1
-rollCountLabel.Text = "ROLLS: 0"
-rollCountLabel.TextScaled = true
-rollCountLabel.Font = Enum.Font.GothamBold
-rollCountLabel.TextColor3 = Color3.fromRGB(255,255,255)
+-- =========================
+-- COUNTER LABELS
+-- =========================
+local rollLabel = Instance.new("TextLabel", frame)
+rollLabel.Size = UDim2.fromScale(0.9, 0.045)
+rollLabel.Position = UDim2.fromScale(0.05, 0.20)
+rollLabel.BackgroundTransparency = 1
+rollLabel.Text = "ROLLS: 0"
+rollLabel.TextScaled = true
+rollLabel.Font = Enum.Font.GothamBold
+rollLabel.TextColor3 = Color3.new(1,1,1)
 
+local collectLabel = Instance.new("TextLabel", frame)
+collectLabel.Size = UDim2.fromScale(0.9, 0.045)
+collectLabel.Position = UDim2.fromScale(0.05, 0.25)
+collectLabel.BackgroundTransparency = 1
+collectLabel.Text = "COLLECTS: 0"
+collectLabel.TextScaled = true
+collectLabel.Font = Enum.Font.GothamBold
+collectLabel.TextColor3 = Color3.new(1,1,1)
+
+local bulkLabel = Instance.new("TextLabel", frame)
+bulkLabel.Size = UDim2.fromScale(0.9, 0.045)
+bulkLabel.Position = UDim2.fromScale(0.05, 0.30)
+bulkLabel.BackgroundTransparency = 1
+bulkLabel.Text = "BULK BUYS: 0"
+bulkLabel.TextScaled = true
+bulkLabel.Font = Enum.Font.GothamBold
+bulkLabel.TextColor3 = Color3.new(1,1,1)
+
+-- =========================
 -- BUTTON CREATOR
+-- =========================
 local function toggleButton(text, y, key)
     local btn = Instance.new("TextButton", frame)
-    btn.Size = UDim2.fromScale(0.9, 0.09)
+    btn.Size = UDim2.fromScale(0.9, 0.085)
     btn.Position = UDim2.fromScale(0.05, y)
     btn.Text = text .. ": OFF"
     btn.TextScaled = true
@@ -118,14 +155,14 @@ local function toggleButton(text, y, key)
     end)
 end
 
--- BUTTONS
-toggleButton("AUTO ROLL", 0.30, "AutoRoll")
-toggleButton("AUTO COLLECT", 0.41, "AutoCollect")
-toggleButton("BULK BUY", 0.52, "BulkBuy")
+toggleButton("AUTO ROLL", 0.38, "AutoRoll")
+toggleButton("AUTO COLLECT", 0.48, "AutoCollect")
+toggleButton("BULK BUY", 0.58, "BulkBuy")
 
+-- SELL ALL
 local sellBtn = Instance.new("TextButton", frame)
-sellBtn.Size = UDim2.fromScale(0.9, 0.09)
-sellBtn.Position = UDim2.fromScale(0.05, 0.64)
+sellBtn.Size = UDim2.fromScale(0.9, 0.085)
+sellBtn.Position = UDim2.fromScale(0.05, 0.70)
 sellBtn.Text = "SELL ALL"
 sellBtn.TextScaled = true
 sellBtn.TextColor3 = Color3.new(1,1,1)
@@ -141,9 +178,11 @@ end)
 -- =========================
 local function bulkBuyAllItems()
     setStatus("BULK BUYING", Color3.fromRGB(255,170,0))
+    bulkCount += 1
+    bulkLabel.Text = "BULK BUYS: " .. bulkCount
+
     local mainGui = player.PlayerGui.Main
 
-    -- DICE
     for _, item in ipairs(mainGui.Restock.ScrollingFrame:GetChildren()) do
         if item:IsA("Frame") and item:FindFirstChild("stock") then
             local stock = tonumber(item.stock.Text:match("%d+"))
@@ -155,7 +194,6 @@ local function bulkBuyAllItems()
         end
     end
 
-    -- POTIONS
     for _, item in ipairs(mainGui.Potions.ScrollingFrame:GetChildren()) do
         if item:IsA("Frame") and item:FindFirstChild("stock") then
             local stock = tonumber(item.stock.Text:match("%d+"))
@@ -174,26 +212,22 @@ end
 task.spawn(function()
     while true do
         -- TIMERS
-        if toggles.AutoCollect then
-            local t = math.max(0, math.ceil(collectDelay - (os.clock() - lastCollect)))
-            collectTimerLabel.Text = t > 0 and ("COLLECT IN: "..t.."s") or "COLLECT: READY"
-        else
-            collectTimerLabel.Text = "COLLECT: OFF"
-        end
+        collectTimerLabel.Text = toggles.AutoCollect
+            and ("COLLECT IN: " .. math.max(0, math.ceil(collectDelay - (os.clock() - lastCollect))) .. "s")
+            or "COLLECT: OFF"
 
-        if toggles.BulkBuy then
-            local t = math.max(0, math.ceil(bulkBuyDelay - (os.clock() - lastBulkBuy)))
-            bulkTimerLabel.Text = t > 0 and ("BULK BUY IN: "..t.."s") or "BULK BUY: READY"
-        else
-            bulkTimerLabel.Text = "BULK BUY: OFF"
-        end
+        bulkTimerLabel.Text = toggles.BulkBuy
+            and ("BULK BUY IN: " .. math.max(0, math.ceil(bulkBuyDelay - (os.clock() - lastBulkBuy))) .. "s")
+            or "BULK BUY: OFF"
 
         setStatus("IDLE", Color3.fromRGB(200,200,200))
 
-        -- COLLECT (PAUSES ROLL)
+        -- COLLECT
         if toggles.AutoCollect and os.clock() - lastCollect >= collectDelay then
             setStatus("COLLECTING", Color3.fromRGB(0,170,255))
             lastCollect = os.clock()
+            collectCount += 1
+            collectLabel.Text = "COLLECTS: " .. collectCount
 
             for _, plot in ipairs(workspace.Map.Plots:GetChildren()) do
                 for _, slot in ipairs(plot.Slots:GetChildren()) do
@@ -209,12 +243,12 @@ task.spawn(function()
             end
         end
 
-        -- AUTO ROLL
+        -- AUTO ROLL (PAUSED DURING COLLECT)
         if toggles.AutoRoll and not toggles.AutoCollect then
             setStatus("ROLLING", Color3.fromRGB(0,255,120))
             if pcall(function() rollRemote:InvokeServer() end) then
                 rollCount += 1
-                rollCountLabel.Text = "ROLLS: " .. rollCount
+                rollLabel.Text = "ROLLS: " .. rollCount
             end
         end
 
