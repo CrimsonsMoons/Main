@@ -45,7 +45,7 @@ local eggBuyAmount = 1
 local eggDelay = 0.15
 
 local lastRoll = 0
-local rollDelay = 0.05 -- FAST AUTO ROLL (20/sec)
+local rollDelay = 0.1 -- FAST AUTO ROLL (20/sec)
 
 -- =========================
 -- GUI
@@ -343,6 +343,6 @@ end
             autoEggs()
         end
 
-        task.wait(0.05)
+        task.wait(0.1)
     end
 end)
