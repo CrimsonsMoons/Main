@@ -1,3 +1,4 @@
+-- =========================
 -- SERVICES
 -- =========================
 local Players = game:GetService("Players")
@@ -26,18 +27,18 @@ local toggles = {
     AutoBuy = false,
     AutoRoll = false,
     AutoCollect = false,
+    BulkBuy = false,
 }
 
 -- =========================
 -- GUI
 -- =========================
-local gui = Instance.new("ScreenGui")
+local gui = Instance.new("ScreenGui", player.PlayerGui)
 gui.Name = "AutoFarmGUI"
-gui.Parent = player.PlayerGui
 
 local frame = Instance.new("Frame", gui)
-frame.Size = UDim2.fromScale(0.25, 0.45)
-frame.Position = UDim2.fromScale(0.05, 0.25)
+frame.Size = UDim2.fromScale(0.25, 0.55)
+frame.Position = UDim2.fromScale(0.05, 0.2)
 frame.BackgroundColor3 = Color3.fromRGB(25,25,25)
 frame.BorderSizePixel = 0
 frame.Active = true
@@ -46,7 +47,7 @@ Instance.new("UICorner", frame).CornerRadius = UDim.new(0,12)
 
 local function createButton(text, yPos, toggleKey)
     local btn = Instance.new("TextButton", frame)
-    btn.Size = UDim2.fromScale(0.9, 0.16)
+    btn.Size = UDim2.fromScale(0.9, 0.13)
     btn.Position = UDim2.fromScale(0.05, yPos)
     btn.Text = text .. ": OFF"
     btn.TextScaled = true
@@ -65,12 +66,13 @@ local function createButton(text, yPos, toggleKey)
 end
 
 -- BUTTONS
-createButton("AUTO BUY", 0.05, "AutoBuy")
-createButton("AUTO ROLL", 0.25, "AutoRoll")
-createButton("AUTO COLLECT", 0.45, "AutoCollect")
+createButton("AUTO BUY", 0.03, "AutoBuy")
+createButton("AUTO ROLL", 0.19, "AutoRoll")
+createButton("AUTO COLLECT", 0.35, "AutoCollect")
+createButton("BULK BUY", 0.51, "BulkBuy")
 
 -- =========================
--- BUY LIST (ADD MORE HERE)
+-- BUY LIST
 -- =========================
 local buyList = {
     { name = "Basic Dice", amount = 999, category = "dice", delay = 5 },
@@ -92,7 +94,44 @@ local buyList = {
 -- TIMERS
 -- =========================
 local lastCollect = 0
-local collectDelay = 10 -- seconds
+local collectDelay = 10
+
+local lastBulkBuy = 0
+local bulkBuyDelay = 30
+
+-- =========================
+-- BULK BUY FUNCTION
+-- =========================
+local function bulkBuyAllDice()
+    local scrollingFrame = player.PlayerGui
+        :WaitForChild("Main", 9e9)
+        :WaitForChild("Restock", 9e9)
+        :WaitForChild("ScrollingFrame", 9e9)
+
+    for _, diceFrame in ipairs(scrollingFrame:GetChildren()) do
+        if diceFrame:IsA("Frame") and diceFrame:FindFirstChild("stock") then
+            local diceName = diceFrame.Name
+            local stock = tonumber(diceFrame.stock.Text:match("%d+"))
+
+            if stock and stock > 0 then
+                local success = pcall(function()
+                    buyRemote:InvokeServer(diceName, stock, "dice")
+                end)
+
+                if not success then
+                    for i = 1, stock do
+                        pcall(function()
+                            buyRemote:InvokeServer(diceName, 1, "dice")
+                        end)
+                        task.wait(0.1)
+                    end
+                end
+
+                task.wait(0.3)
+            end
+        end
+    end
+end
 
 -- =========================
 -- MAIN LOOP
@@ -118,17 +157,16 @@ task.spawn(function()
             end
         end
 
-        -- AUTO ROLL (every 0.5s)
+        -- AUTO ROLL (0.5s)
         if toggles.AutoRoll then
             pcall(function()
                 rollRemote:InvokeServer()
             end)
         end
 
-        -- AUTO COLLECT (every 10s)
+        -- AUTO COLLECT (10s)
         if toggles.AutoCollect and os.clock() - lastCollect >= collectDelay then
             lastCollect = os.clock()
-
             for _, plot in ipairs(workspace.Map.Plots:GetChildren()) do
                 if plot:FindFirstChild("Slots") then
                     for _, slot in ipairs(plot.Slots:GetChildren()) do
@@ -145,6 +183,12 @@ task.spawn(function()
                     end
                 end
             end
+        end
+
+        -- BULK BUY (30s)
+        if toggles.BulkBuy and os.clock() - lastBulkBuy >= bulkBuyDelay then
+            lastBulkBuy = os.clock()
+            bulkBuyAllDice()
         end
 
         task.wait(0.5)
