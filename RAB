@@ -1,4 +1,4 @@
---- =========================
+-- =========================
 -- SERVICES
 -- =========================
 local Players = game:GetService("Players")
@@ -95,25 +95,6 @@ createActionButton("SELL ALL", 0.55, function()
 end)
 
 -- =========================
--- BUY LIST (AUTO BUY)
--- =========================
-local buyList = {
-    { name = "Basic Dice", amount = 999, category = "dice", delay = 5 },
-
-    { name = "Silver Dice", times = 20, category = "dice" },
-    { name = "Golden Dice", times = 20, category = "dice" },
-    { name = "Aureline Dice", times = 20, category = "dice" },
-    { name = "Diamond Dice", times = 20, category = "dice" },
-
-    { name = "Luck Potion 1", times = 5, category = "potion" },
-    { name = "Money Potion 1", times = 5, category = "potion" },
-    { name = "Luck Potion 2", times = 5, category = "potion" },
-    { name = "Money Potion 2", times = 5, category = "potion" },
-    { name = "Luck Potion 3", times = 5, category = "potion" },
-    { name = "Money Potion 3", times = 5, category = "potion" },
-}
-
--- =========================
 -- TIMERS
 -- =========================
 local lastCollect = 0
@@ -142,9 +123,7 @@ local function bulkBuyAllItems()
                 end)
                 if not ok then
                     for i = 1, stock do
-                        pcall(function()
-                            buyRemote:InvokeServer(item.Name, 1, "dice")
-                        end)
+                        buyRemote:InvokeServer(item.Name, 1, "dice")
                         task.wait(0.1)
                     end
                 end
@@ -153,8 +132,10 @@ local function bulkBuyAllItems()
         end
     end
 
-    -- ===== POTIONS =====
-    local potionFrame = mainGui:WaitForChild("Potions", 9e9)
+    -- ===== POTIONS (FIXED: ScrollingFrame) =====
+    local potionFrame = mainGui
+        :WaitForChild("Potions", 9e9)
+        :WaitForChild("ScrollingFrame", 9e9)
 
     for _, item in ipairs(potionFrame:GetChildren()) do
         if item:IsA("Frame") and item:FindFirstChild("stock") then
@@ -165,9 +146,7 @@ local function bulkBuyAllItems()
                 end)
                 if not ok then
                     for i = 1, stock do
-                        pcall(function()
-                            buyRemote:InvokeServer(item.Name, 1, "potion")
-                        end)
+                        buyRemote:InvokeServer(item.Name, 1, "potion")
                         task.wait(0.1)
                     end
                 end
@@ -182,25 +161,6 @@ end
 -- =========================
 task.spawn(function()
     while true do
-        -- AUTO BUY
-        if toggles.AutoBuy then
-            for _, item in ipairs(buyList) do
-                if item.amount then
-                    pcall(function()
-                        buyRemote:InvokeServer(item.name, item.amount, item.category)
-                    end)
-                    task.wait(item.delay or 1)
-                else
-                    for i = 1, item.times do
-                        pcall(function()
-                            buyRemote:InvokeServer(item.name, 1, item.category)
-                        end)
-                        task.wait(0.1)
-                    end
-                end
-            end
-        end
-
         -- AUTO ROLL (0.5s)
         if toggles.AutoRoll then
             pcall(function()
@@ -217,10 +177,8 @@ task.spawn(function()
                         if slot:FindFirstChild("Collect") then
                             for _, obj in ipairs(slot.Collect:GetDescendants()) do
                                 if obj:IsA("TouchTransmitter") then
-                                    pcall(function()
-                                        firetouchinterest(hrp, obj.Parent, 0)
-                                        firetouchinterest(hrp, obj.Parent, 1)
-                                    end)
+                                    firetouchinterest(hrp, obj.Parent, 0)
+                                    firetouchinterest(hrp, obj.Parent, 1)
                                 end
                             end
                         end
