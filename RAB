@@ -1,4 +1,4 @@
---- =========================
+-- =========================
 -- SERVICES
 -- =========================
 local Players = game:GetService("Players")
@@ -47,10 +47,12 @@ local frame = Instance.new("Frame", gui)
 frame.Size = UDim2.fromScale(0.38, 0.95)
 frame.Position = UDim2.fromScale(0.02, 0.03)
 frame.BackgroundColor3 = Color3.fromRGB(25,25,25)
-frame.Active, frame.Draggable = true, true
+frame.Active = true
+frame.Draggable = true
+frame.ZIndex = 1
 Instance.new("UICorner", frame)
 
--- Toggle GUI (J)
+-- Toggle GUI with J
 UserInputService.InputBegan:Connect(function(input, gp)
     if not gp and input.KeyCode == Enum.KeyCode.J then
         frame.Visible = not frame.Visible
@@ -70,6 +72,7 @@ local function makeLabel(text, y, size)
     l.Font = Enum.Font.GothamBold
     l.TextColor3 = Color3.new(1,1,1)
     l.Text = text
+    l.ZIndex = 2
     return l
 end
 
@@ -92,13 +95,14 @@ local function toggleBtn(text, y, key)
     local b = Instance.new("TextButton", frame)
     b.Size = UDim2.fromScale(0.9, 0.055)
     b.Position = UDim2.fromScale(0.05, y)
+    b.Text = text .. ": OFF"
     b.TextScaled = false
     b.TextSize = 20
     b.Font = Enum.Font.GothamBold
     b.TextColor3 = Color3.new(1,1,1)
     b.BackgroundColor3 = Color3.fromRGB(170,60,60)
+    b.ZIndex = 2
     Instance.new("UICorner", b)
-    b.Text = text .. ": OFF"
 
     b.MouseButton1Click:Connect(function()
         toggles[key] = not toggles[key]
@@ -113,7 +117,7 @@ toggleBtn("AUTO ROLL", 0.28, "AutoRoll")
 toggleBtn("AUTO COLLECT", 0.35, "AutoCollect")
 toggleBtn("BULK BUY", 0.42, "BulkBuy")
 
--- SELL
+-- SELL ALL
 local sell = Instance.new("TextButton", frame)
 sell.Size = UDim2.fromScale(0.9, 0.055)
 sell.Position = UDim2.fromScale(0.05, 0.49)
@@ -123,15 +127,18 @@ sell.TextSize = 20
 sell.Font = Enum.Font.GothamBold
 sell.TextColor3 = Color3.new(1,1,1)
 sell.BackgroundColor3 = Color3.fromRGB(70,70,170)
+sell.ZIndex = 2
 Instance.new("UICorner", sell)
+
 sell.MouseButton1Click:Connect(function()
     sellRemote:InvokeServer("all")
 end)
 
 -- =========================
--- DROPDOWN (CLICK TO OPEN)
+-- REAL DROPDOWN (CLICKABLE)
 -- =========================
 local function createDropdown(title, sourceFolder, enabledTable, startY)
+    -- Header
     local header = Instance.new("TextButton", frame)
     header.Size = UDim2.fromScale(0.9, 0.045)
     header.Position = UDim2.fromScale(0.05, startY)
@@ -141,34 +148,53 @@ local function createDropdown(title, sourceFolder, enabledTable, startY)
     header.Font = Enum.Font.GothamBold
     header.TextColor3 = Color3.new(1,1,1)
     header.BackgroundColor3 = Color3.fromRGB(40,40,40)
+    header.ZIndex = 5
     Instance.new("UICorner", header)
 
+    -- Container
     local container = Instance.new("Frame", frame)
     container.Position = UDim2.fromScale(0.05, startY + 0.05)
     container.Size = UDim2.fromScale(0.9, 0)
-    container.Visible = false
     container.BackgroundColor3 = Color3.fromRGB(30,30,30)
+    container.Visible = false
+    container.ClipsDescendants = true
+    container.ZIndex = 4
     Instance.new("UICorner", container)
 
-    local layout = Instance.new("UIListLayout", container)
+    -- ScrollingFrame (CRITICAL)
+    local scroll = Instance.new("ScrollingFrame", container)
+    scroll.Size = UDim2.fromScale(1,1)
+    scroll.CanvasSize = UDim2.new(0,0,0,0)
+    scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    scroll.ScrollBarImageTransparency = 0.2
+    scroll.ScrollBarThickness = 6
+    scroll.BackgroundTransparency = 1
+    scroll.ZIndex = 4
+
+    local layout = Instance.new("UIListLayout", scroll)
     layout.Padding = UDim.new(0, 4)
 
     local function refresh()
-        for _, c in ipairs(container:GetChildren()) do
-            if c:IsA("TextButton") then c:Destroy() end
+        for _, c in ipairs(scroll:GetChildren()) do
+            if c:IsA("TextButton") then
+                c:Destroy()
+            end
         end
 
         for _, item in ipairs(sourceFolder:GetChildren()) do
             if item:IsA("Frame") and item:FindFirstChild("stock") then
-                enabledTable[item.Name] = enabledTable[item.Name] ~= false
+                if enabledTable[item.Name] == nil then
+                    enabledTable[item.Name] = true
+                end
 
-                local btn = Instance.new("TextButton", container)
-                btn.Size = UDim2.new(1, 0, 0, 26)
+                local btn = Instance.new("TextButton", scroll)
+                btn.Size = UDim2.new(1, -8, 0, 26)
                 btn.BackgroundTransparency = 1
                 btn.TextScaled = false
                 btn.TextSize = 16
                 btn.Font = Enum.Font.Gotham
                 btn.TextXAlignment = Enum.TextXAlignment.Left
+                btn.ZIndex = 5
 
                 local pad = Instance.new("UIPadding", btn)
                 pad.PaddingLeft = UDim.new(0, 10)
@@ -190,13 +216,18 @@ local function createDropdown(title, sourceFolder, enabledTable, startY)
         end
 
         task.wait()
-        container.Size = UDim2.fromOffset(container.AbsoluteSize.X, layout.AbsoluteContentSize.Y + 6)
+        container.Size = UDim2.fromOffset(
+            container.AbsoluteSize.X,
+            math.min(200, scroll.AbsoluteCanvasSize.Y + 6)
+        )
     end
 
     header.MouseButton1Click:Connect(function()
         container.Visible = not container.Visible
         header.Text = title .. (container.Visible and " ▲" or " ▼")
-        if container.Visible then refresh() end
+        if container.Visible then
+            refresh()
+        end
     end)
 
     sourceFolder.ChildAdded:Connect(refresh)
