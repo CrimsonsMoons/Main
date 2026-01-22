@@ -1,4 +1,4 @@
---- =========================
+-- =========================
 -- SERVICES
 -- =========================
 local Players = game:GetService("Players")
@@ -38,17 +38,32 @@ local gui = Instance.new("ScreenGui", player.PlayerGui)
 gui.Name = "AutoFarmGUI"
 
 local frame = Instance.new("Frame", gui)
-frame.Size = UDim2.fromScale(0.25, 0.65)
-frame.Position = UDim2.fromScale(0.05, 0.18)
+frame.Size = UDim2.fromScale(0.25, 0.72)
+frame.Position = UDim2.fromScale(0.05, 0.15)
 frame.BackgroundColor3 = Color3.fromRGB(25,25,25)
 frame.BorderSizePixel = 0
 frame.Active = true
 frame.Draggable = true
 Instance.new("UICorner", frame).CornerRadius = UDim.new(0,12)
 
+-- STATUS LABEL
+local statusLabel = Instance.new("TextLabel", frame)
+statusLabel.Size = UDim2.fromScale(0.9, 0.08)
+statusLabel.Position = UDim2.fromScale(0.05, 0.02)
+statusLabel.BackgroundTransparency = 1
+statusLabel.Text = "STATUS: IDLE"
+statusLabel.TextScaled = true
+statusLabel.TextColor3 = Color3.fromRGB(255,255,255)
+statusLabel.Font = Enum.Font.GothamBold
+
+local function setStatus(text, color)
+    statusLabel.Text = "STATUS: " .. text
+    statusLabel.TextColor3 = color
+end
+
 local function createToggleButton(text, yPos, key)
     local btn = Instance.new("TextButton", frame)
-    btn.Size = UDim2.fromScale(0.9, 0.11)
+    btn.Size = UDim2.fromScale(0.9, 0.1)
     btn.Position = UDim2.fromScale(0.05, yPos)
     btn.Text = text .. ": OFF"
     btn.TextScaled = true
@@ -68,7 +83,7 @@ end
 
 local function createActionButton(text, yPos, callback)
     local btn = Instance.new("TextButton", frame)
-    btn.Size = UDim2.fromScale(0.9, 0.11)
+    btn.Size = UDim2.fromScale(0.9, 0.1)
     btn.Position = UDim2.fromScale(0.05, yPos)
     btn.Text = text
     btn.TextScaled = true
@@ -85,12 +100,12 @@ end
 -- =========================
 -- BUTTONS
 -- =========================
-createToggleButton("AUTO BUY", 0.03, "AutoBuy")
-createToggleButton("AUTO ROLL", 0.15, "AutoRoll")
-createToggleButton("AUTO COLLECT", 0.27, "AutoCollect")
-createToggleButton("BULK BUY", 0.39, "BulkBuy")
+createToggleButton("AUTO BUY", 0.12, "AutoBuy")
+createToggleButton("AUTO ROLL", 0.23, "AutoRoll")
+createToggleButton("AUTO COLLECT", 0.34, "AutoCollect")
+createToggleButton("BULK BUY", 0.45, "BulkBuy")
 
-createActionButton("SELL ALL", 0.55, function()
+createActionButton("SELL ALL", 0.58, function()
     sellRemote:InvokeServer("all")
 end)
 
@@ -104,17 +119,15 @@ local lastBulkBuy = 0
 local bulkBuyDelay = 30
 
 -- =========================
--- BULK BUY FUNCTION (DICE + POTIONS)
+-- BULK BUY FUNCTION
 -- =========================
 local function bulkBuyAllItems()
+    setStatus("BULK BUYING", Color3.fromRGB(255,170,0))
+
     local mainGui = player.PlayerGui:WaitForChild("Main", 9e9)
 
-    -- ===== DICE =====
-    local diceFrame = mainGui
-        :WaitForChild("Restock", 9e9)
-        :WaitForChild("ScrollingFrame", 9e9)
-
-    for _, item in ipairs(diceFrame:GetChildren()) do
+    -- DICE
+    for _, item in ipairs(mainGui.Restock.ScrollingFrame:GetChildren()) do
         if item:IsA("Frame") and item:FindFirstChild("stock") then
             local stock = tonumber(item.stock.Text:match("%d+"))
             if stock and stock > 0 then
@@ -127,17 +140,12 @@ local function bulkBuyAllItems()
                         task.wait(0.1)
                     end
                 end
-                task.wait(0.25)
             end
         end
     end
 
-    -- ===== POTIONS (FIXED: ScrollingFrame) =====
-    local potionFrame = mainGui
-        :WaitForChild("Potions", 9e9)
-        :WaitForChild("ScrollingFrame", 9e9)
-
-    for _, item in ipairs(potionFrame:GetChildren()) do
+    -- POTIONS
+    for _, item in ipairs(mainGui.Potions.ScrollingFrame:GetChildren()) do
         if item:IsA("Frame") and item:FindFirstChild("stock") then
             local stock = tonumber(item.stock.Text:match("%d+"))
             if stock and stock > 0 then
@@ -150,7 +158,6 @@ local function bulkBuyAllItems()
                         task.wait(0.1)
                     end
                 end
-                task.wait(0.25)
             end
         end
     end
@@ -161,16 +168,13 @@ end
 -- =========================
 task.spawn(function()
     while true do
-        -- AUTO ROLL (0.5s)
-        if toggles.AutoRoll then
-            pcall(function()
-                rollRemote:InvokeServer()
-            end)
-        end
+        setStatus("IDLE", Color3.fromRGB(200,200,200))
 
-        -- AUTO COLLECT (10s)
+        -- AUTO COLLECT (PAUSES ROLL)
         if toggles.AutoCollect and os.clock() - lastCollect >= collectDelay then
+            setStatus("COLLECTING", Color3.fromRGB(0,170,255))
             lastCollect = os.clock()
+
             for _, plot in ipairs(workspace.Map.Plots:GetChildren()) do
                 if plot:FindFirstChild("Slots") then
                     for _, slot in ipairs(plot.Slots:GetChildren()) do
@@ -187,7 +191,15 @@ task.spawn(function()
             end
         end
 
-        -- BULK BUY (30s)
+        -- AUTO ROLL (PAUSED WHILE COLLECTING)
+        if toggles.AutoRoll and not toggles.AutoCollect then
+            setStatus("ROLLING", Color3.fromRGB(0,255,120))
+            pcall(function()
+                rollRemote:InvokeServer()
+            end)
+        end
+
+        -- BULK BUY
         if toggles.BulkBuy and os.clock() - lastBulkBuy >= bulkBuyDelay then
             lastBulkBuy = os.clock()
             bulkBuyAllItems()
