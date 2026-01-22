@@ -1,4 +1,4 @@
---- =========================
+-- =========================
 -- SERVICES
 -- =========================
 local Players = game:GetService("Players")
@@ -7,8 +7,10 @@ local UserInputService = game:GetService("UserInputService")
 
 local player = Players.LocalPlayer
 local Events = ReplicatedStorage:WaitForChild("Events", 9e9)
+
 local buyRemote = Events:WaitForChild("buy", 9e9)
 local sellRemote = Events:WaitForChild("sell", 9e9)
+local eggRemote = Events:WaitForChild("RegularPet", 9e9)
 
 -- Auto Roll Remote
 local rollRemote = Players
@@ -28,14 +30,19 @@ local toggles = {
     AutoRoll = false,
     AutoCollect = false,
     BulkBuy = false,
+    AutoEggs = false,
 }
 
-local rollCount, collectCount, bulkCount = 0, 0, 0
+local rollCount, collectCount, bulkCount, eggBuyCount = 0, 0, 0, 0
 local lastCollect, lastBulkBuy = 0, 0
 local collectDelay, bulkBuyDelay = 10, 30
 
 local bulkDiceEnabled = {}
 local bulkPotionEnabled = {}
+local eggEnabled = {}
+
+local eggBuyAmount = 1
+local eggDelay = 0.15
 
 -- =========================
 -- GUI
@@ -49,223 +56,230 @@ frame.Position = UDim2.fromScale(0.02, 0.03)
 frame.BackgroundColor3 = Color3.fromRGB(25,25,25)
 frame.Active = true
 frame.Draggable = true
-frame.ZIndex = 1
 Instance.new("UICorner", frame)
 
 -- Toggle GUI with J
-UserInputService.InputBegan:Connect(function(input, gp)
-    if not gp and input.KeyCode == Enum.KeyCode.J then
+UserInputService.InputBegan:Connect(function(i,gp)
+    if not gp and i.KeyCode == Enum.KeyCode.J then
         frame.Visible = not frame.Visible
     end
 end)
 
 -- =========================
--- LABEL HELPER
+-- UI HELPERS
 -- =========================
-local function makeLabel(text, y, size)
+local function label(text,y,size)
     local l = Instance.new("TextLabel", frame)
-    l.Size = UDim2.fromScale(0.9, 0.04)
-    l.Position = UDim2.fromScale(0.05, y)
+    l.Size = UDim2.fromScale(0.9,0.04)
+    l.Position = UDim2.fromScale(0.05,y)
     l.BackgroundTransparency = 1
+    l.Text = text
     l.TextScaled = false
     l.TextSize = size or 18
     l.Font = Enum.Font.GothamBold
     l.TextColor3 = Color3.new(1,1,1)
-    l.Text = text
-    l.ZIndex = 2
     return l
 end
 
-local status = makeLabel("STATUS: IDLE", 0.02, 20)
-local collectTimer = makeLabel("COLLECT: OFF", 0.07)
-local bulkTimer = makeLabel("BULK BUY: OFF", 0.11)
-local rolls = makeLabel("ROLLS: 0", 0.15)
-local collects = makeLabel("COLLECTS: 0", 0.19)
-local bulks = makeLabel("BULK BUYS: 0", 0.23)
-
-local function setStatus(text, color)
-    status.Text = "STATUS: " .. text
-    status.TextColor3 = color
-end
-
--- =========================
--- TOGGLE BUTTONS
--- =========================
-local function toggleBtn(text, y, key)
+local function toggleBtn(text,y,key)
     local b = Instance.new("TextButton", frame)
-    b.Size = UDim2.fromScale(0.9, 0.055)
-    b.Position = UDim2.fromScale(0.05, y)
-    b.Text = text .. ": OFF"
-    b.TextScaled = false
+    b.Size = UDim2.fromScale(0.9,0.055)
+    b.Position = UDim2.fromScale(0.05,y)
+    b.Text = text..": OFF"
     b.TextSize = 20
     b.Font = Enum.Font.GothamBold
     b.TextColor3 = Color3.new(1,1,1)
     b.BackgroundColor3 = Color3.fromRGB(170,60,60)
-    b.ZIndex = 2
     Instance.new("UICorner", b)
 
     b.MouseButton1Click:Connect(function()
         toggles[key] = not toggles[key]
-        b.Text = text .. ": " .. (toggles[key] and "ON" or "OFF")
+        b.Text = text..": "..(toggles[key] and "ON" or "OFF")
         b.BackgroundColor3 = toggles[key]
             and Color3.fromRGB(60,170,60)
             or Color3.fromRGB(170,60,60)
     end)
 end
 
-toggleBtn("AUTO ROLL", 0.28, "AutoRoll")
-toggleBtn("AUTO COLLECT", 0.35, "AutoCollect")
-toggleBtn("BULK BUY", 0.42, "BulkBuy")
+-- =========================
+-- STATUS + COUNTERS
+-- =========================
+local status = label("STATUS: IDLE",0.02,20)
+local collectTimer = label("COLLECT: OFF",0.07)
+local bulkTimer = label("BULK BUY: OFF",0.11)
+local rolls = label("ROLLS: 0",0.15)
+local collects = label("COLLECTS: 0",0.19)
+local bulks = label("BULK BUYS: 0",0.23)
+local eggs = label("EGGS BOUGHT: 0",0.27)
 
--- SELL ALL
+local function setStatus(t,c)
+    status.Text = "STATUS: "..t
+    status.TextColor3 = c
+end
+
+-- =========================
+-- BUTTONS
+-- =========================
+toggleBtn("AUTO ROLL",0.32,"AutoRoll")
+toggleBtn("AUTO COLLECT",0.39,"AutoCollect")
+toggleBtn("BULK BUY",0.46,"BulkBuy")
+toggleBtn("AUTO EGGS",0.53,"AutoEggs")
+
 local sell = Instance.new("TextButton", frame)
-sell.Size = UDim2.fromScale(0.9, 0.055)
-sell.Position = UDim2.fromScale(0.05, 0.49)
+sell.Size = UDim2.fromScale(0.9,0.055)
+sell.Position = UDim2.fromScale(0.05,0.60)
 sell.Text = "SELL ALL"
-sell.TextScaled = false
 sell.TextSize = 20
 sell.Font = Enum.Font.GothamBold
 sell.TextColor3 = Color3.new(1,1,1)
 sell.BackgroundColor3 = Color3.fromRGB(70,70,170)
-sell.ZIndex = 2
 Instance.new("UICorner", sell)
-
 sell.MouseButton1Click:Connect(function()
     sellRemote:InvokeServer("all")
 end)
 
 -- =========================
--- REAL DROPDOWN (CLICKABLE)
+-- EGG AMOUNT SELECTOR
 -- =========================
-local function createDropdown(title, sourceFolder, enabledTable, startY)
-    -- Header
-    local header = Instance.new("TextButton", frame)
-    header.Size = UDim2.fromScale(0.9, 0.045)
-    header.Position = UDim2.fromScale(0.05, startY)
-    header.Text = title .. " ▼"
-    header.TextScaled = false
-    header.TextSize = 18
-    header.Font = Enum.Font.GothamBold
-    header.TextColor3 = Color3.new(1,1,1)
-    header.BackgroundColor3 = Color3.fromRGB(40,40,40)
-    header.ZIndex = 5
-    Instance.new("UICorner", header)
+label("EGG BUY AMOUNT",0.67,16)
 
-    -- Container
-    local container = Instance.new("Frame", frame)
-    container.Position = UDim2.fromScale(0.05, startY + 0.05)
-    container.Size = UDim2.fromScale(0.9, 0)
-    container.BackgroundColor3 = Color3.fromRGB(30,30,30)
-    container.Visible = false
-    container.ClipsDescendants = true
-    container.ZIndex = 4
-    Instance.new("UICorner", container)
-
-    -- ScrollingFrame (CRITICAL)
-    local scroll = Instance.new("ScrollingFrame", container)
-    scroll.Size = UDim2.fromScale(1,1)
-    scroll.CanvasSize = UDim2.new(0,0,0,0)
-    scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
-    scroll.ScrollBarImageTransparency = 0.2
-    scroll.ScrollBarThickness = 6
-    scroll.BackgroundTransparency = 1
-    scroll.ZIndex = 4
-
-    local layout = Instance.new("UIListLayout", scroll)
-    layout.Padding = UDim.new(0, 4)
+local function eggAmountBtn(text,val,x)
+    local b = Instance.new("TextButton", frame)
+    b.Size = UDim2.fromScale(0.42,0.05)
+    b.Position = UDim2.fromScale(x,0.72)
+    b.Text = text
+    b.TextSize = 18
+    b.Font = Enum.Font.GothamBold
+    b.TextColor3 = Color3.new(1,1,1)
+    Instance.new("UICorner", b)
 
     local function refresh()
-        for _, c in ipairs(scroll:GetChildren()) do
-            if c:IsA("TextButton") then
-                c:Destroy()
-            end
-        end
-
-        for _, item in ipairs(sourceFolder:GetChildren()) do
-            if item:IsA("Frame") and item:FindFirstChild("stock") then
-                if enabledTable[item.Name] == nil then
-                    enabledTable[item.Name] = true
-                end
-
-                local btn = Instance.new("TextButton", scroll)
-                btn.Size = UDim2.new(1, -8, 0, 26)
-                btn.BackgroundTransparency = 1
-                btn.TextScaled = false
-                btn.TextSize = 16
-                btn.Font = Enum.Font.Gotham
-                btn.TextXAlignment = Enum.TextXAlignment.Left
-                btn.ZIndex = 5
-
-                local pad = Instance.new("UIPadding", btn)
-                pad.PaddingLeft = UDim.new(0, 10)
-
-                local function draw()
-                    btn.Text = (enabledTable[item.Name] and "✔ " or "✖ ") .. item.Name
-                    btn.TextColor3 = enabledTable[item.Name]
-                        and Color3.fromRGB(0,255,120)
-                        or Color3.fromRGB(255,100,100)
-                end
-
-                btn.MouseButton1Click:Connect(function()
-                    enabledTable[item.Name] = not enabledTable[item.Name]
-                    draw()
-                end)
-
-                draw()
-            end
-        end
-
-        task.wait()
-        container.Size = UDim2.fromOffset(
-            container.AbsoluteSize.X,
-            math.min(200, scroll.AbsoluteCanvasSize.Y + 6)
-        )
+        b.BackgroundColor3 = eggBuyAmount==val
+            and Color3.fromRGB(60,170,60)
+            or Color3.fromRGB(120,120,120)
     end
 
-    header.MouseButton1Click:Connect(function()
-        container.Visible = not container.Visible
-        header.Text = title .. (container.Visible and " ▲" or " ▼")
-        if container.Visible then
-            refresh()
-        end
+    b.MouseButton1Click:Connect(function()
+        eggBuyAmount = val
+        refresh()
     end)
 
-    sourceFolder.ChildAdded:Connect(refresh)
-    sourceFolder.ChildRemoved:Connect(refresh)
+    refresh()
 end
 
--- BUILD DROPDOWNS
-local mainGui = player.PlayerGui:WaitForChild("Main", 9e9)
-createDropdown("BULK DICE", mainGui.Restock.ScrollingFrame, bulkDiceEnabled, 0.56)
-createDropdown("BULK POTIONS", mainGui.Potions.ScrollingFrame, bulkPotionEnabled, 0.70)
+eggAmountBtn("1x",1,0.05)
+eggAmountBtn("3x",3,0.53)
 
 -- =========================
--- BULK BUY
+-- DROPDOWN FUNCTION
+-- =========================
+local function createDropdown(title, folder, enabled, y)
+    local h = Instance.new("TextButton", frame)
+    h.Size = UDim2.fromScale(0.9,0.045)
+    h.Position = UDim2.fromScale(0.05,y)
+    h.Text = title.." ▼"
+    h.TextSize = 18
+    h.Font = Enum.Font.GothamBold
+    h.TextColor3 = Color3.new(1,1,1)
+    h.BackgroundColor3 = Color3.fromRGB(40,40,40)
+    Instance.new("UICorner", h)
+
+    local c = Instance.new("Frame", frame)
+    c.Position = UDim2.fromScale(0.05,y+0.05)
+    c.Size = UDim2.fromScale(0.9,0)
+    c.Visible = false
+    c.ClipsDescendants = true
+    c.BackgroundColor3 = Color3.fromRGB(30,30,30)
+    Instance.new("UICorner", c)
+
+    local s = Instance.new("ScrollingFrame", c)
+    s.Size = UDim2.fromScale(1,1)
+    s.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    s.CanvasSize = UDim2.new()
+    s.ScrollBarThickness = 6
+    s.BackgroundTransparency = 1
+
+    Instance.new("UIListLayout", s).Padding = UDim.new(0,4)
+
+    local function refresh()
+        for _,x in ipairs(s:GetChildren()) do
+            if x:IsA("TextButton") then x:Destroy() end
+        end
+        for _,i in ipairs(folder:GetChildren()) do
+            enabled[i.Name] = enabled[i.Name] ~= false
+            local b = Instance.new("TextButton", s)
+            b.Size = UDim2.new(1,-8,0,26)
+            b.BackgroundTransparency = 1
+            b.TextXAlignment = Enum.TextXAlignment.Left
+            b.TextSize = 16
+            b.Font = Enum.Font.Gotham
+            Instance.new("UIPadding",b).PaddingLeft = UDim.new(0,10)
+
+            local function draw()
+                b.Text = (enabled[i.Name] and "✔ " or "✖ ")..i.Name
+                b.TextColor3 = enabled[i.Name]
+                    and Color3.fromRGB(0,255,120)
+                    or Color3.fromRGB(255,100,100)
+            end
+
+            b.MouseButton1Click:Connect(function()
+                enabled[i.Name] = not enabled[i.Name]
+                draw()
+            end)
+
+            draw()
+        end
+        task.wait()
+        c.Size = UDim2.fromOffset(c.AbsoluteSize.X, math.min(200, s.AbsoluteCanvasSize.Y+6))
+    end
+
+    h.MouseButton1Click:Connect(function()
+        c.Visible = not c.Visible
+        h.Text = title..(c.Visible and " ▲" or " ▼")
+        if c.Visible then refresh() end
+    end)
+
+    folder.ChildAdded:Connect(refresh)
+    folder.ChildRemoved:Connect(refresh)
+end
+
+local mainGui = player.PlayerGui:WaitForChild("Main",9e9)
+createDropdown("BULK DICE", mainGui.Restock.ScrollingFrame, bulkDiceEnabled, 0.79)
+createDropdown("BULK POTIONS", mainGui.Potions.ScrollingFrame, bulkPotionEnabled, 0.88)
+createDropdown("EGGS", workspace.Eggs, eggEnabled, 0.97)
+
+-- =========================
+-- LOGIC FUNCTIONS
 -- =========================
 local function bulkBuy()
-    setStatus("BULK BUYING", Color3.fromRGB(255,170,0))
     bulkCount += 1
-    bulks.Text = "BULK BUYS: " .. bulkCount
+    bulks.Text = "BULK BUYS: "..bulkCount
 
-    for _, i in ipairs(mainGui.Restock.ScrollingFrame:GetChildren()) do
-        if i:IsA("Frame") and i:FindFirstChild("stock") and bulkDiceEnabled[i.Name] then
-            local stock = tonumber(i.stock.Text:match("%d+"))
-            if stock and stock > 0 then
-                pcall(function()
-                    buyRemote:InvokeServer(i.Name, stock, "dice")
-                end)
-            end
+    for _,i in ipairs(mainGui.Restock.ScrollingFrame:GetChildren()) do
+        if i:FindFirstChild("stock") and bulkDiceEnabled[i.Name] then
+            local s = tonumber(i.stock.Text:match("%d+"))
+            if s and s>0 then buyRemote:InvokeServer(i.Name,s,"dice") end
         end
     end
 
-    for _, i in ipairs(mainGui.Potions.ScrollingFrame:GetChildren()) do
-        if i:IsA("Frame") and i:FindFirstChild("stock") and bulkPotionEnabled[i.Name] then
-            local stock = tonumber(i.stock.Text:match("%d+"))
-            if stock and stock > 0 then
-                pcall(function()
-                    buyRemote:InvokeServer(i.Name, stock, "potion")
-                end)
+    for _,i in ipairs(mainGui.Potions.ScrollingFrame:GetChildren()) do
+        if i:FindFirstChild("stock") and bulkPotionEnabled[i.Name] then
+            local s = tonumber(i.stock.Text:match("%d+"))
+            if s and s>0 then buyRemote:InvokeServer(i.Name,s,"potion") end
+        end
+    end
+end
+
+local function autoEggs()
+    for e,on in pairs(eggEnabled) do
+        if on then
+            if pcall(function()
+                eggRemote:InvokeServer(e,eggBuyAmount)
+            end) then
+                eggBuyCount += eggBuyAmount
+                eggs.Text = "EGGS BOUGHT: "..eggBuyCount
             end
+            task.wait(eggDelay)
         end
     end
 end
@@ -276,29 +290,26 @@ end
 task.spawn(function()
     while true do
         collectTimer.Text = toggles.AutoCollect
-            and ("COLLECT IN: " .. math.max(0, math.ceil(collectDelay - (os.clock() - lastCollect))) .. "s")
+            and "COLLECT IN: "..math.max(0,math.ceil(collectDelay-(os.clock()-lastCollect))).."s"
             or "COLLECT: OFF"
 
         bulkTimer.Text = toggles.BulkBuy
-            and ("BULK BUY IN: " .. math.max(0, math.ceil(bulkBuyDelay - (os.clock() - lastBulkBuy))) .. "s")
+            and "BULK BUY IN: "..math.max(0,math.ceil(bulkBuyDelay-(os.clock()-lastBulkBuy))).."s"
             or "BULK BUY: OFF"
 
-        setStatus("IDLE", Color3.fromRGB(200,200,200))
+        setStatus("IDLE",Color3.fromRGB(200,200,200))
 
-        -- AUTO COLLECT
-        if toggles.AutoCollect and os.clock() - lastCollect >= collectDelay then
-            setStatus("COLLECTING", Color3.fromRGB(0,170,255))
-            lastCollect = os.clock()
-            collectCount += 1
-            collects.Text = "COLLECTS: " .. collectCount
-
-            for _, plot in ipairs(workspace.Map.Plots:GetChildren()) do
-                for _, slot in ipairs(plot.Slots:GetChildren()) do
-                    if slot:FindFirstChild("Collect") then
-                        for _, obj in ipairs(slot.Collect:GetDescendants()) do
-                            if obj:IsA("TouchTransmitter") then
-                                firetouchinterest(hrp, obj.Parent, 0)
-                                firetouchinterest(hrp, obj.Parent, 1)
+        if toggles.AutoCollect and os.clock()-lastCollect>=collectDelay then
+            lastCollect=os.clock()
+            collectCount+=1
+            collects.Text="COLLECTS: "..collectCount
+            for _,p in ipairs(workspace.Map.Plots:GetChildren()) do
+                for _,s in ipairs(p.Slots:GetChildren()) do
+                    if s:FindFirstChild("Collect") then
+                        for _,o in ipairs(s.Collect:GetDescendants()) do
+                            if o:IsA("TouchTransmitter") then
+                                firetouchinterest(hrp,o.Parent,0)
+                                firetouchinterest(hrp,o.Parent,1)
                             end
                         end
                     end
@@ -306,19 +317,20 @@ task.spawn(function()
             end
         end
 
-        -- AUTO ROLL (PAUSED DURING COLLECT)
         if toggles.AutoRoll and not toggles.AutoCollect then
-            setStatus("ROLLING", Color3.fromRGB(0,255,120))
             if pcall(function() rollRemote:InvokeServer() end) then
-                rollCount += 1
-                rolls.Text = "ROLLS: " .. rollCount
+                rollCount+=1
+                rolls.Text="ROLLS: "..rollCount
             end
         end
 
-        -- BULK BUY
-        if toggles.BulkBuy and os.clock() - lastBulkBuy >= bulkBuyDelay then
-            lastBulkBuy = os.clock()
+        if toggles.BulkBuy and os.clock()-lastBulkBuy>=bulkBuyDelay then
+            lastBulkBuy=os.clock()
             bulkBuy()
+        end
+
+        if toggles.AutoEggs then
+            autoEggs()
         end
 
         task.wait(0.5)
