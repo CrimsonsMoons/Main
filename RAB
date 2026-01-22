@@ -1,0 +1,126 @@
+-- SERVICES
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local player = Players.LocalPlayer
+
+local Events = ReplicatedStorage:WaitForChild("Events", 9e9)
+local buyRemote = Events:WaitForChild("buy", 9e9)
+local claimAllRemote = Events:WaitForChild("claimAll", 9e9)
+
+-- Auto Roll Remote (from PlayerGui)
+local rollRemote = Players
+    :WaitForChild("CrimsonsMoons", 9e9)
+    :WaitForChild("PlayerGui", 9e9)
+    :WaitForChild("Main", 9e9)
+    :WaitForChild("Dice", 9e9)
+    :WaitForChild("RollState", 9e9)
+
+-- =========================
+-- TOGGLES
+-- =========================
+local toggles = {
+    AutoBuy = false,
+    ClaimAll = false,
+    AutoRoll = false,
+}
+
+-- =========================
+-- GUI
+-- =========================
+local gui = Instance.new("ScreenGui", player.PlayerGui)
+gui.Name = "AutoFarmGUI"
+
+local frame = Instance.new("Frame", gui)
+frame.Size = UDim2.fromScale(0.25, 0.45)
+frame.Position = UDim2.fromScale(0.05, 0.25)
+frame.BackgroundColor3 = Color3.fromRGB(25,25,25)
+frame.BorderSizePixel = 0
+frame.Active = true
+frame.Draggable = true
+Instance.new("UICorner", frame).CornerRadius = UDim.new(0,12)
+
+local function createButton(text, yPos, toggleKey)
+    local btn = Instance.new("TextButton", frame)
+    btn.Size = UDim2.fromScale(0.9, 0.15)
+    btn.Position = UDim2.fromScale(0.05, yPos)
+    btn.Text = text .. ": OFF"
+    btn.TextScaled = true
+    btn.TextColor3 = Color3.new(1,1,1)
+    btn.BackgroundColor3 = Color3.fromRGB(170,60,60)
+    btn.BorderSizePixel = 0
+    Instance.new("UICorner", btn)
+
+    btn.MouseButton1Click:Connect(function()
+        toggles[toggleKey] = not toggles[toggleKey]
+        btn.Text = text .. ": " .. (toggles[toggleKey] and "ON" or "OFF")
+        btn.BackgroundColor3 = toggles[toggleKey]
+            and Color3.fromRGB(60,170,60)
+            or Color3.fromRGB(170,60,60)
+    end)
+end
+
+-- BUTTONS
+createButton("AUTO BUY", 0.05, "AutoBuy")
+createButton("CLAIM ALL", 0.23, "ClaimAll")
+createButton("AUTO ROLL", 0.41, "AutoRoll")
+
+-- =========================
+-- BUY LIST (ADD MORE HERE)
+-- =========================
+local buyList = {
+    { name = "Basic Dice", amount = 999, category = "dice", delay = 5 },
+
+    { name = "Silver Dice", times = 20, category = "dice" },
+    { name = "Golden Dice", times = 20, category = "dice" },
+    { name = "Aureline Dice", times = 20, category = "dice" },
+    { name = "Diamond Dice", times = 20, category = "dice" },
+
+    { name = "Luck Potion 1", times = 5, category = "potion" },
+    { name = "Money Potion 1", times = 5, category = "potion" },
+    { name = "Luck Potion 2", times = 5, category = "potion" },
+    { name = "Money Potion 2", times = 5, category = "potion" },
+    { name = "Luck Potion 3", times = 5, category = "potion" },
+    { name = "Money Potion 3", times = 5, category = "potion" },
+}
+
+-- =========================
+-- MAIN LOOP
+-- =========================
+task.spawn(function()
+    while true do
+        -- AUTO BUY
+        if toggles.AutoBuy then
+            for _, item in ipairs(buyList) do
+                if item.amount then
+                    pcall(function()
+                        buyRemote:InvokeServer(item.name, item.amount, item.category)
+                    end)
+                    task.wait(item.delay or 1)
+                else
+                    for i = 1, item.times do
+                        pcall(function()
+                            buyRemote:InvokeServer(item.name, 1, item.category)
+                        end)
+                        task.wait(0.1)
+                    end
+                end
+            end
+        end
+
+        -- CLAIM ALL
+        if toggles.ClaimAll then
+            pcall(function()
+                claimAllRemote:InvokeServer()
+            end)
+        end
+
+        -- AUTO ROLL
+        if toggles.AutoRoll then
+            pcall(function()
+                rollRemote:InvokeServer()
+            end)
+        end
+
+        task.wait(1) -- loop speed
+    end
+end)
