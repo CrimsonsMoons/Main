@@ -36,8 +36,8 @@ local rollCount, collectCount, bulkCount, eggBuyCount = 0,0,0,0
 local lastCollect, lastBulkBuy, lastRoll, lastEgg = 0,0,0,0
 
 local collectDelay = 10
-local bulkBuyDelay = 30
-local rollDelay = 0.6
+local bulkBuyDelay = 15
+local rollDelay = 0.7
 local eggDelay = 0.15
 local eggCooldown = 0.4
 
