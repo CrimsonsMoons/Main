@@ -206,17 +206,13 @@ end
 ---------------------------------------------------------------------
 -- HAKI HELPERS (for Gems tab)
 ---------------------------------------------------------------------
-
----------------------------------------------------------------------
--- HAKI HELPERS (for Gems tab) – uses YOUR character & Lightning Strike
----------------------------------------------------------------------
-
-local function getRightArm()
-	-- character is usually workspace[LocalPlayer.Name]
-	local char = LocalPlayer.Character or workspace:FindFirstChild(LocalPlayer.Name)
+local function getMyRightArm()
+	-- Your character model is usually workspace[LocalPlayer.Name]
+	local char = workspace:FindFirstChild(LocalPlayer.Name)
 	if not char then return nil end
 
-	-- Try common right-arm names (R6 / R15)
+	-- You said the path is workspace.Takus["Right Arm"]["Lightning Strike"],
+	-- so we prioritize "Right Arm" but also try other common names just in case.
 	local rightArm =
 		char:FindFirstChild("Right Arm")
 		or char:FindFirstChild("RightArm")
@@ -226,36 +222,27 @@ local function getRightArm()
 	return rightArm
 end
 
-local function hasLightningStrike()
-	-- This is the dynamic equivalent of:
-	-- workspace.Takus["Right Arm"]["Lightning Strike"]
-	local rightArm = getRightArm()
+local function hasHakiEffect()
+	local rightArm = getMyRightArm()
 	if not rightArm then return false end
 
-	local effect = rightArm:FindFirstChild("Lightning Strike")
-	return effect ~= nil
-end
-
-local function fireHakiToggle()
-	local args = {
-		[1] = "Toggle";
-	}
-	pcall(function()
-		HakiRemote:FireServer(unpack(args))
-	end)
-end
-
-local function isHakiOn()
-	-- Consider Haki ON if Lightning Strike is already on your right arm
-	return hasLightningStrike()
+	-- This matches: workspace.Takus["Right Arm"]["Lightning Strike"]
+	return rightArm:FindFirstChild("Lightning Strike") ~= nil
 end
 
 local function ensureHakiOn()
-	-- If Lightning Strike isn't on your right arm yet, toggle Haki once.
-	if isHakiOn() then
+	-- If Lightning Strike is already on your right arm, do nothing.
+	if hasHakiEffect() then
 		return
 	end
-	fireHakiToggle()
+
+	-- Otherwise, fire the Haki toggle once.
+	-- This function will be called repeatedly in a loop,
+	-- so it will KEEP spamming until Lightning Strike shows up.
+	local args = { "Toggle" }
+	pcall(function()
+		HakiRemote:FireServer(unpack(args))
+	end)
 end
 
 ---------------------------------------------------------------------
@@ -2281,17 +2268,18 @@ task.spawn(function()
 end)
 
 -- GLOBAL AUTO HAKI LOOP:
--- Keeps checking Haki anytime Auto Gems + Auto Haki are both ON
+-- Now works ANY time Auto Haki is ON (not just during Auto Gems)
 task.spawn(function()
 	while true do
-		if autoGemsEnabled and autoHakiEnabled then
+		if autoHakiEnabled then
+			-- This will keep firing the toggle until Lightning Strike
+			-- actually appears on your right arm.
 			ensureHakiOn()
-			task.wait(0.5)
-		else
-			task.wait(0.5)
 		end
+		task.wait(0.5)
 	end
 end)
+
 
 ---------------------------------------------------------------------
 -- Teleport tab: Quest NPC teleports + Player teleports
