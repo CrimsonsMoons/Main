@@ -2,7 +2,7 @@
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 
---- PLAYER
+---- PLAYER
 local Player = Players.LocalPlayer
 local Character = Player.Character or Player.CharacterAdded:Wait()
 local HRP = Character:WaitForChild("HumanoidRootPart")
