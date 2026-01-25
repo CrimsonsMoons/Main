@@ -1,14 +1,14 @@
---- SERVICES
+-- SERVICES
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 
---- PLAYER
+-- PLAYER
 local Player = Players.LocalPlayer
 local Character = Player.Character or Player.CharacterAdded:Wait()
 local HRP = Character:WaitForChild("HumanoidRootPart")
 
--- NPC FOLDER
-local NPC_FOLDER = workspace:WaitForChild("NPCs")
+-- NPC ROOT
+local NPC_ROOT = workspace:WaitForChild("NPCs")
 
 -- STATE
 local enabled = false
@@ -16,9 +16,8 @@ local height = 5
 local selectedBase = nil
 
 -- GUI
-local gui = Instance.new("ScreenGui")
+local gui = Instance.new("ScreenGui", game.CoreGui)
 gui.Name = "NPCFarmGUI"
-gui.Parent = game.CoreGui
 
 local frame = Instance.new("Frame", gui)
 frame.Size = UDim2.new(0,300,0,340)
@@ -32,7 +31,7 @@ Instance.new("UICorner", frame).CornerRadius = UDim.new(0,12)
 -- TITLE
 local title = Instance.new("TextLabel", frame)
 title.Size = UDim2.new(1,0,0,40)
-title.Text = "NPC FARM (TORSO)"
+title.Text = "NPC FARM (AUTO-DETECT)"
 title.BackgroundTransparency = 1
 title.TextColor3 = Color3.new(1,1,1)
 title.Font = Enum.Font.GothamBold
@@ -48,7 +47,7 @@ toggle.TextScaled = true
 toggle.BackgroundColor3 = Color3.fromRGB(120,40,40)
 toggle.TextColor3 = Color3.new(1,1,1)
 
--- HEIGHT BUTTON
+-- HEIGHT
 local heightBtn = Instance.new("TextButton", frame)
 heightBtn.Position = UDim2.new(0.05,0,0,100)
 heightBtn.Size = UDim2.new(0.9,0,0,35)
@@ -84,52 +83,63 @@ layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
 	list.CanvasSize = UDim2.new(0,0,0,layout.AbsoluteContentSize.Y + 10)
 end)
 
--- HELPERS
+-- 🔎 RECURSIVE NPC SCAN
+local function getAllNPCs()
+	local found = {}
+
+	for _,obj in ipairs(NPC_ROOT:GetDescendants()) do
+		if obj:IsA("Model") and obj:FindFirstChild("Torso") then
+			table.insert(found, obj)
+			print("FOUND NPC:", obj:GetFullName())
+		end
+	end
+
+	return found
+end
+
 local function baseName(name)
 	return name:gsub("%d+$","")
 end
 
+-- REFRESH DROPDOWN
 local function refreshDropdown()
 	list:ClearAllChildren()
 	layout.Parent = list
 
 	local seen = {}
 
-	for _,npc in ipairs(NPC_FOLDER:GetChildren()) do
-		if npc:IsA("Model") and npc:FindFirstChild("Torso") then
-			local base = baseName(npc.Name)
-			if not seen[base] then
-				seen[base] = true
+	for _,npc in ipairs(getAllNPCs()) do
+		local base = baseName(npc.Name)
+		if not seen[base] then
+			seen[base] = true
 
-				local btn = Instance.new("TextButton", list)
-				btn.Size = UDim2.new(1,-10,0,30)
-				btn.Text = base.." (ALL)"
-				btn.Font = Enum.Font.Gotham
-				btn.TextScaled = true
-				btn.BackgroundColor3 = Color3.fromRGB(60,60,60)
-				btn.TextColor3 = Color3.new(1,1,1)
+			local btn = Instance.new("TextButton", list)
+			btn.Size = UDim2.new(1,-10,0,30)
+			btn.Text = base.." (ALL)"
+			btn.Font = Enum.Font.Gotham
+			btn.TextScaled = true
+			btn.BackgroundColor3 = Color3.fromRGB(60,60,60)
+			btn.TextColor3 = Color3.new(1,1,1)
 
-				btn.MouseButton1Click:Connect(function()
-					selectedBase = base
-					dropdown.Text = "Target: "..base
-					list.Visible = false
-				end)
-			end
+			btn.MouseButton1Click:Connect(function()
+				selectedBase = base
+				dropdown.Text = "Target: "..base
+				list.Visible = false
+			end)
 		end
 	end
 end
 
+-- CLOSEST NPC
 local function getClosestNPC()
 	local closest, dist = nil, math.huge
 
-	for _,npc in ipairs(NPC_FOLDER:GetChildren()) do
-		if npc:IsA("Model") and npc:FindFirstChild("Torso") then
-			if baseName(npc.Name) == selectedBase then
-				local d = (npc.Torso.Position - HRP.Position).Magnitude
-				if d < dist then
-					dist = d
-					closest = npc
-				end
+	for _,npc in ipairs(getAllNPCs()) do
+		if baseName(npc.Name) == selectedBase then
+			local d = (npc.Torso.Position - HRP.Position).Magnitude
+			if d < dist then
+				dist = d
+				closest = npc
 			end
 		end
 	end
@@ -161,11 +171,10 @@ end)
 RunService.Heartbeat:Connect(function()
 	if enabled and selectedBase then
 		local npc = getClosestNPC()
-		if npc and npc.Parent and npc:FindFirstChild("Torso") then
-			local torso = npc.Torso
+		if npc and npc:FindFirstChild("Torso") then
 			HRP.CFrame = CFrame.new(
-				(torso.CFrame * CFrame.new(0, height, 0)).Position,
-				torso.Position
+				(npc.Torso.CFrame * CFrame.new(0, height, 0)).Position,
+				npc.Torso.Position
 			)
 		end
 	end
