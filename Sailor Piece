@@ -1,11 +1,13 @@
---- SERVICES
+-- SERVICES
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 
+-- PLAYER
 local Player = Players.LocalPlayer
-local Char = Player.Character or Player.CharacterAdded:Wait()
-local HRP = Char:WaitForChild("HumanoidRootPart")
+local Character = Player.Character or Player.CharacterAdded:Wait()
+local HRP = Character:WaitForChild("HumanoidRootPart")
 
+-- NPC FOLDER
 local NPC_FOLDER = workspace:WaitForChild("NPCs")
 
 -- STATE
@@ -19,7 +21,7 @@ gui.Name = "NPCFarmGUI"
 gui.Parent = game.CoreGui
 
 local frame = Instance.new("Frame", gui)
-frame.Size = UDim2.new(0,300,0,320)
+frame.Size = UDim2.new(0,300,0,340)
 frame.Position = UDim2.new(0,30,0.3,0)
 frame.BackgroundColor3 = Color3.fromRGB(25,25,25)
 frame.Active = true
@@ -30,7 +32,7 @@ Instance.new("UICorner", frame).CornerRadius = UDim.new(0,12)
 -- TITLE
 local title = Instance.new("TextLabel", frame)
 title.Size = UDim2.new(1,0,0,40)
-title.Text = "NPC FARM"
+title.Text = "NPC FARM (TORSO)"
 title.BackgroundTransparency = 1
 title.TextColor3 = Color3.new(1,1,1)
 title.Font = Enum.Font.GothamBold
@@ -46,7 +48,7 @@ toggle.TextScaled = true
 toggle.BackgroundColor3 = Color3.fromRGB(120,40,40)
 toggle.TextColor3 = Color3.new(1,1,1)
 
--- HEIGHT
+-- HEIGHT BUTTON
 local heightBtn = Instance.new("TextButton", frame)
 heightBtn.Position = UDim2.new(0.05,0,0,100)
 heightBtn.Size = UDim2.new(0.9,0,0,35)
@@ -69,7 +71,7 @@ dropdown.TextColor3 = Color3.new(1,1,1)
 -- DROPDOWN LIST
 local list = Instance.new("ScrollingFrame", frame)
 list.Position = UDim2.new(0.05,0,0,185)
-list.Size = UDim2.new(0.9,0,0,120)
+list.Size = UDim2.new(0.9,0,0,140)
 list.CanvasSize = UDim2.new(0,0,0,0)
 list.ScrollBarImageTransparency = 0.2
 list.BackgroundColor3 = Color3.fromRGB(20,20,20)
@@ -89,16 +91,15 @@ end
 
 local function refreshDropdown()
 	list:ClearAllChildren()
-	layout.Parent = list -- reattach layout AFTER clear
+	layout.Parent = list
 
-	local found = {}
+	local seen = {}
 
 	for _,npc in ipairs(NPC_FOLDER:GetChildren()) do
-		if npc:IsA("Model") and npc:FindFirstChild("HumanoidRootPart") then
+		if npc:IsA("Model") and npc:FindFirstChild("Torso") then
 			local base = baseName(npc.Name)
-
-			if not found[base] then
-				found[base] = true
+			if not seen[base] then
+				seen[base] = true
 
 				local btn = Instance.new("TextButton", list)
 				btn.Size = UDim2.new(1,-10,0,30)
@@ -120,10 +121,11 @@ end
 
 local function getClosestNPC()
 	local closest, dist = nil, math.huge
+
 	for _,npc in ipairs(NPC_FOLDER:GetChildren()) do
-		if npc:IsA("Model") and npc:FindFirstChild("HumanoidRootPart") then
+		if npc:IsA("Model") and npc:FindFirstChild("Torso") then
 			if baseName(npc.Name) == selectedBase then
-				local d = (npc.HumanoidRootPart.Position - HRP.Position).Magnitude
+				local d = (npc.Torso.Position - HRP.Position).Magnitude
 				if d < dist then
 					dist = d
 					closest = npc
@@ -131,6 +133,7 @@ local function getClosestNPC()
 			end
 		end
 	end
+
 	return closest
 end
 
@@ -158,11 +161,11 @@ end)
 RunService.Heartbeat:Connect(function()
 	if enabled and selectedBase then
 		local npc = getClosestNPC()
-		if npc and npc.Parent then
-			local hrp = npc.HumanoidRootPart
+		if npc and npc.Parent and npc:FindFirstChild("Torso") then
+			local torso = npc.Torso
 			HRP.CFrame = CFrame.new(
-				(hrp.CFrame * CFrame.new(0,height,0)).Position,
-				hrp.Position
+				(torso.CFrame * CFrame.new(0, height, 0)).Position,
+				torso.Position
 			)
 		end
 	end
