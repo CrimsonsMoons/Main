@@ -1,68 +1,88 @@
----// StarterPlayerScripts > LocalScript
---// Smooth follow (Above/Below/Behind), persistent multi-select, auto-refresh,
---// noclip, stable orientation, pretty UI slider, auto-skip dead NPCs,
---// and second tab "Farming" with Toggle Attack remote spam.
+--// StarterPlayerScripts > LocalScript
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local workspace = game:GetService("Workspace")
 
-local LP = Players.LocalPlayer
+local LocalPlayer = Players.LocalPlayer
 
--- >>> CHANGE THIS TO YOUR FOLDER <<<
+-- >>> CHANGE THIS TO YOUR NPC FOLDER <<<
 local FOLDER_PATH = workspace:WaitForChild("NPCs")
 
--- Combat remote for Farming tab
+-- Combat remote (Toggle Attack)
 local CombatRemote = ReplicatedStorage
 	:WaitForChild("CombatSystem", 9e9)
 	:WaitForChild("Remotes", 9e9)
 	:WaitForChild("RequestHit", 9e9)
 
+-- Quest remote
+local QuestRemote = ReplicatedStorage
+	:WaitForChild("RemoteEvents", 9e9)
+	:WaitForChild("QuestAccept", 9e9)
+
+-- Quest list
+local quests = {
+	{ DisplayName = "Theivs (Lv. 1–99)",				   Arg = "QuestNPC1"  },
+	{ DisplayName = "Theiv Boss (Lv. 100–249)",		   Arg = "QuestNPC2"  },
+	{ DisplayName = "Monkeys (Lv. 250–499)",			   Arg = "QuestNPC3"  },
+	{ DisplayName = "Monkey Boss (Lv. 500–749)",		   Arg = "QuestNPC4"  },
+	{ DisplayName = "Desert Bandits (Lv. 750–999)",	   Arg = "QuestNPC5"  },
+	{ DisplayName = "Desert Bandit Boss (Lv. 1000–1499)", Arg = "QuestNPC6"  },
+	{ DisplayName = "Frost Rouge (Lv. 1500–1999)",		   Arg = "QuestNPC7"  },
+	{ DisplayName = "Winter Warden Boss (Lv. 2000–2999)", Arg = "QuestNPC8"  },
+	{ DisplayName = "Sorcerer Students (Lv. 3000–3999)",  Arg = "QuestNPC9"  },
+	{ DisplayName = "Panda Sorcerer Boss (Lv. 4000–5000)",Arg = "QuestNPC10" },
+	{ DisplayName = "Hollows (Lv. 5000–6250)",			   Arg = "QuestNPC11" },
+}
+
 local SAFETY_REFRESH_INTERVAL = 1.0
 local UI_REFRESH_INTERVAL = 0.6
-
--- Movement smoothing (bigger = snappier)
 local POS_SMOOTH = 18
 local ROT_SMOOTH = 18
 
---=========================
+---------------------------------------------------------------------
 -- Helpers
---=========================
+---------------------------------------------------------------------
 
-local function baseName(name: string): string
+local function baseName(name)
 	local stripped = name:gsub("%d+$", ""):gsub("%s+$", "")
-	return (stripped ~= "" and stripped) or name
+	if stripped == "" then
+		return name
+	end
+	return stripped
 end
 
-local function isSelectable(inst: Instance): boolean
+local function isSelectable(inst)
 	return inst:IsA("Model") or inst:IsA("BasePart")
 end
 
-local function getPivotCFrame(inst: Instance): CFrame?
+local function getPivotCFrame(inst)
 	if inst:IsA("BasePart") then
 		return inst.CFrame
 	elseif inst:IsA("Model") then
 		local ok, cf = pcall(function()
 			return inst:GetPivot()
 		end)
-		if ok and cf then return cf end
+		if ok and cf then
+			return cf
+		end
 	end
 	return nil
 end
 
-local function dist(a: Vector3, b: Vector3): number
+local function dist(a, b)
 	local d = a - b
-	return (d.X*d.X + d.Y*d.Y + d.Z*d.Z) ^ 0.5
+	return (d.X * d.X + d.Y * d.Y + d.Z * d.Z) ^ 0.5
 end
 
 local function expAlpha(strength, dt)
-	-- framerate-independent smoothing
 	return 1 - math.exp(-strength * dt)
 end
 
-local function safeUnitXZ(v: Vector3)
+local function safeUnitXZ(v)
 	local flat = Vector3.new(v.X, 0, v.Z)
 	local m = flat.Magnitude
 	if m < 1e-6 then
@@ -71,81 +91,89 @@ local function safeUnitXZ(v: Vector3)
 	return flat / m
 end
 
-local function getTargetHumanoid(inst: Instance): Humanoid?
-	-- If it's a Model, check for Humanoid directly
+local function getTargetHumanoid(inst)
 	if inst:IsA("Model") then
 		return inst:FindFirstChildOfClass("Humanoid")
 	end
-
-	-- If it's a Part, walk up ancestors looking for Model with Humanoid
 	local parent = inst.Parent
 	while parent do
 		if parent:IsA("Model") then
 			local h = parent:FindFirstChildOfClass("Humanoid")
-			if h then return h end
+			if h then
+				return h
+			end
 		end
 		parent = parent.Parent
 	end
-
 	return nil
 end
 
-local function targetIsDead(inst: Instance): boolean
+local function targetIsDead(inst)
 	local h = getTargetHumanoid(inst)
 	return (h ~= nil and h.Health <= 0)
 end
 
---=========================
--- Character / Respawn
---=========================
+---------------------------------------------------------------------
+-- Character
+---------------------------------------------------------------------
 
-local char: Model? = nil
-local hrp: BasePart? = nil
-local hum: Humanoid? = nil
+local character
+local hrp
+local humanoid
 
-local function bindChar(c: Model)
-	char = c
+local function bindCharacter(c)
+	character = c
 	hrp = c:WaitForChild("HumanoidRootPart", 10)
-	hum = c:WaitForChild("Humanoid", 10)
+	humanoid = c:WaitForChild("Humanoid", 10)
 end
 
-LP.CharacterAdded:Connect(bindChar)
-if LP.Character then bindChar(LP.Character) end
+LocalPlayer.CharacterAdded:Connect(bindCharacter)
+if LocalPlayer.Character then
+	bindCharacter(LocalPlayer.Character)
+end
 
---=========================
--- Groups (auto refresh, persistent selection)
---=========================
+---------------------------------------------------------------------
+-- Groups
+---------------------------------------------------------------------
 
-local groups: {[string]: {Instance}} = {}
-local groupOrder: {string} = {}
-
-local selectedGroups: {[string]: boolean} = {} -- groupName -> bool (persists)
-local currentTarget: Instance? = nil
+local groups = {}        -- [groupName] = {instances}
+local groupOrder = {}    -- sorted group names
+local selectedGroups = {}-- [groupName] = bool
+local currentTarget = nil
 
 local function rebuildGroups()
-	local newGroups: {[string]: {Instance}} = {}
+	local newGroups = {}
 
 	for _, child in ipairs(FOLDER_PATH:GetChildren()) do
 		if child and child.Parent and isSelectable(child) then
 			local cf = getPivotCFrame(child)
 			if cf then
 				local b = baseName(child.Name)
-				newGroups[b] = newGroups[b] or {}
+				if not newGroups[b] then
+					newGroups[b] = {}
+				end
 				table.insert(newGroups[b], child)
 			end
 		end
 	end
 
-	-- union of present groups + selected groups so selections stay visible
-	local nameSet: {[string]: boolean} = {}
-	for name in pairs(newGroups) do nameSet[name] = true end
+	local nameSet = {}
+	for name in pairs(newGroups) do
+		nameSet[name] = true
+	end
 	for name, on in pairs(selectedGroups) do
-		if on then nameSet[name] = true end
+		if on then
+			nameSet[name] = true
+		end
 	end
 
 	local order = {}
-	for name in pairs(nameSet) do table.insert(order, name) end
-	table.sort(order, function(a,b) return a:lower() < b:lower() end)
+	for name in pairs(nameSet) do
+		table.insert(order, name)
+	end
+	table.sort(order, function(a, b)
+		return a:lower() < b:lower()
+	end)
 
 	groups = newGroups
 	groupOrder = order
@@ -161,12 +189,17 @@ task.spawn(function()
 	end
 end)
 
-local function pickClosestAcrossSelections(): Instance?
-	if not (hrp and hrp.Parent) then return nil end
-	if next(selectedGroups) == nil then return nil end
+local function pickClosestAcrossSelections()
+	if not (hrp and hrp.Parent) then
+		return nil
+	end
+	if next(selectedGroups) == nil then
+		return nil
+	end
 
 	local myPos = hrp.Position
-	local best, bestD = nil, math.huge
+	local best = nil
+	local bestD = math.huge
 
 	for gName, on in pairs(selectedGroups) do
 		if on then
@@ -192,51 +225,56 @@ local function pickClosestAcrossSelections(): Instance?
 	return best
 end
 
---=========================
--- Movement + Facing (smooth) + Positions
---=========================
+---------------------------------------------------------------------
+-- Movement + positions
+---------------------------------------------------------------------
 
 local enabled = false
-local positionMode: "Above" | "Below" | "Behind" = "Above"
-local distanceAmount = 6 -- slider 1–12
-
+local positionMode = "Above"  -- "Above", "Below", "Behind"
+local distanceAmount = 6      -- slider 1–12
 local REACQUIRE_EVERY = 0.35
 local reacquireCd = 0
 
-local function computeTargetPosAndLook(targetInst: Instance)
+local function computeTargetPosAndLook(targetInst)
 	local tcf = getPivotCFrame(targetInst)
-	if not tcf then return nil end
+	if not tcf then
+		return nil
+	end
 
 	local tPos = tcf.Position
-	local newPos: Vector3
+	local newPos
 
 	if positionMode == "Above" then
 		newPos = tPos + Vector3.new(0, distanceAmount, 0)
 	elseif positionMode == "Below" then
 		newPos = tPos + Vector3.new(0, -distanceAmount, 0)
-	else -- Behind
+	else
 		local backDir = -safeUnitXZ(tcf.LookVector)
 		newPos = tPos + (backDir * distanceAmount)
 	end
 
-	local lookAt = tPos -- full look-at, including up/down
+	local lookAt = tPos
 	return newPos, lookAt
 end
 
---=========================
--- Anti-fall / Anti-drift: AlignPosition + AlignOrientation
---=========================
+---------------------------------------------------------------------
+-- Anti-fall / stabilizers
+---------------------------------------------------------------------
 
-local alignPos: AlignPosition? = nil
-local alignOri: AlignOrientation? = nil
-local attHRP: Attachment? = nil
-local attGoal: Attachment? = nil
-local goalPart: Part? = nil
-local prevAutoRotate: boolean? = nil
+local alignPos
+local alignOri
+local attHRP
+local attGoal
+local goalPart
+local prevAutoRotate
 
 local function ensureStabilizers()
-	if not (hrp and hum) then return end
-	if alignPos and alignOri and goalPart and attGoal and attHRP then return end
+	if not (hrp and humanoid) then
+		return
+	end
+	if alignPos and alignOri and goalPart and attGoal and attHRP then
+		return
+	end
 
 	goalPart = Instance.new("Part")
 	goalPart.Name = "CFrameGoal"
@@ -245,14 +283,14 @@ local function ensureStabilizers()
 	goalPart.CanQuery = false
 	goalPart.CanTouch = false
 	goalPart.Transparency = 1
-	goalPart.Size = Vector3.new(1,1,1)
+	goalPart.Size = Vector3.new(1, 1, 1)
 	goalPart.Parent = workspace
 
 	attGoal = Instance.new("Attachment")
 	attGoal.Name = "GoalAttachment"
 	attGoal.Parent = goalPart
 
-	attHRP = hrp:FindFirstChild("StabilizeAttachment") :: Attachment
+	attHRP = hrp:FindFirstChild("StabilizeAttachment")
 	if not attHRP then
 		attHRP = Instance.new("Attachment")
 		attHRP.Name = "StabilizeAttachment"
@@ -283,22 +321,36 @@ local function ensureStabilizers()
 end
 
 local function removeStabilizers()
-	if goalPart then goalPart:Destroy() goalPart = nil end
-	if alignPos then alignPos:Destroy() alignPos = nil end
-	if alignOri then alignOri:Destroy() alignOri = nil end
-	if attGoal then attGoal:Destroy() attGoal = nil end
+	if goalPart then
+		goalPart:Destroy()
+		goalPart = nil
+	end
+	if alignPos then
+		alignPos:Destroy()
+		alignPos = nil
+	end
+	if alignOri then
+		alignOri:Destroy()
+		alignOri = nil
+	end
+	if attGoal then
+		attGoal:Destroy()
+		attGoal = nil
+	end
 end
 
---=========================
--- Noclip (on when enabled)
---=========================
+---------------------------------------------------------------------
+-- Noclip
+---------------------------------------------------------------------
 
-local noclipConn: RBXScriptConnection? = nil
-local savedCollide: {[BasePart]: boolean} = {}
+local noclipConn
+local savedCollide = {}
 
-local function captureAndSetNoclip(on: boolean)
-	if not char then return end
-	for _, d in ipairs(char:GetDescendants()) do
+local function captureAndSetNoclip(on)
+	if not character then
+		return
+	end
+	for _, d in ipairs(character:GetDescendants()) do
 		if d:IsA("BasePart") then
 			if on then
 				if savedCollide[d] == nil then
@@ -312,72 +364,97 @@ local function captureAndSetNoclip(on: boolean)
 			end
 		end
 	end
-	if not on then savedCollide = {} end
+	if not on then
+		savedCollide = {}
+	end
 end
 
 local function startNoclip()
-	if noclipConn then noclipConn:Disconnect() end
+	if noclipConn then
+		noclipConn:Disconnect()
+	end
 	noclipConn = RunService.Stepped:Connect(function()
-		if enabled and char and hum and hum.Health > 0 then
+		if enabled and character and humanoid and humanoid.Health > 0 then
 			captureAndSetNoclip(true)
 		end
 	end)
 end
 
 local function stopNoclip()
-	if noclipConn then noclipConn:Disconnect() noclipConn = nil end
+	if noclipConn then
+		noclipConn:Disconnect()
+		noclipConn = nil
+	end
 	captureAndSetNoclip(false)
 end
 
-LP.CharacterAdded:Connect(function()
+LocalPlayer.CharacterAdded:Connect(function()
 	task.wait(0.1)
 	if enabled then
 		ensureStabilizers()
 		startNoclip()
 		captureAndSetNoclip(true)
-		if hum then hum.AutoRotate = false end
+		if humanoid then
+			humanoid.AutoRotate = false
+		end
 	end
 end)
 
---=========================
--- Smooth goal loop (skip dead targets)
---=========================
+---------------------------------------------------------------------
+-- Movement loop
+---------------------------------------------------------------------
 
-local moveConn: RBXScriptConnection? = nil
-local lastGoalCF: CFrame? = nil
+local moveConn
+local lastGoalCF
 
 local function stopMove()
-	if moveConn then moveConn:Disconnect() moveConn = nil end
+	if moveConn then
+		moveConn:Disconnect()
+		moveConn = nil
+	end
 	lastGoalCF = nil
 end
 
 local function startMove()
 	stopMove()
 	moveConn = RunService.RenderStepped:Connect(function(dt)
-		if not enabled then return end
-		if not (char and hrp and hum) then return end
-		if hum.Health <= 0 then return end
-		if next(selectedGroups) == nil then return end
+		if not enabled then
+			return
+		end
+		if not (character and hrp and humanoid) then
+			return
+		end
+		if humanoid.Health <= 0 then
+			return
+		end
+		if next(selectedGroups) == nil then
+			return
+		end
 
 		ensureStabilizers()
-		if not goalPart then return end
+		if not goalPart then
+			return
+		end
 
-		-- If current target is gone or dead, immediately clear & reacquire
 		if currentTarget and (not currentTarget.Parent or targetIsDead(currentTarget)) then
 			currentTarget = nil
 			reacquireCd = 0
 		end
 
-		reacquireCd -= dt
+		reacquireCd = reacquireCd - dt
 		if reacquireCd <= 0 then
 			reacquireCd = REACQUIRE_EVERY
 			currentTarget = pickClosestAcrossSelections()
 		end
 
-		if not currentTarget or not currentTarget.Parent or targetIsDead(currentTarget) then return end
+		if not currentTarget or not currentTarget.Parent or targetIsDead(currentTarget) then
+			return
+		end
 
 		local pos, lookAt = computeTargetPosAndLook(currentTarget)
-		if not pos then return end
+		if not pos then
+			return
+		end
 
 		local desiredCF = CFrame.new(pos, lookAt)
 
@@ -386,42 +463,44 @@ local function startMove()
 		else
 			local aP = expAlpha(POS_SMOOTH, dt)
 			local aR = expAlpha(ROT_SMOOTH, dt)
-			lastGoalCF = lastGoalCF:Lerp(desiredCF, math.min(aP, aR))
+			local alpha = math.min(aP, aR)
+			lastGoalCF = lastGoalCF:Lerp(desiredCF, alpha)
 		end
 
 		goalPart.CFrame = lastGoalCF
-
-		hrp.AssemblyLinearVelocity = Vector3.zero
-		hrp.AssemblyAngularVelocity = Vector3.zero
+		hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+		hrp.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
 	end)
 end
 
---=========================
--- UI (draggable + tabs)
---=========================
+---------------------------------------------------------------------
+-- UI root + tabs
+---------------------------------------------------------------------
 
 local gui = Instance.new("ScreenGui")
-gui.Name = "CFrameScannerUI_Tabs"
+gui.Name = "CFrameScannerUI"
 gui.ResetOnSpawn = false
-gui.Parent = LP:WaitForChild("PlayerGui")
+gui.Parent = LocalPlayer:WaitForChild("PlayerGui")
 
-local main = Instance.new("Frame")
-main.Size = UDim2.new(0, 480, 0, 360)
-main.Position = UDim2.new(0, 30, 0, 140)
-main.BackgroundColor3 = Color3.fromRGB(22, 22, 28)
-main.BorderSizePixel = 0
-main.Parent = gui
-Instance.new("UICorner", main).CornerRadius = UDim.new(0, 14)
-local mainStroke = Instance.new("UIStroke", main)
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0, 480, 0, 360)
+mainFrame.Position = UDim2.new(0, 30, 0, 140)
+mainFrame.BackgroundColor3 = Color3.fromRGB(22, 22, 28)
+mainFrame.BorderSizePixel = 0
+mainFrame.Parent = gui
+Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 14)
+
+local mainStroke = Instance.new("UIStroke")
 mainStroke.Thickness = 1
 mainStroke.Transparency = 0.35
 mainStroke.Color = Color3.fromRGB(140, 140, 170)
+mainStroke.Parent = mainFrame
 
 local topBar = Instance.new("Frame")
 topBar.Size = UDim2.new(1, 0, 0, 44)
 topBar.BackgroundColor3 = Color3.fromRGB(28, 28, 36)
 topBar.BorderSizePixel = 0
-topBar.Parent = main
+topBar.Parent = mainFrame
 Instance.new("UICorner", topBar).CornerRadius = UDim.new(0, 14)
 
 local title = Instance.new("TextLabel")
@@ -435,29 +514,38 @@ title.TextColor3 = Color3.fromRGB(235, 235, 245)
 title.Text = "Main"
 title.Parent = topBar
 
--- drag
+-- Drag
 do
 	local dragging = false
-	local dragStart, startPos
+	local dragStart
+	local startPos
+
 	topBar.InputBegan:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1 then
 			dragging = true
 			dragStart = input.Position
-			startPos = main.Position
+			startPos = mainFrame.Position
 		end
 	end)
+
 	topBar.InputEnded:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end
+		if input.UserInputType == Enum.UserInputType.MouseButton1 then
+			dragging = false
+		end
 	end)
+
 	UserInputService.InputChanged:Connect(function(input)
 		if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
 			local delta = input.Position - dragStart
-			main.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+			mainFrame.Position = UDim2.new(
+				startPos.X.Scale,
+				startPos.X.Offset + delta.X,
+				startPos.Y.Scale,
+				startPos.Y.Offset + delta.Y
+			)
 		end
 	end)
 end
-
--- Tab buttons (Main / Farming)
 
 local function makeTabButton(text, pos)
 	local b = Instance.new("TextButton")
@@ -484,9 +572,9 @@ end
 local tabMainBtn, tabMainStroke = makeTabButton("Main",    UDim2.new(1, -200, 0.5, -13))
 local tabFarmBtn, tabFarmStroke = makeTabButton("Farming", UDim2.new(1, -100, 0.5, -13))
 
---=========================
+---------------------------------------------------------------------
 -- Main tab widgets
---=========================
+---------------------------------------------------------------------
 
 local function makeBtn(text, pos, size)
 	local b = Instance.new("TextButton")
@@ -498,7 +586,7 @@ local function makeBtn(text, pos, size)
 	b.TextColor3 = Color3.fromRGB(235, 235, 245)
 	b.Font = Enum.Font.GothamSemibold
 	b.TextSize = 14
-	b.Parent = main
+	b.Parent = mainFrame
 	Instance.new("UICorner", b).CornerRadius = UDim.new(0, 10)
 	return b
 end
@@ -516,9 +604,8 @@ selectedLabel.TextSize = 13
 selectedLabel.TextXAlignment = Enum.TextXAlignment.Left
 selectedLabel.TextColor3 = Color3.fromRGB(200, 200, 215)
 selectedLabel.Text = "Selected: (none)"
-selectedLabel.Parent = main
+selectedLabel.Parent = mainFrame
 
--- Slider label
 local sliderLabel = Instance.new("TextLabel")
 sliderLabel.BackgroundTransparency = 1
 sliderLabel.Position = UDim2.new(0, 12, 0, 122)
@@ -528,15 +615,14 @@ sliderLabel.TextSize = 13
 sliderLabel.TextXAlignment = Enum.TextXAlignment.Left
 sliderLabel.TextColor3 = Color3.fromRGB(200, 200, 215)
 sliderLabel.Text = "Distance: 6"
-sliderLabel.Parent = main
+sliderLabel.Parent = mainFrame
 
--- Slider
 local sliderBG = Instance.new("Frame")
 sliderBG.Position = UDim2.new(0, 12, 0, 150)
 sliderBG.Size = UDim2.new(1, -24, 0, 10)
 sliderBG.BackgroundColor3 = Color3.fromRGB(40, 40, 52)
 sliderBG.BorderSizePixel = 0
-sliderBG.Parent = main
+sliderBG.Parent = mainFrame
 Instance.new("UICorner", sliderBG).CornerRadius = UDim.new(1, 0)
 
 local sliderFill = Instance.new("Frame")
@@ -613,7 +699,7 @@ local function setDistanceFromAlpha(a)
 	a = math.clamp(a, 0, 1)
 	local val = math.floor(MIN_DIST + (MAX_DIST - MIN_DIST) * a + 0.5)
 	distanceAmount = val
-	sliderLabel.Text = ("Distance: %d"):format(distanceAmount)
+	sliderLabel.Text = "Distance: " .. tostring(distanceAmount)
 	knobBubble.Text = tostring(distanceAmount)
 
 	local px = a * sliderBG.AbsoluteSize.X
@@ -635,18 +721,19 @@ sliderBG.InputBegan:Connect(function(input)
 		updateSliderFromMouse(input.Position.X)
 	end
 end)
+
 sliderBG.InputEnded:Connect(function(input)
 	if input.UserInputType == Enum.UserInputType.MouseButton1 then
 		draggingSlider = false
 	end
 end)
+
 UserInputService.InputChanged:Connect(function(input)
 	if draggingSlider and input.UserInputType == Enum.UserInputType.MouseMovement then
 		updateSliderFromMouse(input.Position.X)
 	end
 end)
 
--- list
 local listFrame = Instance.new("ScrollingFrame")
 listFrame.Position = UDim2.new(0, 12, 0, 188)
 listFrame.Size = UDim2.new(1, -24, 1, -200)
@@ -654,7 +741,7 @@ listFrame.BackgroundColor3 = Color3.fromRGB(28, 28, 36)
 listFrame.BorderSizePixel = 0
 listFrame.ScrollBarThickness = 8
 listFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
-listFrame.Parent = main
+listFrame.Parent = mainFrame
 Instance.new("UICorner", listFrame).CornerRadius = UDim.new(0, 12)
 
 local layout = Instance.new("UIListLayout")
@@ -664,16 +751,27 @@ layout.Parent = listFrame
 local function updateSelectedLabel()
 	local names = {}
 	for gName, on in pairs(selectedGroups) do
-		if on then table.insert(names, gName) end
+		if on then
+			table.insert(names, gName)
+		end
 	end
-	table.sort(names, function(a,b) return a:lower() < b:lower() end)
+	table.sort(names, function(a, b)
+		return a:lower() < b:lower()
+	end)
+
 	if #names == 0 then
 		selectedLabel.Text = "Selected: (none)"
 	else
 		local shown = {}
-		for i = 1, math.min(4, #names) do table.insert(shown, names[i]) end
+		for i = 1, math.min(4, #names) do
+			table.insert(shown, names[i])
+		end
 		local extra = #names - #shown
-		selectedLabel.Text = "Selected: " .. table.concat(shown, ", ") .. (extra > 0 and (" +"..extra) or "")
+		local txt = "Selected: " .. table.concat(shown, ", ")
+		if extra > 0 then
+			txt = txt .. " +" .. tostring(extra)
+		end
+		selectedLabel.Text = txt
 	end
 end
 
@@ -739,24 +837,26 @@ local function rebuildListUI()
 			updateSelectedLabel()
 		end)
 
-		y += 38
+		y = y + 38
 	end
 
 	listFrame.CanvasSize = UDim2.new(0, 0, 0, math.max(y, listFrame.AbsoluteSize.Y))
 end
 
--- Button callbacks (Main tab)
+-- Main tab buttons
 
 enableBtn.MouseButton1Click:Connect(function()
 	enabled = not enabled
 	enableBtn.Text = enabled and "Enabled: ON" or "Enabled: OFF"
 
-	if hum and prevAutoRotate == nil then
-		prevAutoRotate = hum.AutoRotate
+	if humanoid and prevAutoRotate == nil then
+		prevAutoRotate = humanoid.AutoRotate
 	end
 
 	if enabled then
-		if hum then hum.AutoRotate = false end
+		if humanoid then
+			humanoid.AutoRotate = false
+		end
 		ensureStabilizers()
 		startMove()
 		startNoclip()
@@ -768,8 +868,8 @@ enableBtn.MouseButton1Click:Connect(function()
 		stopMove()
 		stopNoclip()
 		removeStabilizers()
-		if hum and prevAutoRotate ~= nil then
-			hum.AutoRotate = prevAutoRotate
+		if humanoid and prevAutoRotate ~= nil then
+			humanoid.AutoRotate = prevAutoRotate
 		end
 	end
 end)
@@ -793,9 +893,9 @@ clearBtn.MouseButton1Click:Connect(function()
 	rebuildListUI()
 end)
 
---=========================
--- Farming tab UI + Toggle Attack
---=========================
+---------------------------------------------------------------------
+-- Farming tab (Attack + Quests)
+---------------------------------------------------------------------
 
 local farmingFrame = Instance.new("Frame")
 farmingFrame.Position = UDim2.new(0, 12, 0, 56)
@@ -803,7 +903,7 @@ farmingFrame.Size = UDim2.new(1, -24, 1, -68)
 farmingFrame.BackgroundColor3 = Color3.fromRGB(28, 28, 36)
 farmingFrame.BorderSizePixel = 0
 farmingFrame.Visible = false
-farmingFrame.Parent = main
+farmingFrame.Parent = mainFrame
 Instance.new("UICorner", farmingFrame).CornerRadius = UDim.new(0, 12)
 
 local farmTitle = Instance.new("TextLabel")
@@ -827,8 +927,10 @@ farmDesc.TextXAlignment = Enum.TextXAlignment.Left
 farmDesc.TextYAlignment = Enum.TextYAlignment.Top
 farmDesc.TextWrapped = true
 farmDesc.TextColor3 = Color3.fromRGB(190, 190, 210)
-farmDesc.Text = "Toggle Attack will fire RequestHit every 0.01s. Turn it OFF if you lag."
+farmDesc.Text = "Toggle Attack fires RequestHit every 0.01s. Turn OFF if you lag."
 farmDesc.Parent = farmingFrame
+
+-- Toggle Attack
 
 local attackToggle = Instance.new("TextButton")
 attackToggle.Size = UDim2.new(0, 200, 0, 36)
@@ -868,7 +970,6 @@ attackToggle.MouseButton1Click:Connect(function()
 	updateAttackButton()
 end)
 
--- attack loop (safe-ish)
 task.spawn(function()
 	local args = {}
 	while true do
@@ -876,19 +977,215 @@ task.spawn(function()
 			pcall(function()
 				CombatRemote:FireServer(unpack(args))
 			end)
-			task.wait(0.01) -- your requested rate
+			task.wait(0.01)
 		else
 			task.wait(0.05)
 		end
 	end
 end)
 
---=========================
--- Tabs show/hide
---=========================
+-- Quests UI
+
+local questTitle = Instance.new("TextLabel")
+questTitle.BackgroundTransparency = 1
+questTitle.Position = UDim2.new(0, 12, 0, 136)
+questTitle.Size = UDim2.new(1, -24, 0, 22)
+questTitle.Font = Enum.Font.GothamBold
+questTitle.TextSize = 14
+questTitle.TextXAlignment = Enum.TextXAlignment.Left
+questTitle.TextColor3 = Color3.fromRGB(220, 220, 240)
+questTitle.Text = "Quests"
+questTitle.Parent = farmingFrame
+
+local questSelectedLabel = Instance.new("TextLabel")
+questSelectedLabel.BackgroundTransparency = 1
+questSelectedLabel.Position = UDim2.new(0, 12, 0, 158)
+questSelectedLabel.Size = UDim2.new(1, -24, 0, 18)
+questSelectedLabel.Font = Enum.Font.Gotham
+questSelectedLabel.TextSize = 13
+questSelectedLabel.TextXAlignment = Enum.TextXAlignment.Left
+questSelectedLabel.TextColor3 = Color3.fromRGB(190, 190, 210)
+questSelectedLabel.Text = "Selected Quest: (none)"
+questSelectedLabel.Parent = farmingFrame
+
+local questList = Instance.new("ScrollingFrame")
+questList.Position = UDim2.new(0, 12, 0, 182)
+questList.Size = UDim2.new(0.6, -18, 1, -196)
+questList.BackgroundColor3 = Color3.fromRGB(24, 24, 32)
+questList.BorderSizePixel = 0
+questList.ScrollBarThickness = 6
+questList.CanvasSize = UDim2.new(0, 0, 0, 0)
+questList.Parent = farmingFrame
+Instance.new("UICorner", questList).CornerRadius = UDim.new(0, 10)
+
+local questLayout = Instance.new("UIListLayout")
+questLayout.Padding = UDim.new(0, 6)
+questLayout.Parent = questList
+
+local selectedQuestIndex = nil
+local autoQuestEnabled = false
+
+local function updateQuestSelectedLabel()
+	if not selectedQuestIndex then
+		questSelectedLabel.Text = "Selected Quest: (none)"
+	else
+		local q = quests[selectedQuestIndex]
+		if q then
+			questSelectedLabel.Text = "Selected Quest: " .. q.DisplayName
+		else
+			questSelectedLabel.Text = "Selected Quest: (none)"
+		end
+	end
+end
+
+local function rebuildQuestList()
+	for _, c in ipairs(questList:GetChildren()) do
+		if c:IsA("TextButton") or c:IsA("Frame") then
+			c:Destroy()
+		end
+	end
+
+	local y = 0
+	for i, q in ipairs(quests) do
+		local btn = Instance.new("TextButton")
+		btn.Size = UDim2.new(1, -6, 0, 26)
+		btn.BackgroundColor3 = Color3.fromRGB(40, 40, 52)
+		btn.BorderSizePixel = 0
+		btn.Font = Enum.Font.GothamSemibold
+		btn.TextSize = 13
+		btn.TextXAlignment = Enum.TextXAlignment.Left
+		btn.TextColor3 = Color3.fromRGB(230, 230, 245)
+		btn.Text = "  " .. q.DisplayName
+		btn.Parent = questList
+		Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
+
+		local glow = Instance.new("UIStroke")
+		glow.Thickness = 1.5
+		glow.Color = Color3.fromRGB(160, 190, 255)
+		glow.Transparency = 0.7
+		glow.Parent = btn
+
+		if selectedQuestIndex == i then
+			btn.BackgroundColor3 = Color3.fromRGB(70, 90, 130)
+			glow.Transparency = 0.2
+		end
+
+		btn.MouseButton1Click:Connect(function()
+			-- click again to deselect
+			if selectedQuestIndex == i then
+				selectedQuestIndex = nil
+			else
+				selectedQuestIndex = i
+			end
+			updateQuestSelectedLabel()
+			rebuildQuestList()
+		end)
+
+		y = y + 32
+	end
+
+	questList.CanvasSize = UDim2.new(0, 0, 0, math.max(y, questList.AbsoluteSize.Y))
+end
+
+local questAcceptBtn = Instance.new("TextButton")
+questAcceptBtn.Size = UDim2.new(0.35, -10, 0, 32)
+questAcceptBtn.Position = UDim2.new(0.63, 0, 0, 182)
+questAcceptBtn.BackgroundColor3 = Color3.fromRGB(60, 80, 110)
+questAcceptBtn.BorderSizePixel = 0
+questAcceptBtn.Font = Enum.Font.GothamSemibold
+questAcceptBtn.TextSize = 13
+questAcceptBtn.TextColor3 = Color3.fromRGB(235, 235, 245)
+questAcceptBtn.Text = "Accept Quest"
+questAcceptBtn.Parent = farmingFrame
+Instance.new("UICorner", questAcceptBtn).CornerRadius = UDim.new(0, 10)
+
+local questAcceptStroke = Instance.new("UIStroke")
+questAcceptStroke.Thickness = 1.5
+questAcceptStroke.Color = Color3.fromRGB(160, 190, 255)
+questAcceptStroke.Transparency = 0.4
+questAcceptStroke.Parent = questAcceptBtn
+
+questAcceptBtn.MouseButton1Click:Connect(function()
+	if not selectedQuestIndex then
+		return
+	end
+	local q = quests[selectedQuestIndex]
+	if not q then
+		return
+	end
+
+	local args = {
+		[1] = q.Arg,
+	}
+	pcall(function()
+		QuestRemote:FireServer(unpack(args))
+	end)
+end)
+
+-- Auto Quest toggle
+
+local autoQuestToggle = Instance.new("TextButton")
+autoQuestToggle.Size = UDim2.new(0.35, -10, 0, 32)
+autoQuestToggle.Position = UDim2.new(0.63, 0, 0, 222)
+autoQuestToggle.BackgroundColor3 = Color3.fromRGB(50, 60, 90)
+autoQuestToggle.BorderSizePixel = 0
+autoQuestToggle.Font = Enum.Font.GothamSemibold
+autoQuestToggle.TextSize = 13
+autoQuestToggle.TextColor3 = Color3.fromRGB(235, 235, 245)
+autoQuestToggle.Text = "Auto Quest: OFF"
+autoQuestToggle.Parent = farmingFrame
+Instance.new("UICorner", autoQuestToggle).CornerRadius = UDim.new(0, 10)
+
+local autoQuestStroke = Instance.new("UIStroke")
+autoQuestStroke.Thickness = 1.5
+autoQuestStroke.Color = Color3.fromRGB(160, 190, 255)
+autoQuestStroke.Transparency = 0.6
+autoQuestStroke.Parent = autoQuestToggle
+
+local function updateAutoQuestButton()
+	local on = autoQuestEnabled
+	autoQuestToggle.Text = on and "Auto Quest: ON" or "Auto Quest: OFF"
+	local goalColor = on and Color3.fromRGB(80, 140, 100) or Color3.fromRGB(50, 60, 90)
+	local goalTr = on and 0.1 or 0.6
+	TweenService:Create(autoQuestToggle, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		BackgroundColor3 = goalColor
+	}):Play()
+	TweenService:Create(autoQuestStroke, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		Transparency = goalTr
+	}):Play()
+end
+
+autoQuestToggle.MouseButton1Click:Connect(function()
+	autoQuestEnabled = not autoQuestEnabled
+	updateAutoQuestButton()
+end)
+
+-- Auto-run selected quest every 0.5s only if toggle is ON
+
+task.spawn(function()
+	while true do
+		if autoQuestEnabled and selectedQuestIndex then
+			local q = quests[selectedQuestIndex]
+			if q then
+				local args = {
+					[1] = q.Arg,
+				}
+				pcall(function()
+					QuestRemote:FireServer(unpack(args))
+				end)
+			end
+			task.wait(0.5)
+		else
+			task.wait(0.1)
+		end
+	end
+end)
+
+---------------------------------------------------------------------
+-- Tabs logic
+---------------------------------------------------------------------
 
 local currentTab = "Main"
-
 local mainWidgets = {
 	enableBtn,
 	modeBtn,
@@ -910,7 +1207,6 @@ local function setTab(tab)
 
 	title.Text = tab
 
-	-- tab highlight
 	TweenService:Create(tabMainBtn, TweenInfo.new(0.12), {
 		BackgroundColor3 = isMain and Color3.fromRGB(70, 80, 120) or Color3.fromRGB(40, 40, 52)
 	}):Play()
@@ -935,16 +1231,21 @@ tabFarmBtn.MouseButton1Click:Connect(function()
 	setTab("Farming")
 end)
 
---=========================
+---------------------------------------------------------------------
 -- Init
---=========================
+---------------------------------------------------------------------
 
 task.defer(function()
 	rebuildGroups()
 	updateSelectedLabel()
 	rebuildListUI()
 	setDistanceFromAlpha((distanceAmount - MIN_DIST) / (MAX_DIST - MIN_DIST))
-	setTab("Main") -- default tab
+
+	rebuildQuestList()
+	updateQuestSelectedLabel()
+	updateAutoQuestButton()
+
+	setTab("Main")
 end)
 
 task.spawn(function()
