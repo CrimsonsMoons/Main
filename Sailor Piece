@@ -1,94 +1,115 @@
-----// StarterPlayerScripts > LocalScript
+--// StarterPlayerScripts > LocalScript
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Workspace = game:GetService("Workspace")
+local workspace = game:GetService("Workspace")
 
 local LocalPlayer = Players.LocalPlayer
-local Backpack = LocalPlayer:WaitForChild("Backpack")
 
 -- >>> CHANGE THIS TO YOUR NPC FOLDER <<<
-local FOLDER_PATH = Workspace:WaitForChild("NPCs")
+local FOLDER_PATH = workspace:WaitForChild("NPCs")
 
--- Remotes
+-- Combat remote (Toggle Attack)
 local CombatRemote = ReplicatedStorage
 	:WaitForChild("CombatSystem", 9e9)
 	:WaitForChild("Remotes", 9e9)
 	:WaitForChild("RequestHit", 9e9)
 
+-- Quest remote
 local QuestRemote = ReplicatedStorage
 	:WaitForChild("RemoteEvents", 9e9)
 	:WaitForChild("QuestAccept", 9e9)
 
+-- Ability remote (Skills tab)
 local AbilityRemote = ReplicatedStorage
 	:WaitForChild("AbilitySystem", 9e9)
 	:WaitForChild("Remotes", 9e9)
 	:WaitForChild("RequestAbility", 9e9)
 
----------------------------------------------------------------------
--- Quest data
----------------------------------------------------------------------
-
+-- Quest list (UI text only; Arg is what remote uses)
 local quests = {
-	{ DisplayName = "Theivs (Lv. 1–99)",				     Arg = "QuestNPC1"  },
-	{ DisplayName = "Theiv Boss (Lv. 100–249)",		     Arg = "QuestNPC2"  },
-	{ DisplayName = "Monkeys (Lv. 250–499)",			     Arg = "QuestNPC3"  },
-	{ DisplayName = "Monkey Boss (Lv. 500–749)",		     Arg = "QuestNPC4"  },
-	{ DisplayName = "Desert Bandits (Lv. 750–999)",	     Arg = "QuestNPC5"  },
-	{ DisplayName = "Desert Bandit Boss (Lv. 1000–1499)",  Arg = "QuestNPC6"  },
-	{ DisplayName = "Frost Rouge (Lv. 1500–1999)",	     Arg = "QuestNPC7"  },
-	{ DisplayName = "Winter Warden Boss (Lv. 2000–2999)",  Arg = "QuestNPC8"  },
-	{ DisplayName = "Sorcerer Students (Lv. 3000–3999)",   Arg = "QuestNPC9"  },
-	{ DisplayName = "Panda Sorcerer Boss (Lv. 4000–5000)", Arg = "QuestNPC10" },
-	{ DisplayName = "Hollows (Lv. 5000–6250)",		     Arg = "QuestNPC11" },
+	{ DisplayName = "Theivs (Lv. 1–99)",				    Arg = "QuestNPC1"  },
+	{ DisplayName = "Theiv Boss (Lv. 100–249)",		    Arg = "QuestNPC2"  },
+	{ DisplayName = "Monkeys (Lv. 250–499)",			    Arg = "QuestNPC3"  },
+	{ DisplayName = "Monkey Boss (Lv. 500–749)",		    Arg = "QuestNPC4"  },
+	{ DisplayName = "Desert Bandits (Lv. 750–999)",	    Arg = "QuestNPC5"  },
+	{ DisplayName = "Desert Bandit Boss (Lv. 1000–1499)", Arg = "QuestNPC6"  },
+	{ DisplayName = "Frost Rouge (Lv. 1500–1999)",	    Arg = "QuestNPC7"  },
+	{ DisplayName = "Winter Warden Boss (Lv. 2000–2999)",Arg = "QuestNPC8"  },
+	{ DisplayName = "Sorcerer Students (Lv. 3000–3999)", Arg = "QuestNPC9"  },
+	{ DisplayName = "Panda Sorcerer Boss (Lv. 4000–5000)",Arg = "QuestNPC10" },
+	{ DisplayName = "Hollows (Lv. 5000–6250)",		    Arg = "QuestNPC11" },
 }
 
+-- Auto-level config: level ranges -> quest index + NPC group candidates
 local autoLevelConfig = {
 	{
-		minLevel = 1, maxLevel = 99, questIndex = 1,
+		minLevel = 1,
+		maxLevel = 99,
+		questIndex = 1, -- Theivs
 		npcGroupCandidates = {"Theiv", "Theivs", "Thief", "Thieves"},
 	},
 	{
-		minLevel = 100, maxLevel = 249, questIndex = 2,
+		minLevel = 100,
+		maxLevel = 249,
+		questIndex = 2, -- Theiv Boss
 		npcGroupCandidates = {"TheivBoss", "ThiefBoss", "Theiv Boss"},
 	},
 	{
-		minLevel = 250, maxLevel = 499, questIndex = 3,
+		minLevel = 250,
+		maxLevel = 499,
+		questIndex = 3, -- Monkeys
 		npcGroupCandidates = {"Monkey", "Monkeys"},
 	},
 	{
-		minLevel = 500, maxLevel = 749, questIndex = 4,
+		minLevel = 500,
+		maxLevel = 749,
+		questIndex = 4, -- Monkey Boss
 		npcGroupCandidates = {"MonkeyBoss", "Monkey Boss"},
 	},
 	{
-		minLevel = 750, maxLevel = 999, questIndex = 5,
+		minLevel = 750,
+		maxLevel = 999,
+		questIndex = 5, -- Desert Bandits
 		npcGroupCandidates = {"DesertBandit", "Desert Bandit"},
 	},
 	{
-		minLevel = 1000, maxLevel = 1499, questIndex = 6,
+		minLevel = 1000,
+		maxLevel = 1499,
+		questIndex = 6, -- Desert Bandit Boss
 		npcGroupCandidates = {"DesertBanditBoss", "Desert Bandit Boss"},
 	},
 	{
-		minLevel = 1500, maxLevel = 1999, questIndex = 7,
+		minLevel = 1500,
+		maxLevel = 1999,
+		questIndex = 7, -- Frost Rouge
 		npcGroupCandidates = {"FrostRouge", "Frost Rouge"},
 	},
 	{
-		minLevel = 2000, maxLevel = 2999, questIndex = 8,
+		minLevel = 2000,
+		maxLevel = 2999,
+		questIndex = 8, -- Winter Warden Boss
 		npcGroupCandidates = {"WinterWarden", "Winter Warden"},
 	},
 	{
-		minLevel = 3000, maxLevel = 3999, questIndex = 9,
+		minLevel = 3000,
+		maxLevel = 3999,
+		questIndex = 9, -- Sorcerer Students
 		npcGroupCandidates = {"SorcererStudent", "Sorcerer Students"},
 	},
 	{
-		minLevel = 4000, maxLevel = 5000, questIndex = 10,
+		minLevel = 4000,
+		maxLevel = 5000,
+		questIndex = 10, -- Panda Sorcerer Boss
 		npcGroupCandidates = {"PandaSorcerer", "Panda Sorcerer"},
 	},
 	{
-		minLevel = 5000, maxLevel = 6250, questIndex = 11,
+		minLevel = 5000,
+		maxLevel = 6250,
+		questIndex = 11, -- Hollows
 		npcGroupCandidates = {"Hollow", "Hollows"},
 	},
 }
@@ -206,11 +227,11 @@ if LocalPlayer.Character then
 end
 
 ---------------------------------------------------------------------
--- NPC groups
+-- Groups (NPC group selection)
 ---------------------------------------------------------------------
 
 local groups = {}        -- [groupName] = {instances}
-local groupOrder = {}    -- ordered group names
+local groupOrder = {}    -- sorted group names
 local selectedGroups = {}-- [groupName] = bool
 local currentTarget = nil
 
@@ -271,7 +292,8 @@ local function pickClosestAcrossSelections()
 	end
 
 	local myPos = hrp.Position
-	local best, bestD = nil, math.huge
+	local best = nil
+	local bestD = math.huge
 
 	for gName, on in pairs(selectedGroups) do
 		if on then
@@ -298,15 +320,14 @@ local function pickClosestAcrossSelections()
 end
 
 ---------------------------------------------------------------------
--- Movement / positions
+-- Movement + positions
 ---------------------------------------------------------------------
 
 local enabled = false
 _G.__CFOLLOW_ENABLED_FLAG = false
 
-local positionMode = "Above" -- "Above", "Below", "Behind"
-local distanceAmount = 6     -- slider 1–12
-
+local positionMode = "Above"  -- "Above", "Below", "Behind"
+local distanceAmount = 6      -- slider 1–12
 local REACQUIRE_EVERY = 0.35
 local reacquireCd = 0
 
@@ -328,11 +349,12 @@ local function computeTargetPosAndLook(targetInst)
 		newPos = tPos + (backDir * distanceAmount)
 	end
 
-	return newPos, tPos
+	local lookAt = tPos
+	return newPos, lookAt
 end
 
 ---------------------------------------------------------------------
--- Anti-fall stabilizers
+-- Anti-fall / stabilizers
 ---------------------------------------------------------------------
 
 local alignPos
@@ -353,11 +375,11 @@ local function ensureStabilizers()
 	goalPart.Name = "CFrameGoal"
 	goalPart.Anchored = true
 	goalPart.CanCollide = false
-	goalPart.CanTouch = false
 	goalPart.CanQuery = false
+	goalPart.CanTouch = false
 	goalPart.Transparency = 1
 	goalPart.Size = Vector3.new(1, 1, 1)
-	goalPart.Parent = Workspace
+	goalPart.Parent = workspace
 
 	attGoal = Instance.new("Attachment")
 	attGoal.Name = "GoalAttachment"
@@ -395,16 +417,20 @@ end
 
 function removeStabilizers()
 	if goalPart then
-		goalPart:Destroy(); goalPart = nil
+		goalPart:Destroy()
+		goalPart = nil
 	end
 	if alignPos then
-		alignPos:Destroy(); alignPos = nil
+		alignPos:Destroy()
+		alignPos = nil
 	end
 	if alignOri then
-		alignOri:Destroy(); alignOri = nil
+		alignOri:Destroy()
+		alignOri = nil
 	end
 	if attGoal then
-		attGoal:Destroy(); attGoal = nil
+		attGoal:Destroy()
+		attGoal = nil
 	end
 end
 
@@ -416,8 +442,9 @@ local noclipConn
 local savedCollide = {}
 
 local function captureAndSetNoclip(on)
-	if not character then return end
-
+	if not character then
+		return
+	end
 	for _, d in ipairs(character:GetDescendants()) do
 		if d:IsA("BasePart") then
 			if on then
@@ -432,7 +459,6 @@ local function captureAndSetNoclip(on)
 			end
 		end
 	end
-
 	if not on then
 		savedCollide = {}
 	end
@@ -442,7 +468,6 @@ local function startNoclip()
 	if noclipConn then
 		noclipConn:Disconnect()
 	end
-
 	noclipConn = RunService.Stepped:Connect(function()
 		if enabled and character and humanoid and humanoid.Health > 0 then
 			captureAndSetNoclip(true)
@@ -476,20 +501,30 @@ end
 local function startMove()
 	stopMove()
 	moveConn = RunService.RenderStepped:Connect(function(dt)
-		if not enabled then return end
-		if not (character and hrp and humanoid) then return end
-		if humanoid.Health <= 0 then return end
-		if next(selectedGroups) == nil then return end
+		if not enabled then
+			return
+		end
+		if not (character and hrp and humanoid) then
+			return
+		end
+		if humanoid.Health <= 0 then
+			return
+		end
+		if next(selectedGroups) == nil then
+			return
+		end
 
 		ensureStabilizers()
-		if not goalPart then return end
+		if not goalPart then
+			return
+		end
 
 		if currentTarget and (not currentTarget.Parent or targetIsDead(currentTarget)) then
 			currentTarget = nil
 			reacquireCd = 0
 		end
 
-		reacquireCd -= dt
+		reacquireCd = reacquireCd - dt
 		if reacquireCd <= 0 then
 			reacquireCd = REACQUIRE_EVERY
 			currentTarget = pickClosestAcrossSelections()
@@ -500,7 +535,9 @@ local function startMove()
 		end
 
 		local pos, lookAt = computeTargetPosAndLook(currentTarget)
-		if not pos then return end
+		if not pos then
+			return
+		end
 
 		local desiredCF = CFrame.new(pos, lookAt)
 
@@ -520,27 +557,25 @@ local function startMove()
 end
 
 ---------------------------------------------------------------------
--- Auto-equip weapons (data)
+-- Auto-equip weapon data (NOW shared, used in Skills tab)
 ---------------------------------------------------------------------
 
 local weaponNames = {}
 local selectedWeaponNames = {} -- [toolName] = true/false
-local autoEquipEnabled = false
 
 local function rebuildWeaponNames()
 	weaponNames = {}
-
-	if Backpack then
-		for _, item in ipairs(Backpack:GetChildren()) do
+	local backpack = LocalPlayer:FindFirstChild("Backpack")
+	if backpack then
+		for _, item in ipairs(backpack:GetChildren()) do
 			if item:IsA("Tool") then
 				table.insert(weaponNames, item.Name)
 			end
 		end
 	end
-
 	table.sort(weaponNames)
 
-	-- Clean selections that don't exist anymore
+	-- prune selections that no longer exist
 	local valid = {}
 	for _, name in ipairs(weaponNames) do
 		valid[name] = true
@@ -560,7 +595,7 @@ local function hasAnySelectedWeapon()
 end
 
 ---------------------------------------------------------------------
--- UI Root / Tabs
+-- UI root + tabs
 ---------------------------------------------------------------------
 
 local gui = Instance.new("ScreenGui")
@@ -655,12 +690,13 @@ local function makeTabButton(text, pos)
 	return b, stroke
 end
 
+-- 3 tabs: Main, Farming, Skills
 local tabMainBtn,  tabMainStroke  = makeTabButton("Main",    UDim2.new(1, -290, 0.5, -13))
 local tabFarmBtn,  tabFarmStroke  = makeTabButton("Farming", UDim2.new(1, -190, 0.5, -13))
 local tabSkillBtn, tabSkillStroke = makeTabButton("Skills",  UDim2.new(1, -90,  0.5, -13))
 
 ---------------------------------------------------------------------
--- Main tab (CFrame follow)
+-- Main tab widgets
 ---------------------------------------------------------------------
 
 local function makeBtn(text, pos, size)
@@ -679,8 +715,8 @@ local function makeBtn(text, pos, size)
 end
 
 local enableBtn = makeBtn("Enabled: OFF", UDim2.new(0, 12, 0, 56), UDim2.new(0, 160, 0, 34))
-local modeBtn   = makeBtn("Mode: Above", UDim2.new(0, 184, 0, 56), UDim2.new(0, 150, 0, 34))
-local clearBtn  = makeBtn("Clear",       UDim2.new(0, 344, 0, 56), UDim2.new(0, 160, 0, 34))
+local modeBtn   = makeBtn("Mode: Above",  UDim2.new(0, 184, 0, 56), UDim2.new(0, 150, 0, 34))
+local clearBtn  = makeBtn("Clear",        UDim2.new(0, 344, 0, 56), UDim2.new(0, 160, 0, 34))
 
 local selectedLabel = Instance.new("TextLabel")
 selectedLabel.BackgroundTransparency = 1
@@ -832,7 +868,7 @@ listFrame.Parent = mainFrame
 Instance.new("UICorner", listFrame).CornerRadius = UDim.new(0, 12)
 
 local layout = Instance.new("UIListLayout")
-layout.Padding = UDim2.new(0, 6)
+layout.Padding = UDim.new(0, 6)
 layout.Parent = listFrame
 
 local function updateSelectedLabel()
@@ -924,11 +960,13 @@ local function rebuildListUI()
 			updateSelectedLabel()
 		end)
 
-		y += 38
+		y = y + 38
 	end
 
 	listFrame.CanvasSize = UDim2.new(0, 0, 0, math.max(y, listFrame.AbsoluteSize.Y))
 end
+
+-- Main tab buttons
 
 enableBtn.MouseButton1Click:Connect(function()
 	enabled = not enabled
@@ -980,7 +1018,7 @@ clearBtn.MouseButton1Click:Connect(function()
 end)
 
 ---------------------------------------------------------------------
--- Farming tab (attack + quests + auto farm level)
+-- Farming tab (Attack + Quests + Auto Farm Level)
 ---------------------------------------------------------------------
 
 local farmingFrame = Instance.new("Frame")
@@ -1017,6 +1055,7 @@ farmDesc.Text = "Toggle Attack = RequestHit spam. Auto Quest = quest spam. Auto 
 farmDesc.Parent = farmingFrame
 
 -- Toggle Attack
+
 local attackToggle = Instance.new("TextButton")
 attackToggle.Size = UDim2.new(0, 220, 0, 36)
 attackToggle.Position = UDim2.new(0, 12, 0, 86)
@@ -1069,7 +1108,9 @@ task.spawn(function()
 	end
 end)
 
--- Quests
+---------------------------------------------------------------------
+-- Quests & Auto Farm Level (Farming tab)
+---------------------------------------------------------------------
 
 local questTitle = Instance.new("TextLabel")
 questTitle.BackgroundTransparency = 1
@@ -1095,7 +1136,7 @@ questSelectedLabel.Parent = farmingFrame
 
 local questList = Instance.new("ScrollingFrame")
 questList.Position = UDim2.new(0, 12, 0, 182)
-questList.Size = UDim2.new(0.6, -18, 1, -196)
+questList.Size = UDim2.new(0.6, -18, 1, -194)
 questList.BackgroundColor3 = Color3.fromRGB(24, 24, 32)
 questList.BorderSizePixel = 0
 questList.ScrollBarThickness = 6
@@ -1166,7 +1207,7 @@ local function rebuildQuestList()
 			rebuildQuestList()
 		end)
 
-		y += 32
+		y = y + 32
 	end
 
 	questList.CanvasSize = UDim2.new(0, 0, 0, math.max(y, questList.AbsoluteSize.Y))
@@ -1191,15 +1232,23 @@ questAcceptStroke.Transparency = 0.4
 questAcceptStroke.Parent = questAcceptBtn
 
 questAcceptBtn.MouseButton1Click:Connect(function()
-	if not selectedQuestIndex then return end
+	if not selectedQuestIndex then
+		return
+	end
 	local q = quests[selectedQuestIndex]
-	if not q then return end
+	if not q then
+		return
+	end
 
-	local args = { [1] = q.Arg }
+	local args = {
+		[1] = q.Arg,
+	}
 	pcall(function()
 		QuestRemote:FireServer(unpack(args))
 	end)
 end)
+
+-- Auto Quest toggle
 
 local autoQuestToggle = Instance.new("TextButton")
 autoQuestToggle.Size = UDim2.new(0.35, -10, 0, 32)
@@ -1242,7 +1291,9 @@ task.spawn(function()
 		if autoQuestEnabled and selectedQuestIndex then
 			local q = quests[selectedQuestIndex]
 			if q then
-				local args = { [1] = q.Arg }
+				local args = {
+					[1] = q.Arg,
+				}
 				pcall(function()
 					QuestRemote:FireServer(unpack(args))
 				end)
@@ -1253,6 +1304,8 @@ task.spawn(function()
 		end
 	end
 end)
+
+-- Auto Farm Level toggle
 
 local autoFarmToggle = Instance.new("TextButton")
 autoFarmToggle.Size = UDim2.new(0.35, -10, 0, 32)
@@ -1317,7 +1370,7 @@ autoFarmToggle.MouseButton1Click:Connect(function()
 			end
 		end
 	else
-		-- turn everything off
+		-- when turning OFF auto farm: turn EVERYTHING off
 		if attackEnabled then
 			attackEnabled = false
 			updateAttackButton()
@@ -1340,6 +1393,7 @@ autoFarmToggle.MouseButton1Click:Connect(function()
 	end
 end)
 
+-- Helper: get the player's level from Data.Level
 local function getPlayerLevel()
 	local ok, level = pcall(function()
 		local dataFolder = LocalPlayer:FindFirstChild("Data") or LocalPlayer:WaitForChild("Data", 5)
@@ -1354,6 +1408,7 @@ local function getPlayerLevel()
 	return 0
 end
 
+-- Auto Farm Level loop
 task.spawn(function()
 	while true do
 		if autoFarmEnabled then
@@ -1398,7 +1453,7 @@ task.spawn(function()
 end)
 
 ---------------------------------------------------------------------
--- Skills tab (auto skills + auto-equip weapons on right side)
+-- Skills tab (auto abilities Z/X/C/V + AUTO EQUIP WEAPONS RIGHT SIDE)
 ---------------------------------------------------------------------
 
 local skillsFrame = Instance.new("Frame")
@@ -1431,10 +1486,10 @@ skillDesc.TextXAlignment = Enum.TextXAlignment.Left
 skillDesc.TextYAlignment = Enum.TextYAlignment.Top
 skillDesc.TextWrapped = true
 skillDesc.TextColor3 = Color3.fromRGB(190, 190, 210)
-skillDesc.Text = "Left: spam abilities (Z/X/C/V). Right: auto-equip any selected weapons from your Backpack."
+skillDesc.Text = "Left: spam abilities (Z/X/C/V). Right: auto-equip selected weapons from your Backpack."
 skillDesc.Parent = skillsFrame
 
--- Left side: skill toggles
+-- Left side skill toggles (Z/X/C/V)
 
 local function makeSkillToggle(labelText, keyName, posY)
 	local btn = Instance.new("TextButton")
@@ -1530,7 +1585,11 @@ task.spawn(function()
 	end
 end)
 
--- Right side: auto-equip weapons
+---------------------------------------------------------------------
+-- RIGHT SIDE: Auto Equip Weapons panel (Skills tab)
+---------------------------------------------------------------------
+
+local autoEquipEnabled = false
 
 local weaponPanel = Instance.new("Frame")
 weaponPanel.Position = UDim2.new(0.5, 8, 0, 86)
@@ -1650,7 +1709,7 @@ local function rebuildWeaponListUI()
 			}):Play()
 		end)
 
-		y += 28
+		y = y + 28
 	end
 
 	weaponList.CanvasSize = UDim2.new(0, 0, 0, math.max(y, weaponList.AbsoluteSize.Y))
@@ -1666,19 +1725,20 @@ weaponToggle.MouseButton1Click:Connect(function()
 	updateAutoEquipToggleButton()
 end)
 
--- Auto-equip loop (multi-selection)
+-- Auto equip loop (multi selection)
 task.spawn(function()
 	while true do
 		if autoEquipEnabled and hasAnySelectedWeapon() then
+			local backpack = LocalPlayer:FindFirstChild("Backpack")
 			local char = LocalPlayer.Character
 			local hum = humanoid
 			if char and not hum then
 				hum = char:FindFirstChildOfClass("Humanoid")
 			end
 
-			if Backpack and char and hum then
-				-- Check if already holding a selected weapon
+			if backpack and char and hum then
 				local equipped
+
 				for _, child in ipairs(char:GetChildren()) do
 					if child:IsA("Tool") and selectedWeaponNames[child.Name] then
 						equipped = child
@@ -1687,11 +1747,10 @@ task.spawn(function()
 				end
 
 				if not equipped then
-					-- Equip the first selected weapon we find in Backpack
 					local toEquip
-					for _, name in ipairs(weaponNames) do
-						if selectedWeaponNames[name] then
-							local tool = Backpack:FindFirstChild(name)
+					for _, wName in ipairs(weaponNames) do
+						if selectedWeaponNames[wName] then
+							local tool = backpack:FindFirstChild(wName)
 							if tool and tool:IsA("Tool") then
 								toEquip = tool
 								break
@@ -1715,7 +1774,7 @@ task.spawn(function()
 end)
 
 ---------------------------------------------------------------------
--- Tabs
+-- Tabs logic
 ---------------------------------------------------------------------
 
 local currentTab = "Main"
@@ -1770,13 +1829,14 @@ tabSkillBtn.MouseButton1Click:Connect(function()
 end)
 
 ---------------------------------------------------------------------
--- Init / auto-updates
+-- Init
 ---------------------------------------------------------------------
 
 task.defer(function()
 	rebuildGroups()
 	updateSelectedLabel()
 	rebuildListUI()
+	setDistanceFromAlpha((distanceAmount - MIN_DIST) / (MAX_DIST - MIN_DIST))
 
 	rebuildQuestList()
 	updateQuestSelectedLabel()
@@ -1792,30 +1852,16 @@ task.defer(function()
 	styleSkill(cBtn, cStroke, skillCEnabled, "Ability 3", "C")
 	styleSkill(vBtn, vStroke, skillVEnabled, "Ability 4", "V")
 
-	setDistanceFromAlpha((distanceAmount - MIN_DIST) / (MAX_DIST - MIN_DIST))
 	setTab("Main")
 end)
 
--- Keep NPC groups & UI fresh
 task.spawn(function()
 	while gui.Parent do
 		rebuildGroups()
 		rebuildListUI()
 		updateSelectedLabel()
+		rebuildWeaponNames()
+		rebuildWeaponListUI()
 		task.wait(UI_REFRESH_INTERVAL)
-	end
-end)
-
--- Auto update weapons when Backpack changes, plus manual Refresh
-task.defer(function()
-	if Backpack then
-		Backpack.ChildAdded:Connect(function()
-			rebuildWeaponNames()
-			rebuildWeaponListUI()
-		end)
-		Backpack.ChildRemoved:Connect(function()
-			rebuildWeaponNames()
-			rebuildWeaponListUI()
-		end)
 	end
 end)
