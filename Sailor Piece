@@ -1,4 +1,4 @@
----// StarterPlayerScripts > LocalScript
+--// StarterPlayerScripts > LocalScript
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -28,6 +28,11 @@ local AbilityRemote = ReplicatedStorage
 	:WaitForChild("AbilitySystem", 9e9)
 	:WaitForChild("Remotes", 9e9)
 	:WaitForChild("RequestAbility", 9e9)
+
+-- Haki remote
+local HakiRemote = ReplicatedStorage
+	:WaitForChild("RemoteEvents", 9e9)
+	:WaitForChild("HakiRemote", 9e9)
 
 -- Quest list (UI text only; Arg is what remote uses)
 local quests = {
@@ -114,12 +119,13 @@ local autoLevelConfig = {
 	},
 }
 
--- Gems: bosses to watch for
+-- Gems: bosses to watch for (multi-select)
 local gemBosses = {
 	{ DisplayName = "Yuji Boss",   GroupName = "YujiBoss"   },
 	{ DisplayName = "Gojo Boss",   GroupName = "GojoBoss"   },
 	{ DisplayName = "Jinwoo Boss", GroupName = "JinwooBoss" },
 	{ DisplayName = "Sukuna Boss", GroupName = "SukunaBoss" },
+	{ DisplayName = "Aizen Boss",  GroupName = "AizenBoss"  }, -- NEW
 }
 
 local SAFETY_REFRESH_INTERVAL = 1.0
@@ -195,6 +201,39 @@ end
 local function targetIsDead(inst)
 	local h = getTargetHumanoid(inst)
 	return (h ~= nil and h.Health <= 0)
+end
+
+---------------------------------------------------------------------
+-- HAKI HELPERS (for Gems tab)
+---------------------------------------------------------------------
+
+local function isHakiOn()
+	-- Haki is ON if this exists: workspace.CrimsonsMoons["Right Arm"]["3"]
+	local cm = workspace:FindFirstChild("CrimsonsMoons")
+	if not cm then return false end
+
+	local rightArm = cm:FindFirstChild("Right Arm")
+	if not rightArm then return false end
+
+	if rightArm:FindFirstChild("3") then
+		return true
+	end
+
+	return false
+end
+
+local function ensureHakiOn()
+	if isHakiOn() then
+		return
+	end
+
+	local args = {
+		[1] = "Toggle";
+	}
+
+	pcall(function()
+		HakiRemote:FireServer(unpack(args))
+	end)
 end
 
 ---------------------------------------------------------------------
@@ -1816,7 +1855,7 @@ task.spawn(function()
 end)
 
 ---------------------------------------------------------------------
--- Gems tab: multi-boss selection + hollow farm
+-- Gems tab: multi-boss selection + hollow farm + Auto Haki toggle
 ---------------------------------------------------------------------
 
 local gemsFrame = Instance.new("Frame")
@@ -1849,7 +1888,7 @@ gemsDesc.TextXAlignment = Enum.TextXAlignment.Left
 gemsDesc.TextYAlignment = Enum.TextYAlignment.Top
 gemsDesc.TextWrapped = true
 gemsDesc.TextColor3 = Color3.fromRGB(190, 190, 210)
-gemsDesc.Text = "Auto farm Hollows with quest. Select one or more bosses (Yuji/Gojo/Jinwoo/Sukuna). When any selected boss spawns, it switches from Hollows to that boss until it's dead, then goes back to Hollows."
+gemsDesc.Text = "Auto farm Hollows with quest. Select one or more bosses (Yuji/Gojo/Jinwoo/Sukuna/Aizen). When any selected boss spawns, it switches from Hollows to that boss until it's dead, then goes back to Hollows. Auto Haki is optional."
 gemsDesc.Parent = gemsFrame
 
 local gemsToggle = Instance.new("TextButton")
@@ -1880,6 +1919,45 @@ gemsStatusLabel.TextXAlignment = Enum.TextXAlignment.Left
 gemsStatusLabel.TextColor3 = Color3.fromRGB(190, 190, 210)
 gemsStatusLabel.Text = "Status: Off"
 gemsStatusLabel.Parent = gemsFrame
+
+-- Auto Haki toggle (only used while Auto Gems is ON)
+local autoHakiEnabled = false
+
+local hakiToggle = Instance.new("TextButton")
+hakiToggle.Size = UDim2.new(0, 160, 0, 28)
+hakiToggle.Position = UDim2.new(0, 250, 0, 82)
+hakiToggle.BackgroundColor3 = Color3.fromRGB(50, 60, 90)
+hakiToggle.BorderSizePixel = 0
+hakiToggle.Font = Enum.Font.GothamSemibold
+hakiToggle.TextSize = 13
+hakiToggle.TextColor3 = Color3.fromRGB(235, 235, 245)
+hakiToggle.Text = "Auto Haki: OFF"
+hakiToggle.Parent = gemsFrame
+Instance.new("UICorner", hakiToggle).CornerRadius = UDim.new(0, 10)
+
+local hakiToggleStroke = Instance.new("UIStroke")
+hakiToggleStroke.Thickness = 1.5
+hakiToggleStroke.Color = Color3.fromRGB(160, 190, 255)
+hakiToggleStroke.Transparency = 0.6
+hakiToggleStroke.Parent = hakiToggle
+
+local function updateHakiToggleButton()
+	local on = autoHakiEnabled
+	hakiToggle.Text = on and "Auto Haki: ON" or "Auto Haki: OFF"
+	local goalColor = on and Color3.fromRGB(80, 140, 100) or Color3.fromRGB(50, 60, 90)
+	local goalTr = on and 0.1 or 0.6
+	TweenService:Create(hakiToggle, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		BackgroundColor3 = goalColor
+	}):Play()
+	TweenService:Create(hakiToggleStroke, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		Transparency = goalTr
+	}):Play()
+end
+
+hakiToggle.MouseButton1Click:Connect(function()
+	autoHakiEnabled = not autoHakiEnabled
+	updateHakiToggleButton()
+end)
 
 local gemsBossLabel = Instance.new("TextLabel")
 gemsBossLabel.BackgroundTransparency = 1
@@ -2094,13 +2172,18 @@ local function findAnySelectedBoss()
 	return bestInst, bestInfo
 end
 
--- Gems loop: hollow quest + boss priority (multi-selection)
+-- Gems loop: hollow quest + boss priority (multi-selection) + optional auto Haki
 task.spawn(function()
 	local hollowQuestIndex = 11 -- Hollows entry in quests table
 	local hollowCfg = autoLevelConfig[#autoLevelConfig]
 
 	while true do
 		if autoGemsEnabled then
+			-- AUTO HAKI only if toggle is ON
+			if autoHakiEnabled then
+				ensureHakiOn()
+			end
+
 			local bossInst, bossInfo = findAnySelectedBoss()
 
 			if bossInst then
@@ -2431,6 +2514,7 @@ task.defer(function()
 	updateGemsBossSelectedLabel()
 	setGemsStatus("Off")
 	updateGemsToggleButton()
+	updateHakiToggleButton()
 
 	rebuildTpQuestListUI()
 	rebuildPlayerListUI()
