@@ -207,33 +207,55 @@ end
 -- HAKI HELPERS (for Gems tab)
 ---------------------------------------------------------------------
 
-local function isHakiOn()
-	-- Haki is ON if this exists: workspace.CrimsonsMoons["Right Arm"]["3"]
-	local cm = workspace:FindFirstChild("CrimsonsMoons")
-	if not cm then return false end
+---------------------------------------------------------------------
+-- HAKI HELPERS (for Gems tab) – uses YOUR character & Lightning Strike
+---------------------------------------------------------------------
 
-	local rightArm = cm:FindFirstChild("Right Arm")
-	if not rightArm then return false end
+local function getRightArm()
+	-- character is usually workspace[LocalPlayer.Name]
+	local char = LocalPlayer.Character or workspace:FindFirstChild(LocalPlayer.Name)
+	if not char then return nil end
 
-	if rightArm:FindFirstChild("3") then
-		return true
-	end
+	-- Try common right-arm names (R6 / R15)
+	local rightArm =
+		char:FindFirstChild("Right Arm")
+		or char:FindFirstChild("RightArm")
+		or char:FindFirstChild("RightLowerArm")
+		or char:FindFirstChild("RightHand")
 
-	return false
+	return rightArm
 end
 
-local function ensureHakiOn()
-	if isHakiOn() then
-		return
-	end
+local function hasLightningStrike()
+	-- This is the dynamic equivalent of:
+	-- workspace.Takus["Right Arm"]["Lightning Strike"]
+	local rightArm = getRightArm()
+	if not rightArm then return false end
 
+	local effect = rightArm:FindFirstChild("Lightning Strike")
+	return effect ~= nil
+end
+
+local function fireHakiToggle()
 	local args = {
 		[1] = "Toggle";
 	}
-
 	pcall(function()
 		HakiRemote:FireServer(unpack(args))
 	end)
+end
+
+local function isHakiOn()
+	-- Consider Haki ON if Lightning Strike is already on your right arm
+	return hasLightningStrike()
+end
+
+local function ensureHakiOn()
+	-- If Lightning Strike isn't on your right arm yet, toggle Haki once.
+	if isHakiOn() then
+		return
+	end
+	fireHakiToggle()
 end
 
 ---------------------------------------------------------------------
