@@ -1,4 +1,4 @@
----// StarterPlayerScripts > LocalScript
+--// StarterPlayerScripts > LocalScript
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -45,7 +45,6 @@ local quests = {
 }
 
 -- Auto-level config: level ranges -> quest index + NPC group candidates
--- npcGroupCandidates MUST match the group names shown in the Main tab list.
 local autoLevelConfig = {
 	{
 		minLevel = 1,
@@ -209,7 +208,6 @@ local function bindCharacter(c)
 
 	if humanoid then
 		humanoid.Died:Connect(function()
-			-- When you die, stop physics stuff; GUI + toggles stay
 			stopNoclip()
 			removeStabilizers()
 		end)
@@ -229,7 +227,7 @@ if LocalPlayer.Character then
 end
 
 ---------------------------------------------------------------------
--- Groups
+-- Groups (NPC group selection)
 ---------------------------------------------------------------------
 
 local groups = {}        -- [groupName] = {instances}
@@ -559,6 +557,43 @@ local function startMove()
 end
 
 ---------------------------------------------------------------------
+-- Auto-equip weapon data
+---------------------------------------------------------------------
+
+local weaponNames = {}
+local selectedWeaponIndex = nil
+local selectedWeaponName = nil
+
+local function rebuildWeaponNames()
+	weaponNames = {}
+	local backpack = LocalPlayer:FindFirstChild("Backpack")
+	if backpack then
+		for _, item in ipairs(backpack:GetChildren()) do
+			if item:IsA("Tool") then
+				table.insert(weaponNames, item.Name)
+			end
+		end
+	end
+	table.sort(weaponNames)
+
+	if selectedWeaponName then
+		local found
+		for i, name in ipairs(weaponNames) do
+			if name == selectedWeaponName then
+				found = i
+				break
+			end
+		end
+		if found then
+			selectedWeaponIndex = found
+		else
+			selectedWeaponIndex = nil
+			selectedWeaponName = nil
+		end
+	end
+end
+
+---------------------------------------------------------------------
 -- UI root + tabs
 ---------------------------------------------------------------------
 
@@ -599,7 +634,7 @@ title.TextColor3 = Color3.fromRGB(235, 235, 245)
 title.Text = "Main"
 title.Parent = topBar
 
--- Drag
+-- Drag window
 do
 	local dragging = false
 	local dragStart
@@ -654,7 +689,7 @@ local function makeTabButton(text, pos)
 	return b, stroke
 end
 
--- 3 tabs: Main, Farming, Skills (from left to right)
+-- 3 tabs: Main, Farming, Skills
 local tabMainBtn,  tabMainStroke  = makeTabButton("Main",    UDim2.new(1, -290, 0.5, -13))
 local tabFarmBtn,  tabFarmStroke  = makeTabButton("Farming", UDim2.new(1, -190, 0.5, -13))
 local tabSkillBtn, tabSkillStroke = makeTabButton("Skills",  UDim2.new(1, -90,  0.5, -13))
@@ -982,7 +1017,7 @@ clearBtn.MouseButton1Click:Connect(function()
 end)
 
 ---------------------------------------------------------------------
--- Farming tab (Attack + Quests + Auto Farm Level)
+-- Farming tab (Attack + Auto Equip Weapon + Quests + Auto Farm Level)
 ---------------------------------------------------------------------
 
 local farmingFrame = Instance.new("Frame")
@@ -1015,7 +1050,7 @@ farmDesc.TextXAlignment = Enum.TextXAlignment.Left
 farmDesc.TextYAlignment = Enum.TextYAlignment.Top
 farmDesc.TextWrapped = true
 farmDesc.TextColor3 = Color3.fromRGB(190, 190, 210)
-farmDesc.Text = "Toggle Attack = RequestHit spam. Auto Quest = quest spam. Auto Farm Level = auto pick quest + NPC by your level."
+farmDesc.Text = "Toggle Attack = RequestHit spam. Auto Quest = quest spam. Auto Farm Level = auto pick quest + NPC by your level. Auto Equip Weapon = keep your selected tool equipped."
 farmDesc.Parent = farmingFrame
 
 -- Toggle Attack
@@ -1072,11 +1107,141 @@ task.spawn(function()
 	end
 end)
 
--- Quests UI
+---------------------------------------------------------------------
+-- Auto Equip Weapon (Farming tab)
+---------------------------------------------------------------------
+
+local autoEquipEnabled = false
+
+local weaponTitle = Instance.new("TextLabel")
+weaponTitle.BackgroundTransparency = 1
+weaponTitle.Position = UDim2.new(0, 12, 0, 132)
+weaponTitle.Size = UDim2.new(1, -24, 0, 18)
+weaponTitle.Font = Enum.Font.GothamBold
+weaponTitle.TextSize = 14
+weaponTitle.TextXAlignment = Enum.TextXAlignment.Left
+weaponTitle.TextColor3 = Color3.fromRGB(220, 220, 240)
+weaponTitle.Text = "Auto Equip Weapon"
+weaponTitle.Parent = farmingFrame
+
+local weaponChoiceBtn = Instance.new("TextButton")
+weaponChoiceBtn.Size = UDim2.new(0.6, -18, 0, 28)
+weaponChoiceBtn.Position = UDim2.new(0, 12, 0, 154)
+weaponChoiceBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 52)
+weaponChoiceBtn.BorderSizePixel = 0
+weaponChoiceBtn.Font = Enum.Font.GothamSemibold
+weaponChoiceBtn.TextSize = 13
+weaponChoiceBtn.TextColor3 = Color3.fromRGB(235, 235, 245)
+weaponChoiceBtn.TextXAlignment = Enum.TextXAlignment.Left
+weaponChoiceBtn.Text = "  Weapon: (none)"
+weaponChoiceBtn.Parent = farmingFrame
+Instance.new("UICorner", weaponChoiceBtn).CornerRadius = UDim.new(0, 8)
+
+local weaponChoiceStroke = Instance.new("UIStroke")
+weaponChoiceStroke.Thickness = 1.5
+weaponChoiceStroke.Color = Color3.fromRGB(160, 190, 255)
+weaponChoiceStroke.Transparency = 0.7
+weaponChoiceStroke.Parent = weaponChoiceBtn
+
+local weaponToggle = Instance.new("TextButton")
+weaponToggle.Size = UDim2.new(0.35, -10, 0, 28)
+weaponToggle.Position = UDim2.new(0.63, 0, 0, 154)
+weaponToggle.BackgroundColor3 = Color3.fromRGB(50, 60, 90)
+weaponToggle.BorderSizePixel = 0
+weaponToggle.Font = Enum.Font.GothamSemibold
+weaponToggle.TextSize = 13
+weaponToggle.TextColor3 = Color3.fromRGB(235, 235, 245)
+weaponToggle.Text = "Auto Equip: OFF"
+weaponToggle.Parent = farmingFrame
+Instance.new("UICorner", weaponToggle).CornerRadius = UDim.new(0, 8)
+
+local weaponToggleStroke = Instance.new("UIStroke")
+weaponToggleStroke.Thickness = 1.5
+weaponToggleStroke.Color = Color3.fromRGB(160, 190, 255)
+weaponToggleStroke.Transparency = 0.6
+weaponToggleStroke.Parent = weaponToggle
+
+local function updateWeaponChoiceText()
+	if selectedWeaponName then
+		weaponChoiceBtn.Text = "  Weapon: " .. selectedWeaponName
+	else
+		weaponChoiceBtn.Text = "  Weapon: (none)"
+	end
+end
+
+local function cycleWeapon(delta)
+	rebuildWeaponNames()
+	local count = #weaponNames
+	if count == 0 then
+		selectedWeaponIndex = nil
+		selectedWeaponName = nil
+	else
+		local idx = selectedWeaponIndex or 1
+		idx = ((idx - 1 + delta) % count) + 1
+		selectedWeaponIndex = idx
+		selectedWeaponName = weaponNames[idx]
+	end
+	updateWeaponChoiceText()
+end
+
+weaponChoiceBtn.MouseButton1Click:Connect(function()
+	cycleWeapon(1)
+end)
+
+local function updateWeaponToggleButton()
+	local on = autoEquipEnabled
+	weaponToggle.Text = on and "Auto Equip: ON" or "Auto Equip: OFF"
+	local goalColor = on and Color3.fromRGB(80, 140, 100) or Color3.fromRGB(50, 60, 90)
+	local goalTr = on and 0.1 or 0.6
+	TweenService:Create(weaponToggle, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		BackgroundColor3 = goalColor
+	}):Play()
+	TweenService:Create(weaponToggleStroke, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		Transparency = goalTr
+	}):Play()
+end
+
+weaponToggle.MouseButton1Click:Connect(function()
+	autoEquipEnabled = not autoEquipEnabled
+	updateWeaponToggleButton()
+end)
+
+-- Auto equip loop
+task.spawn(function()
+	while true do
+		if autoEquipEnabled and selectedWeaponName then
+			local backpack = LocalPlayer:FindFirstChild("Backpack")
+			local char = LocalPlayer.Character
+			local hum = humanoid
+			if char and not hum then
+				hum = char:FindFirstChildOfClass("Humanoid")
+			end
+
+			if backpack and char and hum then
+				local equipped = char:FindFirstChild(selectedWeaponName)
+				local toolInBackpack = backpack:FindFirstChild(selectedWeaponName)
+
+				if not equipped and toolInBackpack and toolInBackpack:IsA("Tool") then
+					pcall(function()
+						hum:EquipTool(toolInBackpack)
+					end)
+				end
+			end
+
+			task.wait(0.3)
+		else
+			task.wait(0.3)
+		end
+	end
+end)
+
+---------------------------------------------------------------------
+-- Quests UI (shifted down to make room for auto-equip)
+---------------------------------------------------------------------
 
 local questTitle = Instance.new("TextLabel")
 questTitle.BackgroundTransparency = 1
-questTitle.Position = UDim2.new(0, 12, 0, 136)
+questTitle.Position = UDim2.new(0, 12, 0, 190)
 questTitle.Size = UDim2.new(1, -24, 0, 22)
 questTitle.Font = Enum.Font.GothamBold
 questTitle.TextSize = 14
@@ -1087,7 +1252,7 @@ questTitle.Parent = farmingFrame
 
 local questSelectedLabel = Instance.new("TextLabel")
 questSelectedLabel.BackgroundTransparency = 1
-questSelectedLabel.Position = UDim2.new(0, 12, 0, 158)
+questSelectedLabel.Position = UDim2.new(0, 12, 0, 212)
 questSelectedLabel.Size = UDim2.new(1, -24, 0, 18)
 questSelectedLabel.Font = Enum.Font.Gotham
 questSelectedLabel.TextSize = 13
@@ -1097,8 +1262,8 @@ questSelectedLabel.Text = "Selected Quest: (none)"
 questSelectedLabel.Parent = farmingFrame
 
 local questList = Instance.new("ScrollingFrame")
-questList.Position = UDim2.new(0, 12, 0, 182)
-questList.Size = UDim2.new(0.6, -18, 1, -196)
+questList.Position = UDim2.new(0, 12, 0, 236)
+questList.Size = UDim2.new(0.6, -18, 1, -248)
 questList.BackgroundColor3 = Color3.fromRGB(24, 24, 32)
 questList.BorderSizePixel = 0
 questList.ScrollBarThickness = 6
@@ -1160,7 +1325,6 @@ local function rebuildQuestList()
 		end
 
 		btn.MouseButton1Click:Connect(function()
-			-- click again to deselect
 			if selectedQuestIndex == i then
 				selectedQuestIndex = nil
 			else
@@ -1178,7 +1342,7 @@ end
 
 local questAcceptBtn = Instance.new("TextButton")
 questAcceptBtn.Size = UDim2.new(0.35, -10, 0, 32)
-questAcceptBtn.Position = UDim2.new(0.63, 0, 0, 182)
+questAcceptBtn.Position = UDim2.new(0.63, 0, 0, 236)
 questAcceptBtn.BackgroundColor3 = Color3.fromRGB(60, 80, 110)
 questAcceptBtn.BorderSizePixel = 0
 questAcceptBtn.Font = Enum.Font.GothamSemibold
@@ -1215,7 +1379,7 @@ end)
 
 local autoQuestToggle = Instance.new("TextButton")
 autoQuestToggle.Size = UDim2.new(0.35, -10, 0, 32)
-autoQuestToggle.Position = UDim2.new(0.63, 0, 0, 222)
+autoQuestToggle.Position = UDim2.new(0.63, 0, 0, 276)
 autoQuestToggle.BackgroundColor3 = Color3.fromRGB(50, 60, 90)
 autoQuestToggle.BorderSizePixel = 0
 autoQuestToggle.Font = Enum.Font.GothamSemibold
@@ -1249,7 +1413,6 @@ autoQuestToggle.MouseButton1Click:Connect(function()
 	updateAutoQuestButton()
 end)
 
--- Auto Quest loop
 task.spawn(function()
 	while true do
 		if autoQuestEnabled and selectedQuestIndex then
@@ -1273,7 +1436,7 @@ end)
 
 local autoFarmToggle = Instance.new("TextButton")
 autoFarmToggle.Size = UDim2.new(0.35, -10, 0, 32)
-autoFarmToggle.Position = UDim2.new(0.63, 0, 0, 262)
+autoFarmToggle.Position = UDim2.new(0.63, 0, 0, 316)
 autoFarmToggle.BackgroundColor3 = Color3.fromRGB(50, 60, 90)
 autoFarmToggle.BorderSizePixel = 0
 autoFarmToggle.Font = Enum.Font.GothamSemibold
@@ -1307,7 +1470,6 @@ autoFarmToggle.MouseButton1Click:Connect(function()
 	updateAutoFarmButton()
 
 	if autoFarmEnabled then
-		-- Turn everything ON to fully AFK farm
 		if not attackEnabled then
 			attackEnabled = true
 			updateAttackButton()
@@ -1335,7 +1497,7 @@ autoFarmToggle.MouseButton1Click:Connect(function()
 			end
 		end
 	else
-		-- Turn EVERYTHING back OFF when Auto Farm Level is turned off
+		-- when turning OFF auto farm: turn EVERYTHING off
 		if attackEnabled then
 			attackEnabled = false
 			updateAttackButton()
@@ -1389,14 +1551,12 @@ task.spawn(function()
 				end
 
 				if chosen then
-					-- Set quest
 					if selectedQuestIndex ~= chosen.questIndex then
 						selectedQuestIndex = chosen.questIndex
 						updateQuestSelectedLabel()
 						rebuildQuestList()
 					end
 
-					-- Select matching NPC groups
 					selectedGroups = {}
 					currentTarget = nil
 
@@ -1520,7 +1680,6 @@ vBtn.MouseButton1Click:Connect(function()
 	styleSkill(vBtn, vStroke, skillVEnabled, "Ability 4", "V")
 end)
 
--- Skills loop: spam each enabled skill every 0.5 seconds
 task.spawn(function()
 	while true do
 		if skillZEnabled or skillXEnabled or skillCEnabled or skillVEnabled then
@@ -1621,6 +1780,10 @@ task.defer(function()
 	updateAutoQuestButton()
 	updateAutoFarmButton()
 
+	rebuildWeaponNames()
+	updateWeaponChoiceText()
+	updateWeaponToggleButton()
+
 	styleSkill(zBtn, zStroke, skillZEnabled, "Ability 1", "Z")
 	styleSkill(xBtn, xStroke, skillXEnabled, "Ability 2", "X")
 	styleSkill(cBtn, cStroke, skillCEnabled, "Ability 3", "C")
@@ -1634,6 +1797,7 @@ task.spawn(function()
 		rebuildGroups()
 		rebuildListUI()
 		updateSelectedLabel()
+		rebuildWeaponNames()
 		task.wait(UI_REFRESH_INTERVAL)
 	end
 end)
