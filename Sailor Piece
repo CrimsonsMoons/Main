@@ -1,4 +1,4 @@
----// StarterPlayerScripts > LocalScript
+--// StarterPlayerScripts > LocalScript
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -557,7 +557,7 @@ local function startMove()
 end
 
 ---------------------------------------------------------------------
--- Auto-equip weapon data (NOW shared, used in Skills tab)
+-- Auto-equip weapon data (Backpack + Equipped, keeps selections)
 ---------------------------------------------------------------------
 
 local weaponNames = {}
@@ -565,26 +565,31 @@ local selectedWeaponNames = {} -- [toolName] = true/false
 
 local function rebuildWeaponNames()
 	weaponNames = {}
+	local seen = {}
+
+	-- Backpack tools
 	local backpack = LocalPlayer:FindFirstChild("Backpack")
 	if backpack then
 		for _, item in ipairs(backpack:GetChildren()) do
-			if item:IsA("Tool") then
+			if item:IsA("Tool") and not seen[item.Name] then
+				seen[item.Name] = true
 				table.insert(weaponNames, item.Name)
 			end
 		end
 	end
-	table.sort(weaponNames)
 
-	-- prune selections that no longer exist
-	local valid = {}
-	for _, name in ipairs(weaponNames) do
-		valid[name] = true
-	end
-	for name in pairs(selectedWeaponNames) do
-		if not valid[name] then
-			selectedWeaponNames[name] = nil
+	-- Equipped tools on character
+	local char = LocalPlayer.Character
+	if char then
+		for _, item in ipairs(char:GetChildren()) do
+			if item:IsA("Tool") and not seen[item.Name] then
+				seen[item.Name] = true
+				table.insert(weaponNames, item.Name)
+			end
 		end
 	end
+
+	table.sort(weaponNames)
 end
 
 local function hasAnySelectedWeapon()
@@ -1453,7 +1458,7 @@ task.spawn(function()
 end)
 
 ---------------------------------------------------------------------
--- Skills tab (auto abilities Z/X/C/V + AUTO EQUIP WEAPONS RIGHT SIDE)
+-- Skills tab (auto abilities Z/X/C/V + Auto Equip Weapons right side)
 ---------------------------------------------------------------------
 
 local skillsFrame = Instance.new("Frame")
@@ -1486,7 +1491,7 @@ skillDesc.TextXAlignment = Enum.TextXAlignment.Left
 skillDesc.TextYAlignment = Enum.TextYAlignment.Top
 skillDesc.TextWrapped = true
 skillDesc.TextColor3 = Color3.fromRGB(190, 190, 210)
-skillDesc.Text = "Left: spam abilities (Z/X/C/V). Right: auto-equip selected weapons from your Backpack."
+skillDesc.Text = "Left: spam abilities (Z/X/C/V). Right: auto-equip selected weapons from your Backpack/Character."
 skillDesc.Parent = skillsFrame
 
 -- Left side skill toggles (Z/X/C/V)
@@ -1725,20 +1730,21 @@ weaponToggle.MouseButton1Click:Connect(function()
 	updateAutoEquipToggleButton()
 end)
 
--- Auto equip loop (multi selection)
+-- Auto equip loop (multi selection, survives respawn)
 task.spawn(function()
 	while true do
 		if autoEquipEnabled and hasAnySelectedWeapon() then
-			local backpack = LocalPlayer:FindFirstChild("Backpack")
 			local char = LocalPlayer.Character
-			local hum = humanoid
-			if char and not hum then
+			local backpack = LocalPlayer:FindFirstChild("Backpack")
+			local hum = nil
+
+			if char then
 				hum = char:FindFirstChildOfClass("Humanoid")
 			end
 
 			if backpack and char and hum then
-				local equipped
-
+				-- Check if any selected weapon is already equipped
+				local equipped = nil
 				for _, child in ipairs(char:GetChildren()) do
 					if child:IsA("Tool") and selectedWeaponNames[child.Name] then
 						equipped = child
@@ -1746,8 +1752,9 @@ task.spawn(function()
 					end
 				end
 
+				-- If not equipped yet, try equip from backpack
 				if not equipped then
-					local toEquip
+					local toEquip = nil
 					for _, wName in ipairs(weaponNames) do
 						if selectedWeaponNames[wName] then
 							local tool = backpack:FindFirstChild(wName)
