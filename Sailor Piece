@@ -1,4 +1,4 @@
----------// StarterPlayerScripts > LocalScript
+--// StarterPlayerScripts > LocalScript
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -1414,6 +1414,20 @@ local function updateAutoFarmButton()
 	TweenService:Create(autoFarmToggle, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
 		BackgroundColor3 = goalColor
 	}):Play()
+	TweenService:Create(autoFarmStroke, TweenInfo.New(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		Transparency = goalTr
+	}):Play()
+end
+
+-- (small fix: TweenInfo.New should be TweenInfo.new – correcting below)
+local function updateAutoFarmButton()
+	local on = autoFarmEnabled
+	autoFarmToggle.Text = on and "Auto Farm Level: ON" or "Auto Farm Level: OFF"
+	local goalColor = on and Color3.fromRGB(80, 140, 100) or Color3.fromRGB(50, 60, 90)
+	local goalTr = on and 0.1 or 0.6
+	TweenService:Create(autoFarmToggle, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		BackgroundColor3 = goalColor
+	}):Play()
 	TweenService:Create(autoFarmStroke, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
 		Transparency = goalTr
 	}):Play()
@@ -1957,6 +1971,11 @@ end
 hakiToggle.MouseButton1Click:Connect(function()
 	autoHakiEnabled = not autoHakiEnabled
 	updateHakiToggleButton()
+
+	-- if user turns Auto Haki ON while Auto Gems is already ON, force an immediate check
+	if autoHakiEnabled and autoGemsEnabled then
+		ensureHakiOn()
+	end
 end)
 
 local gemsBossLabel = Instance.new("TextLabel")
@@ -2123,6 +2142,11 @@ gemsToggle.MouseButton1Click:Connect(function()
 			end
 		end
 
+		-- If auto Haki is already on, ensure Haki right away
+		if autoHakiEnabled then
+			ensureHakiOn()
+		end
+
 		setGemsStatus("Hollows (waiting for bosses)")
 	else
 		setGemsStatus("Off")
@@ -2172,18 +2196,13 @@ local function findAnySelectedBoss()
 	return bestInst, bestInfo
 end
 
--- Gems loop: hollow quest + boss priority (multi-selection) + optional auto Haki
+-- Gems loop: hollow quest + boss priority (multi-selection)
 task.spawn(function()
 	local hollowQuestIndex = 11 -- Hollows entry in quests table
 	local hollowCfg = autoLevelConfig[#autoLevelConfig]
 
 	while true do
 		if autoGemsEnabled then
-			-- AUTO HAKI only if toggle is ON
-			if autoHakiEnabled then
-				ensureHakiOn()
-			end
-
 			local bossInst, bossInfo = findAnySelectedBoss()
 
 			if bossInst then
@@ -2235,6 +2254,19 @@ task.spawn(function()
 			task.wait(0.5)
 		else
 			task.wait(0.2)
+		end
+	end
+end)
+
+-- GLOBAL AUTO HAKI LOOP:
+-- Keeps checking Haki anytime Auto Gems + Auto Haki are both ON
+task.spawn(function()
+	while true do
+		if autoGemsEnabled and autoHakiEnabled then
+			ensureHakiOn()
+			task.wait(0.5)
+		else
+			task.wait(0.5)
 		end
 	end
 end)
