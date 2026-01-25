@@ -1,0 +1,159 @@
+-- SERVICES
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local Player = Players.LocalPlayer
+local Character = Player.Character or Player.CharacterAdded:Wait()
+local HRP = Character:WaitForChild("HumanoidRootPart")
+
+-- NPC FOLDER
+local NPC_FOLDER = workspace:WaitForChild("NPCs")
+
+-- STATE
+local enabled = false
+local selectedNPC = nil
+local height = 5
+
+-- GUI
+local gui = Instance.new("ScreenGui", game.CoreGui)
+gui.Name = "NPCAboveAttacker"
+
+local frame = Instance.new("Frame", gui)
+frame.Size = UDim2.fromScale(0.25, 0.35)
+frame.Position = UDim2.fromScale(0.05, 0.3)
+frame.BackgroundColor3 = Color3.fromRGB(25,25,25)
+frame.BorderSizePixel = 0
+frame.Active = true
+frame.Draggable = true
+
+local uiCorner = Instance.new("UICorner", frame)
+uiCorner.CornerRadius = UDim.new(0,12)
+
+-- TITLE
+local title = Instance.new("TextLabel", frame)
+title.Size = UDim2.new(1,0,0.15,0)
+title.Text = "NPC ABOVE ATTACK"
+title.TextColor3 = Color3.new(1,1,1)
+title.BackgroundTransparency = 1
+title.Font = Enum.Font.GothamBold
+title.TextScaled = true
+
+-- TOGGLE BUTTON
+local toggle = Instance.new("TextButton", frame)
+toggle.Position = UDim2.fromScale(0.05,0.2)
+toggle.Size = UDim2.fromScale(0.9,0.15)
+toggle.Text = "OFF"
+toggle.Font = Enum.Font.GothamBold
+toggle.TextScaled = true
+toggle.BackgroundColor3 = Color3.fromRGB(120,40,40)
+toggle.TextColor3 = Color3.new(1,1,1)
+
+-- RANGE SLIDER LABEL
+local rangeLabel = Instance.new("TextLabel", frame)
+rangeLabel.Position = UDim2.fromScale(0.05,0.38)
+rangeLabel.Size = UDim2.fromScale(0.9,0.1)
+rangeLabel.Text = "Height: 5"
+rangeLabel.BackgroundTransparency = 1
+rangeLabel.TextColor3 = Color3.new(1,1,1)
+rangeLabel.Font = Enum.Font.Gotham
+rangeLabel.TextScaled = true
+
+-- RANGE SLIDER
+local slider = Instance.new("TextButton", frame)
+slider.Position = UDim2.fromScale(0.05,0.5)
+slider.Size = UDim2.fromScale(0.9,0.1)
+slider.Text = "Increase Height"
+slider.Font = Enum.Font.Gotham
+slider.TextScaled = true
+slider.BackgroundColor3 = Color3.fromRGB(50,50,50)
+slider.TextColor3 = Color3.new(1,1,1)
+
+-- DROPDOWN
+local dropdown = Instance.new("TextButton", frame)
+dropdown.Position = UDim2.fromScale(0.05,0.65)
+dropdown.Size = UDim2.fromScale(0.9,0.12)
+dropdown.Text = "Select NPC"
+dropdown.Font = Enum.Font.Gotham
+dropdown.TextScaled = true
+dropdown.BackgroundColor3 = Color3.fromRGB(40,40,40)
+dropdown.TextColor3 = Color3.new(1,1,1)
+
+local listFrame = Instance.new("Frame", frame)
+listFrame.Position = UDim2.fromScale(0.05,0.78)
+listFrame.Size = UDim2.fromScale(0.9,0.18)
+listFrame.BackgroundColor3 = Color3.fromRGB(20,20,20)
+listFrame.Visible = false
+
+local layout = Instance.new("UIListLayout", listFrame)
+layout.Padding = UDim.new(0,4)
+
+-- FUNCTIONS
+local function getSortedNPCs()
+    local npcs = {}
+    for _,npc in ipairs(NPC_FOLDER:GetChildren()) do
+        if npc:FindFirstChild("HumanoidRootPart") then
+            table.insert(npcs, npc)
+        end
+    end
+
+    table.sort(npcs, function(a,b)
+        return (a.HumanoidRootPart.Position - HRP.Position).Magnitude <
+               (b.HumanoidRootPart.Position - HRP.Position).Magnitude
+    end)
+
+    return npcs
+end
+
+local function refreshDropdown()
+    listFrame:ClearAllChildren()
+    layout.Parent = listFrame
+
+    for _,npc in ipairs(getSortedNPCs()) do
+        local btn = Instance.new("TextButton", listFrame)
+        btn.Size = UDim2.new(1,0,0,25)
+        btn.Text = npc.Name
+        btn.Font = Enum.Font.Gotham
+        btn.TextScaled = true
+        btn.BackgroundColor3 = Color3.fromRGB(60,60,60)
+        btn.TextColor3 = Color3.new(1,1,1)
+
+        btn.MouseButton1Click:Connect(function()
+            selectedNPC = npc
+            dropdown.Text = "Target: "..npc.Name
+            listFrame.Visible = false
+        end)
+    end
+end
+
+-- EVENTS
+toggle.MouseButton1Click:Connect(function()
+    enabled = not enabled
+    toggle.Text = enabled and "ON" or "OFF"
+    toggle.BackgroundColor3 = enabled and Color3.fromRGB(40,120,40) or Color3.fromRGB(120,40,40)
+end)
+
+slider.MouseButton1Click:Connect(function()
+    height += 1
+    if height > 10 then height = 1 end
+    rangeLabel.Text = "Height: "..height
+end)
+
+dropdown.MouseButton1Click:Connect(function()
+    listFrame.Visible = not listFrame.Visible
+    if listFrame.Visible then
+        refreshDropdown()
+    end
+end)
+
+-- MAIN LOOP
+RunService.Heartbeat:Connect(function()
+    if enabled and selectedNPC and selectedNPC.Parent then
+        local npcHRP = selectedNPC:FindFirstChild("HumanoidRootPart")
+        if npcHRP then
+            local abovePos = npcHRP.CFrame * CFrame.new(0, height, 0)
+            HRP.CFrame = CFrame.new(
+                abovePos.Position,
+                npcHRP.Position
+            )
+        end
+    end
+end)
