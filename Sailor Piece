@@ -1,4 +1,4 @@
-------// StarterPlayerScripts > LocalScript
+--// StarterPlayerScripts > LocalScript
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -31,17 +31,17 @@ local AbilityRemote = ReplicatedStorage
 
 -- Quest list (UI text only; Arg is what remote uses)
 local quests = {
-	{ DisplayName = "Theivs (Lv. 1–99)",				     Arg = "QuestNPC1"  },
-	{ DisplayName = "Theiv Boss (Lv. 100–249)",		     Arg = "QuestNPC2"  },
-	{ DisplayName = "Monkeys (Lv. 250–499)",			     Arg = "QuestNPC3"  },
-	{ DisplayName = "Monkey Boss (Lv. 500–749)",		     Arg = "QuestNPC4"  },
-	{ DisplayName = "Desert Bandits (Lv. 750–999)",	     Arg = "QuestNPC5"  },
-	{ DisplayName = "Desert Bandit Boss (Lv. 1000–1499)",  Arg = "QuestNPC6"  },
-	{ DisplayName = "Frost Rouge (Lv. 1500–1999)",	     Arg = "QuestNPC7"  },
-	{ DisplayName = "Winter Warden Boss (Lv. 2000–2999)", Arg = "QuestNPC8"  },
-	{ DisplayName = "Sorcerer Students (Lv. 3000–3999)",  Arg = "QuestNPC9"  },
-	{ DisplayName = "Panda Sorcerer Boss (Lv. 4000–5000)",Arg = "QuestNPC10" },
-	{ DisplayName = "Hollows (Lv. 5000–6250)",		     Arg = "QuestNPC11" },
+	{ DisplayName = "Theivs (Lv. 1–99)",				       Arg = "QuestNPC1"  },
+	{ DisplayName = "Theiv Boss (Lv. 100–249)",		       Arg = "QuestNPC2"  },
+	{ DisplayName = "Monkeys (Lv. 250–499)",			       Arg = "QuestNPC3"  },
+	{ DisplayName = "Monkey Boss (Lv. 500–749)",		       Arg = "QuestNPC4"  },
+	{ DisplayName = "Desert Bandits (Lv. 750–999)",	       Arg = "QuestNPC5"  },
+	{ DisplayName = "Desert Bandit Boss (Lv. 1000–1499)",   Arg = "QuestNPC6"  },
+	{ DisplayName = "Frost Rouge (Lv. 1500–1999)",	       Arg = "QuestNPC7"  },
+	{ DisplayName = "Winter Warden Boss (Lv. 2000–2999)",   Arg = "QuestNPC8"  },
+	{ DisplayName = "Sorcerer Students (Lv. 3000–3999)",    Arg = "QuestNPC9"  },
+	{ DisplayName = "Panda Sorcerer Boss (Lv. 4000–5000)",  Arg = "QuestNPC10" },
+	{ DisplayName = "Hollows (Lv. 5000–6250)",		       Arg = "QuestNPC11" },
 }
 
 -- Auto-level config: level ranges -> quest index + NPC group candidates
@@ -112,6 +112,14 @@ local autoLevelConfig = {
 		questIndex = 11, -- Hollows
 		npcGroupCandidates = {"Hollow", "Hollows"},
 	},
+}
+
+-- Gems: bosses to watch for
+local gemBosses = {
+	{ DisplayName = "Yuji Boss",   GroupName = "YujiBoss"   },
+	{ DisplayName = "Gojo Boss",   GroupName = "GojoBoss"   },
+	{ DisplayName = "Jinwoo Boss", GroupName = "JinwooBoss" },
+	{ DisplayName = "Sukuna Boss", GroupName = "SukunaBoss" },
 }
 
 local SAFETY_REFRESH_INTERVAL = 1.0
@@ -557,7 +565,7 @@ local function startMove()
 end
 
 ---------------------------------------------------------------------
--- Auto-equip weapon data (Backpack + Equipped, keeps selections)
+-- Auto-equip weapon data (Backpack + Equipped, multi-selection)
 ---------------------------------------------------------------------
 
 local weaponNames = {}
@@ -567,7 +575,6 @@ local function rebuildWeaponNames()
 	weaponNames = {}
 	local seen = {}
 
-	-- Backpack tools
 	local backpack = LocalPlayer:FindFirstChild("Backpack")
 	if backpack then
 		for _, item in ipairs(backpack:GetChildren()) do
@@ -578,7 +585,6 @@ local function rebuildWeaponNames()
 		end
 	end
 
-	-- Equipped tools on character
 	local char = LocalPlayer.Character
 	if char then
 		for _, item in ipairs(char:GetChildren()) do
@@ -704,7 +710,7 @@ end
 
 local function makeTabButton(text, pos)
 	local b = Instance.new("TextButton")
-	b.Size = UDim2.new(0, 90, 0, 26)
+	b.Size = UDim2.new(0, 80, 0, 26)
 	b.Position = pos
 	b.BackgroundColor3 = Color3.fromRGB(40, 40, 52)
 	b.BorderSizePixel = 0
@@ -724,11 +730,12 @@ local function makeTabButton(text, pos)
 	return b, stroke
 end
 
--- 4 tabs: Main, Farming, Skills, Teleport
-local tabMainBtn,     tabMainStroke     = makeTabButton("Main",     UDim2.new(1, -360, 0.5, -13))
-local tabFarmBtn,     tabFarmStroke     = makeTabButton("Farming",  UDim2.new(1, -270, 0.5, -13))
-local tabSkillBtn,    tabSkillStroke    = makeTabButton("Skills",   UDim2.new(1, -180, 0.5, -13))
-local tabTeleportBtn, tabTeleportStroke = makeTabButton("Teleport", UDim2.new(1, -90,  0.5, -13))
+-- 5 tabs: Main, Farming, Skills, Gems, Teleport
+local tabMainBtn,     tabMainStroke     = makeTabButton("Main",     UDim2.new(1, -400, 0.5, -13))
+local tabFarmBtn,     tabFarmStroke     = makeTabButton("Farming",  UDim2.new(1, -320, 0.5, -13))
+local tabSkillBtn,    tabSkillStroke    = makeTabButton("Skills",   UDim2.new(1, -240, 0.5, -13))
+local tabGemsBtn,     tabGemsStroke     = makeTabButton("Gems",     UDim2.new(1, -160, 0.5, -13))
+local tabTeleportBtn, tabTeleportStroke = makeTabButton("Teleport", UDim2.new(1,  -80, 0.5, -13))
 
 ---------------------------------------------------------------------
 -- Main tab widgets
@@ -1637,7 +1644,7 @@ Instance.new("UICorner", weaponPanel).CornerRadius = UDim.new(0, 10)
 local weaponTitleLabel = Instance.new("TextLabel")
 weaponTitleLabel.BackgroundTransparency = 1
 weaponTitleLabel.Position = UDim2.new(0, 10, 0, 6)
-weaponTitleLabel.Size = UDim2.new(1, -20, 0, 20)
+weaponTitleLabel.Size = UDim2.new(1, -90, 0, 20)
 weaponTitleLabel.Font = Enum.Font.GothamBold
 weaponTitleLabel.TextSize = 14
 weaponTitleLabel.TextXAlignment = Enum.TextXAlignment.Left
@@ -1773,7 +1780,6 @@ task.spawn(function()
 			end
 
 			if backpack and char and hum then
-				-- Check if any selected weapon is already equipped
 				local equipped = nil
 				for _, child in ipairs(char:GetChildren()) do
 					if child:IsA("Tool") and selectedWeaponNames[child.Name] then
@@ -1782,7 +1788,6 @@ task.spawn(function()
 					end
 				end
 
-				-- If not equipped yet, try equip from backpack
 				if not equipped then
 					local toEquip = nil
 					for _, wName in ipairs(weaponNames) do
@@ -1806,6 +1811,347 @@ task.spawn(function()
 			task.wait(0.3)
 		else
 			task.wait(0.3)
+		end
+	end
+end)
+
+---------------------------------------------------------------------
+-- Gems tab: multi-boss selection + hollow farm
+---------------------------------------------------------------------
+
+local gemsFrame = Instance.new("Frame")
+gemsFrame.Position = UDim2.new(0, 12, 0, 56)
+gemsFrame.Size = UDim2.new(1, -24, 1, -68)
+gemsFrame.BackgroundColor3 = Color3.fromRGB(28, 28, 36)
+gemsFrame.BorderSizePixel = 0
+gemsFrame.Visible = false
+gemsFrame.Parent = mainFrame
+Instance.new("UICorner", gemsFrame).CornerRadius = UDim.new(0, 12)
+
+local gemsTitle = Instance.new("TextLabel")
+gemsTitle.BackgroundTransparency = 1
+gemsTitle.Position = UDim2.new(0, 12, 0, 10)
+gemsTitle.Size = UDim2.new(1, -24, 0, 24)
+gemsTitle.Font = Enum.Font.GothamBold
+gemsTitle.TextSize = 16
+gemsTitle.TextXAlignment = Enum.TextXAlignment.Left
+gemsTitle.TextColor3 = Color3.fromRGB(230, 230, 245)
+gemsTitle.Text = "Gems Farm"
+gemsTitle.Parent = gemsFrame
+
+local gemsDesc = Instance.new("TextLabel")
+gemsDesc.BackgroundTransparency = 1
+gemsDesc.Position = UDim2.new(0, 12, 0, 36)
+gemsDesc.Size = UDim2.new(1, -24, 0, 40)
+gemsDesc.Font = Enum.Font.Gotham
+gemsDesc.TextSize = 13
+gemsDesc.TextXAlignment = Enum.TextXAlignment.Left
+gemsDesc.TextYAlignment = Enum.TextYAlignment.Top
+gemsDesc.TextWrapped = true
+gemsDesc.TextColor3 = Color3.fromRGB(190, 190, 210)
+gemsDesc.Text = "Auto farm Hollows with quest. Select one or more bosses (Yuji/Gojo/Jinwoo/Sukuna). When any selected boss spawns, it switches from Hollows to that boss until it's dead, then goes back to Hollows."
+gemsDesc.Parent = gemsFrame
+
+local gemsToggle = Instance.new("TextButton")
+gemsToggle.Size = UDim2.new(0, 220, 0, 32)
+gemsToggle.Position = UDim2.new(0, 12, 0, 82)
+gemsToggle.BackgroundColor3 = Color3.fromRGB(50, 60, 90)
+gemsToggle.BorderSizePixel = 0
+gemsToggle.Font = Enum.Font.GothamSemibold
+gemsToggle.TextSize = 13
+gemsToggle.TextColor3 = Color3.fromRGB(235, 235, 245)
+gemsToggle.Text = "Auto Gems: OFF"
+gemsToggle.Parent = gemsFrame
+Instance.new("UICorner", gemsToggle).CornerRadius = UDim.new(0, 10)
+
+local gemsToggleStroke = Instance.new("UIStroke")
+gemsToggleStroke.Thickness = 1.5
+gemsToggleStroke.Color = Color3.fromRGB(160, 190, 255)
+gemsToggleStroke.Transparency = 0.6
+gemsToggleStroke.Parent = gemsToggle
+
+local gemsStatusLabel = Instance.new("TextLabel")
+gemsStatusLabel.BackgroundTransparency = 1
+gemsStatusLabel.Position = UDim2.new(0, 12, 0, 118)
+gemsStatusLabel.Size = UDim2.new(1, -24, 0, 18)
+gemsStatusLabel.Font = Enum.Font.Gotham
+gemsStatusLabel.TextSize = 13
+gemsStatusLabel.TextXAlignment = Enum.TextXAlignment.Left
+gemsStatusLabel.TextColor3 = Color3.fromRGB(190, 190, 210)
+gemsStatusLabel.Text = "Status: Off"
+gemsStatusLabel.Parent = gemsFrame
+
+local gemsBossLabel = Instance.new("TextLabel")
+gemsBossLabel.BackgroundTransparency = 1
+gemsBossLabel.Position = UDim2.new(0, 12, 0, 144)
+gemsBossLabel.Size = UDim2.new(1, -24, 0, 18)
+gemsBossLabel.Font = Enum.Font.GothamBold
+gemsBossLabel.TextSize = 14
+gemsBossLabel.TextXAlignment = Enum.TextXAlignment.Left
+gemsBossLabel.TextColor3 = Color3.fromRGB(220, 220, 240)
+gemsBossLabel.Text = "Boss priority (multi-select)"
+gemsBossLabel.Parent = gemsFrame
+
+local gemsBossSelectedLabel = Instance.new("TextLabel")
+gemsBossSelectedLabel.BackgroundTransparency = 1
+gemsBossSelectedLabel.Position = UDim2.new(0, 12, 0, 166)
+gemsBossSelectedLabel.Size = UDim2.new(1, -24, 0, 18)
+gemsBossSelectedLabel.Font = Enum.Font.Gotham
+gemsBossSelectedLabel.TextSize = 13
+gemsBossSelectedLabel.TextXAlignment = Enum.TextXAlignment.Left
+gemsBossSelectedLabel.TextColor3 = Color3.fromRGB(190, 190, 210)
+gemsBossSelectedLabel.Text = "Selected Bosses: (none)"
+gemsBossSelectedLabel.Parent = gemsFrame
+
+local gemsBossList = Instance.new("ScrollingFrame")
+gemsBossList.Position = UDim2.new(0, 12, 0, 192)
+gemsBossList.Size = UDim2.new(0.6, -18, 1, -204)
+gemsBossList.BackgroundColor3 = Color3.fromRGB(24, 24, 32)
+gemsBossList.BorderSizePixel = 0
+gemsBossList.ScrollBarThickness = 6
+gemsBossList.CanvasSize = UDim2.new(0, 0, 0, 0)
+gemsBossList.Parent = gemsFrame
+Instance.new("UICorner", gemsBossList).CornerRadius = UDim.new(0, 10)
+
+local gemsBossLayout = Instance.new("UIListLayout")
+gemsBossLayout.Padding = UDim.new(0, 4)
+gemsBossLayout.Parent = gemsBossList
+
+local autoGemsEnabled = false
+local selectedGemBoss = {}  -- [index] = true/false
+
+local function setGemsStatus(text)
+	gemsStatusLabel.Text = "Status: " .. text
+end
+
+local function updateGemsBossSelectedLabel()
+	local names = {}
+	for i, b in ipairs(gemBosses) do
+		if selectedGemBoss[i] then
+			table.insert(names, b.DisplayName)
+		end
+	end
+
+	if #names == 0 then
+		gemsBossSelectedLabel.Text = "Selected Bosses: (none)"
+	else
+		local shown = {}
+		for i = 1, math.min(3, #names) do
+			table.insert(shown, names[i])
+		end
+		local extra = #names - #shown
+		local txt = "Selected Bosses: " .. table.concat(shown, ", ")
+		if extra > 0 then
+			txt = txt .. " +" .. tostring(extra)
+		end
+		gemsBossSelectedLabel.Text = txt
+	end
+end
+
+local function rebuildGemsBossList()
+	for _, c in ipairs(gemsBossList:GetChildren()) do
+		if c:IsA("TextButton") or c:IsA("Frame") then
+			c:Destroy()
+		end
+	end
+
+	local y = 0
+	for i, b in ipairs(gemBosses) do
+		local btn = Instance.new("TextButton")
+		btn.Size = UDim2.new(1, -6, 0, 26)
+		btn.BackgroundColor3 = Color3.fromRGB(40, 40, 52)
+		btn.BorderSizePixel = 0
+		btn.Font = Enum.Font.GothamSemibold
+		btn.TextSize = 13
+		btn.TextXAlignment = Enum.TextXAlignment.Left
+		btn.TextColor3 = Color3.fromRGB(230, 230, 245)
+		btn.Text = "  " .. b.DisplayName
+		btn.Parent = gemsBossList
+		Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
+
+		local glow = Instance.new("UIStroke")
+		glow.Thickness = 1.4
+		glow.Color = Color3.fromRGB(160, 190, 255)
+		glow.Transparency = 0.7
+		glow.Parent = btn
+
+		local selected = selectedGemBoss[i] == true
+		if selected then
+			btn.BackgroundColor3 = Color3.fromRGB(72, 95, 150)
+			glow.Transparency = 0.2
+		end
+
+		btn.MouseButton1Click:Connect(function()
+			selectedGemBoss[i] = not selectedGemBoss[i]
+			updateGemsBossSelectedLabel()
+			rebuildGemsBossList()
+		end)
+
+		y = y + 30
+	end
+
+	gemsBossList.CanvasSize = UDim2.new(0, 0, 0, math.max(y, gemsBossList.AbsoluteSize.Y))
+end
+
+local function updateGemsToggleButton()
+	local on = autoGemsEnabled
+	gemsToggle.Text = on and "Auto Gems: ON" or "Auto Gems: OFF"
+	local goalColor = on and Color3.fromRGB(80, 140, 100) or Color3.fromRGB(50, 60, 90)
+	local goalTr = on and 0.1 or 0.6
+	TweenService:Create(gemsToggle, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		BackgroundColor3 = goalColor
+	}):Play()
+	TweenService:Create(gemsToggleStroke, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		Transparency = goalTr
+	}):Play()
+end
+
+gemsToggle.MouseButton1Click:Connect(function()
+	autoGemsEnabled = not autoGemsEnabled
+	updateGemsToggleButton()
+
+	if autoGemsEnabled then
+		-- Turn off other auto modes to avoid fighting
+		if autoFarmEnabled then
+			autoFarmEnabled = false
+			updateAutoFarmButton()
+		end
+		if autoQuestEnabled then
+			autoQuestEnabled = false
+			updateAutoQuestButton()
+		end
+
+		-- Make sure attack + follow are on for auto farm behavior
+		if not attackEnabled then
+			attackEnabled = true
+			updateAttackButton()
+		end
+		if not enabled then
+			enabled = true
+			_G.__CFOLLOW_ENABLED_FLAG = true
+			enableBtn.Text = "Enabled: ON"
+			if humanoid and prevAutoRotate == nil then
+				prevAutoRotate = humanoid.AutoRotate
+			end
+			if humanoid then
+				humanoid.AutoRotate = false
+			end
+			ensureStabilizers()
+			startMove()
+			startNoclip()
+			captureAndSetNoclip(true)
+			if goalPart and hrp then
+				goalPart.CFrame = hrp.CFrame
+			end
+		end
+
+		setGemsStatus("Hollows (waiting for bosses)")
+	else
+		setGemsStatus("Off")
+
+		if attackEnabled then
+			attackEnabled = false
+			updateAttackButton()
+		end
+		if enabled then
+			enabled = false
+			_G.__CFOLLOW_ENABLED_FLAG = false
+			enableBtn.Text = "Enabled: OFF"
+			stopMove()
+			stopNoclip()
+			removeStabilizers()
+			if humanoid and prevAutoRotate ~= nil then
+				humanoid.AutoRotate = prevAutoRotate
+			end
+		end
+	end
+end)
+
+-- helper: find closest alive instance of any selected boss
+local function findAnySelectedBoss()
+	if not hrp then return nil, nil end
+	local myPos = hrp.Position
+	local bestInst, bestInfo, bestD = nil, nil, math.huge
+
+	for i, b in ipairs(gemBosses) do
+		if selectedGemBoss[i] then
+			for _, child in ipairs(FOLDER_PATH:GetChildren()) do
+				if baseName(child.Name) == b.GroupName and not targetIsDead(child) then
+					local cf = getPivotCFrame(child)
+					if cf then
+						local d = dist(myPos, cf.Position)
+						if d < bestD then
+							bestD = d
+							bestInst = child
+							bestInfo = b
+						end
+					end
+				end
+			end
+		end
+	end
+
+	return bestInst, bestInfo
+end
+
+-- Gems loop: hollow quest + boss priority (multi-selection)
+task.spawn(function()
+	local hollowQuestIndex = 11 -- Hollows entry in quests table
+	local hollowCfg = autoLevelConfig[#autoLevelConfig]
+
+	while true do
+		if autoGemsEnabled then
+			local bossInst, bossInfo = findAnySelectedBoss()
+
+			if bossInst then
+				selectedGroups = {}
+				selectedGroups[baseName(bossInst.Name)] = true
+				currentTarget = bossInst
+				updateSelectedLabel()
+				rebuildListUI()
+
+				if bossInfo and bossInfo.DisplayName then
+					setGemsStatus("Boss: " .. bossInfo.DisplayName)
+				else
+					setGemsStatus("Boss: (unknown)")
+				end
+			else
+				-- Hollow mode + auto quest
+				selectedGroups = {}
+				if hollowCfg and hollowCfg.npcGroupCandidates then
+					for _, cand in ipairs(hollowCfg.npcGroupCandidates) do
+						if groups[cand] then
+							selectedGroups[cand] = true
+						end
+					end
+				end
+				currentTarget = nil
+				updateSelectedLabel()
+				rebuildListUI()
+
+				-- Set quest selection to Hollows for UI
+				if selectedQuestIndex ~= hollowQuestIndex then
+					selectedQuestIndex = hollowQuestIndex
+					updateQuestSelectedLabel()
+					rebuildQuestList()
+				end
+
+				local q = quests[hollowQuestIndex]
+				if q then
+					local args = {
+						[1] = q.Arg,
+					}
+					pcall(function()
+						QuestRemote:FireServer(unpack(args))
+					end)
+				end
+
+				setGemsStatus("Hollows (with quest)")
+			end
+
+			task.wait(0.5)
+		else
+			task.wait(0.2)
 		end
 	end
 end)
@@ -2013,6 +2359,7 @@ local function setTab(tab)
 	local isMain     = (tab == "Main")
 	local isFarming  = (tab == "Farming")
 	local isSkills   = (tab == "Skills")
+	local isGems     = (tab == "Gems")
 	local isTeleport = (tab == "Teleport")
 
 	for _, inst in ipairs(mainWidgets) do
@@ -2020,6 +2367,7 @@ local function setTab(tab)
 	end
 	farmingFrame.Visible  = isFarming
 	skillsFrame.Visible   = isSkills
+	gemsFrame.Visible     = isGems
 	teleportFrame.Visible = isTeleport
 
 	title.Text = tab
@@ -2036,6 +2384,7 @@ local function setTab(tab)
 	styleTab(tabMainBtn,     tabMainStroke,     isMain)
 	styleTab(tabFarmBtn,     tabFarmStroke,     isFarming)
 	styleTab(tabSkillBtn,    tabSkillStroke,    isSkills)
+	styleTab(tabGemsBtn,     tabGemsStroke,     isGems)
 	styleTab(tabTeleportBtn, tabTeleportStroke, isTeleport)
 end
 
@@ -2049,6 +2398,10 @@ end)
 
 tabSkillBtn.MouseButton1Click:Connect(function()
 	setTab("Skills")
+end)
+
+tabGemsBtn.MouseButton1Click:Connect(function()
+	setTab("Gems")
 end)
 
 tabTeleportBtn.MouseButton1Click:Connect(function()
@@ -2074,6 +2427,11 @@ task.defer(function()
 	rebuildWeaponListUI()
 	updateAutoEquipToggleButton()
 
+	rebuildGemsBossList()
+	updateGemsBossSelectedLabel()
+	setGemsStatus("Off")
+	updateGemsToggleButton()
+
 	rebuildTpQuestListUI()
 	rebuildPlayerListUI()
 
@@ -2090,9 +2448,12 @@ task.spawn(function()
 		rebuildGroups()
 		rebuildListUI()
 		updateSelectedLabel()
+
 		rebuildWeaponNames()
 		rebuildWeaponListUI()
+
 		rebuildPlayerListUI()
+
 		task.wait(UI_REFRESH_INTERVAL)
 	end
 end)
