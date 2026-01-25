@@ -2583,3 +2583,20 @@ task.spawn(function()
 		task.wait(UI_REFRESH_INTERVAL)
 	end
 end)
+
+
+
+
+local guiVisible = true  -- track current state
+
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+	-- don't trigger while typing in chat / menus
+	if gameProcessed then return end  
+
+	if input.KeyCode == Enum.KeyCode.L then
+		guiVisible = not guiVisible
+		gui.Enabled = guiVisible      -- hides/shows the whole GUI
+		-- if you only want to hide the window, use:
+		-- mainFrame.Visible = guiVisible
+	end
+end)
