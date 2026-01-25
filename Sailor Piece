@@ -1,4 +1,4 @@
----// StarterPlayerScripts > LocalScript
+--// StarterPlayerScripts > LocalScript
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -23,19 +23,96 @@ local QuestRemote = ReplicatedStorage
 	:WaitForChild("RemoteEvents", 9e9)
 	:WaitForChild("QuestAccept", 9e9)
 
--- Quest list
+-- Ability remote (Skills tab)
+local AbilityRemote = ReplicatedStorage
+	:WaitForChild("AbilitySystem", 9e9)
+	:WaitForChild("Remotes", 9e9)
+	:WaitForChild("RequestAbility", 9e9)
+
+-- Quest list (UI text only; Arg is what remote uses)
 local quests = {
-	{ DisplayName = "Theivs (Lv. 1–99)",				   Arg = "QuestNPC1"  },
-	{ DisplayName = "Theiv Boss (Lv. 100–249)",		   Arg = "QuestNPC2"  },
-	{ DisplayName = "Monkeys (Lv. 250–499)",			   Arg = "QuestNPC3"  },
-	{ DisplayName = "Monkey Boss (Lv. 500–749)",		   Arg = "QuestNPC4"  },
-	{ DisplayName = "Desert Bandits (Lv. 750–999)",	   Arg = "QuestNPC5"  },
+	{ DisplayName = "Theivs (Lv. 1–99)",				    Arg = "QuestNPC1"  },
+	{ DisplayName = "Theiv Boss (Lv. 100–249)",		    Arg = "QuestNPC2"  },
+	{ DisplayName = "Monkeys (Lv. 250–499)",			    Arg = "QuestNPC3"  },
+	{ DisplayName = "Monkey Boss (Lv. 500–749)",		    Arg = "QuestNPC4"  },
+	{ DisplayName = "Desert Bandits (Lv. 750–999)",	    Arg = "QuestNPC5"  },
 	{ DisplayName = "Desert Bandit Boss (Lv. 1000–1499)", Arg = "QuestNPC6"  },
-	{ DisplayName = "Frost Rouge (Lv. 1500–1999)",		   Arg = "QuestNPC7"  },
-	{ DisplayName = "Winter Warden Boss (Lv. 2000–2999)", Arg = "QuestNPC8"  },
-	{ DisplayName = "Sorcerer Students (Lv. 3000–3999)",  Arg = "QuestNPC9"  },
+	{ DisplayName = "Frost Rouge (Lv. 1500–1999)",	    Arg = "QuestNPC7"  },
+	{ DisplayName = "Winter Warden Boss (Lv. 2000–2999)",Arg = "QuestNPC8"  },
+	{ DisplayName = "Sorcerer Students (Lv. 3000–3999)", Arg = "QuestNPC9"  },
 	{ DisplayName = "Panda Sorcerer Boss (Lv. 4000–5000)",Arg = "QuestNPC10" },
-	{ DisplayName = "Hollows (Lv. 5000–6250)",			   Arg = "QuestNPC11" },
+	{ DisplayName = "Hollows (Lv. 5000–6250)",		    Arg = "QuestNPC11" },
+}
+
+-- Auto-level config: level ranges -> quest index + NPC group candidates
+-- npcGroupCandidates MUST match the group names shown in the Main tab list.
+local autoLevelConfig = {
+	{
+		minLevel = 1,
+		maxLevel = 99,
+		questIndex = 1, -- Theivs
+		npcGroupCandidates = {"Theiv", "Theivs", "Thief", "Thieves"},
+	},
+	{
+		minLevel = 100,
+		maxLevel = 249,
+		questIndex = 2, -- Theiv Boss
+		npcGroupCandidates = {"TheivBoss", "ThiefBoss", "Theiv Boss"},
+	},
+	{
+		minLevel = 250,
+		maxLevel = 499,
+		questIndex = 3, -- Monkeys
+		npcGroupCandidates = {"Monkey", "Monkeys"},
+	},
+	{
+		minLevel = 500,
+		maxLevel = 749,
+		questIndex = 4, -- Monkey Boss
+		npcGroupCandidates = {"MonkeyBoss", "Monkey Boss"},
+	},
+	{
+		minLevel = 750,
+		maxLevel = 999,
+		questIndex = 5, -- Desert Bandits
+		npcGroupCandidates = {"DesertBandit", "Desert Bandit"},
+	},
+	{
+		minLevel = 1000,
+		maxLevel = 1499,
+		questIndex = 6, -- Desert Bandit Boss
+		npcGroupCandidates = {"DesertBanditBoss", "Desert Bandit Boss"},
+	},
+	{
+		minLevel = 1500,
+		maxLevel = 1999,
+		questIndex = 7, -- Frost Rouge
+		npcGroupCandidates = {"FrostRouge", "Frost Rouge"},
+	},
+	{
+		minLevel = 2000,
+		maxLevel = 2999,
+		questIndex = 8, -- Winter Warden Boss
+		npcGroupCandidates = {"WinterWarden", "Winter Warden"},
+	},
+	{
+		minLevel = 3000,
+		maxLevel = 3999,
+		questIndex = 9, -- Sorcerer Students
+		npcGroupCandidates = {"SorcererStudent", "Sorcerer Students"},
+	},
+	{
+		minLevel = 4000,
+		maxLevel = 5000,
+		questIndex = 10, -- Panda Sorcerer Boss
+		npcGroupCandidates = {"PandaSorcerer", "Panda Sorcerer"},
+	},
+	{
+		minLevel = 5000,
+		maxLevel = 6250,
+		questIndex = 11, -- Hollows
+		npcGroupCandidates = {"Hollow", "Hollows"},
+	},
 }
 
 local SAFETY_REFRESH_INTERVAL = 1.0
@@ -120,11 +197,30 @@ end
 local character
 local hrp
 local humanoid
+local prevAutoRotate
+
+local function stopNoclip() end
+local function removeStabilizers() end
 
 local function bindCharacter(c)
 	character = c
 	hrp = c:WaitForChild("HumanoidRootPart", 10)
 	humanoid = c:WaitForChild("Humanoid", 10)
+
+	if humanoid then
+		humanoid.Died:Connect(function()
+			-- When you die, stop physics stuff; GUI + toggles stay
+			stopNoclip()
+			removeStabilizers()
+		end)
+
+		if _G.__CFOLLOW_ENABLED_FLAG then
+			if prevAutoRotate == nil then
+				prevAutoRotate = humanoid.AutoRotate
+			end
+			humanoid.AutoRotate = false
+		end
+	end
 end
 
 LocalPlayer.CharacterAdded:Connect(bindCharacter)
@@ -230,6 +326,8 @@ end
 ---------------------------------------------------------------------
 
 local enabled = false
+_G.__CFOLLOW_ENABLED_FLAG = false
+
 local positionMode = "Above"  -- "Above", "Below", "Behind"
 local distanceAmount = 6      -- slider 1–12
 local REACQUIRE_EVERY = 0.35
@@ -266,7 +364,6 @@ local alignOri
 local attHRP
 local attGoal
 local goalPart
-local prevAutoRotate
 
 local function ensureStabilizers()
 	if not (hrp and humanoid) then
@@ -320,7 +417,7 @@ local function ensureStabilizers()
 	alignOri.Parent = hrp
 end
 
-local function removeStabilizers()
+function removeStabilizers()
 	if goalPart then
 		goalPart:Destroy()
 		goalPart = nil
@@ -380,25 +477,13 @@ local function startNoclip()
 	end)
 end
 
-local function stopNoclip()
+function stopNoclip()
 	if noclipConn then
 		noclipConn:Disconnect()
 		noclipConn = nil
 	end
 	captureAndSetNoclip(false)
 end
-
-LocalPlayer.CharacterAdded:Connect(function()
-	task.wait(0.1)
-	if enabled then
-		ensureStabilizers()
-		startNoclip()
-		captureAndSetNoclip(true)
-		if humanoid then
-			humanoid.AutoRotate = false
-		end
-	end
-end)
 
 ---------------------------------------------------------------------
 -- Movement loop
@@ -483,7 +568,7 @@ gui.ResetOnSpawn = false
 gui.Parent = LocalPlayer:WaitForChild("PlayerGui")
 
 local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 480, 0, 360)
+mainFrame.Size = UDim2.new(0, 520, 0, 360)
 mainFrame.Position = UDim2.new(0, 30, 0, 140)
 mainFrame.BackgroundColor3 = Color3.fromRGB(22, 22, 28)
 mainFrame.BorderSizePixel = 0
@@ -569,8 +654,10 @@ local function makeTabButton(text, pos)
 	return b, stroke
 end
 
-local tabMainBtn, tabMainStroke = makeTabButton("Main",    UDim2.new(1, -200, 0.5, -13))
-local tabFarmBtn, tabFarmStroke = makeTabButton("Farming", UDim2.new(1, -100, 0.5, -13))
+-- 3 tabs: Main, Farming, Skills (from left to right)
+local tabMainBtn,  tabMainStroke  = makeTabButton("Main",    UDim2.new(1, -290, 0.5, -13))
+local tabFarmBtn,  tabFarmStroke  = makeTabButton("Farming", UDim2.new(1, -190, 0.5, -13))
+local tabSkillBtn, tabSkillStroke = makeTabButton("Skills",  UDim2.new(1, -90,  0.5, -13))
 
 ---------------------------------------------------------------------
 -- Main tab widgets
@@ -593,7 +680,7 @@ end
 
 local enableBtn = makeBtn("Enabled: OFF", UDim2.new(0, 12, 0, 56), UDim2.new(0, 160, 0, 34))
 local modeBtn   = makeBtn("Mode: Above",  UDim2.new(0, 184, 0, 56), UDim2.new(0, 150, 0, 34))
-local clearBtn  = makeBtn("Clear",        UDim2.new(0, 344, 0, 56), UDim2.new(0, 124, 0, 34))
+local clearBtn  = makeBtn("Clear",        UDim2.new(0, 344, 0, 56), UDim2.new(0, 160, 0, 34))
 
 local selectedLabel = Instance.new("TextLabel")
 selectedLabel.BackgroundTransparency = 1
@@ -847,6 +934,7 @@ end
 
 enableBtn.MouseButton1Click:Connect(function()
 	enabled = not enabled
+	_G.__CFOLLOW_ENABLED_FLAG = enabled
 	enableBtn.Text = enabled and "Enabled: ON" or "Enabled: OFF"
 
 	if humanoid and prevAutoRotate == nil then
@@ -894,7 +982,7 @@ clearBtn.MouseButton1Click:Connect(function()
 end)
 
 ---------------------------------------------------------------------
--- Farming tab (Attack + Quests)
+-- Farming tab (Attack + Quests + Auto Farm Level)
 ---------------------------------------------------------------------
 
 local farmingFrame = Instance.new("Frame")
@@ -927,13 +1015,13 @@ farmDesc.TextXAlignment = Enum.TextXAlignment.Left
 farmDesc.TextYAlignment = Enum.TextYAlignment.Top
 farmDesc.TextWrapped = true
 farmDesc.TextColor3 = Color3.fromRGB(190, 190, 210)
-farmDesc.Text = "Toggle Attack fires RequestHit every 0.01s. Turn OFF if you lag."
+farmDesc.Text = "Toggle Attack = RequestHit spam. Auto Quest = quest spam. Auto Farm Level = auto pick quest + NPC by your level."
 farmDesc.Parent = farmingFrame
 
 -- Toggle Attack
 
 local attackToggle = Instance.new("TextButton")
-attackToggle.Size = UDim2.new(0, 200, 0, 36)
+attackToggle.Size = UDim2.new(0, 220, 0, 36)
 attackToggle.Position = UDim2.new(0, 12, 0, 86)
 attackToggle.BackgroundColor3 = Color3.fromRGB(50, 60, 90)
 attackToggle.BorderSizePixel = 0
@@ -1024,6 +1112,7 @@ questLayout.Parent = questList
 
 local selectedQuestIndex = nil
 local autoQuestEnabled = false
+local autoFarmEnabled = false
 
 local function updateQuestSelectedLabel()
 	if not selectedQuestIndex then
@@ -1160,8 +1249,7 @@ autoQuestToggle.MouseButton1Click:Connect(function()
 	updateAutoQuestButton()
 end)
 
--- Auto-run selected quest every 0.5s only if toggle is ON
-
+-- Auto Quest loop
 task.spawn(function()
 	while true do
 		if autoQuestEnabled and selectedQuestIndex then
@@ -1172,6 +1260,288 @@ task.spawn(function()
 				}
 				pcall(function()
 					QuestRemote:FireServer(unpack(args))
+				end)
+			end
+			task.wait(0.5)
+		else
+			task.wait(0.1)
+		end
+	end
+end)
+
+-- Auto Farm Level toggle
+
+local autoFarmToggle = Instance.new("TextButton")
+autoFarmToggle.Size = UDim2.new(0.35, -10, 0, 32)
+autoFarmToggle.Position = UDim2.new(0.63, 0, 0, 262)
+autoFarmToggle.BackgroundColor3 = Color3.fromRGB(50, 60, 90)
+autoFarmToggle.BorderSizePixel = 0
+autoFarmToggle.Font = Enum.Font.GothamSemibold
+autoFarmToggle.TextSize = 13
+autoFarmToggle.TextColor3 = Color3.fromRGB(235, 235, 245)
+autoFarmToggle.Text = "Auto Farm Level: OFF"
+autoFarmToggle.Parent = farmingFrame
+Instance.new("UICorner", autoFarmToggle).CornerRadius = UDim.new(0, 10)
+
+local autoFarmStroke = Instance.new("UIStroke")
+autoFarmStroke.Thickness = 1.5
+autoFarmStroke.Color = Color3.fromRGB(160, 190, 255)
+autoFarmStroke.Transparency = 0.6
+autoFarmStroke.Parent = autoFarmToggle
+
+local function updateAutoFarmButton()
+	local on = autoFarmEnabled
+	autoFarmToggle.Text = on and "Auto Farm Level: ON" or "Auto Farm Level: OFF"
+	local goalColor = on and Color3.fromRGB(80, 140, 100) or Color3.fromRGB(50, 60, 90)
+	local goalTr = on and 0.1 or 0.6
+	TweenService:Create(autoFarmToggle, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		BackgroundColor3 = goalColor
+	}):Play()
+	TweenService:Create(autoFarmStroke, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		Transparency = goalTr
+	}):Play()
+end
+
+autoFarmToggle.MouseButton1Click:Connect(function()
+	autoFarmEnabled = not autoFarmEnabled
+	updateAutoFarmButton()
+
+	if autoFarmEnabled then
+		-- Turn everything ON to fully AFK farm
+		if not attackEnabled then
+			attackEnabled = true
+			updateAttackButton()
+		end
+		if not autoQuestEnabled then
+			autoQuestEnabled = true
+			updateAutoQuestButton()
+		end
+		if not enabled then
+			enabled = true
+			_G.__CFOLLOW_ENABLED_FLAG = true
+			enableBtn.Text = "Enabled: ON"
+			if humanoid and prevAutoRotate == nil then
+				prevAutoRotate = humanoid.AutoRotate
+			end
+			if humanoid then
+				humanoid.AutoRotate = false
+			end
+			ensureStabilizers()
+			startMove()
+			startNoclip()
+			captureAndSetNoclip(true)
+			if goalPart and hrp then
+				goalPart.CFrame = hrp.CFrame
+			end
+		end
+	else
+		-- Turn EVERYTHING back OFF when Auto Farm Level is turned off
+		if attackEnabled then
+			attackEnabled = false
+			updateAttackButton()
+		end
+		if autoQuestEnabled then
+			autoQuestEnabled = false
+			updateAutoQuestButton()
+		end
+		if enabled then
+			enabled = false
+			_G.__CFOLLOW_ENABLED_FLAG = false
+			enableBtn.Text = "Enabled: OFF"
+			stopMove()
+			stopNoclip()
+			removeStabilizers()
+			if humanoid and prevAutoRotate ~= nil then
+				humanoid.AutoRotate = prevAutoRotate
+			end
+		end
+	end
+end)
+
+-- Helper: get the player's level from Data.Level
+local function getPlayerLevel()
+	local ok, level = pcall(function()
+		local dataFolder = LocalPlayer:FindFirstChild("Data") or LocalPlayer:WaitForChild("Data", 5)
+		if not dataFolder then return 0 end
+		local lv = dataFolder:FindFirstChild("Level")
+		if not lv then return 0 end
+		return tonumber(lv.Value) or 0
+	end)
+	if ok and level then
+		return level
+	end
+	return 0
+end
+
+-- Auto Farm Level loop
+task.spawn(function()
+	while true do
+		if autoFarmEnabled then
+			local level = getPlayerLevel()
+			if level > 0 then
+				local chosen = nil
+
+				for _, entry in ipairs(autoLevelConfig) do
+					if level >= entry.minLevel and level <= entry.maxLevel then
+						chosen = entry
+						break
+					end
+				end
+
+				if chosen then
+					-- Set quest
+					if selectedQuestIndex ~= chosen.questIndex then
+						selectedQuestIndex = chosen.questIndex
+						updateQuestSelectedLabel()
+						rebuildQuestList()
+					end
+
+					-- Select matching NPC groups
+					selectedGroups = {}
+					currentTarget = nil
+
+					if chosen.npcGroupCandidates then
+						for _, cand in ipairs(chosen.npcGroupCandidates) do
+							if groups[cand] then
+								selectedGroups[cand] = true
+							end
+						end
+					end
+
+					updateSelectedLabel()
+					rebuildListUI()
+				end
+			end
+			task.wait(1)
+		else
+			task.wait(0.2)
+		end
+	end
+end)
+
+---------------------------------------------------------------------
+-- Skills tab (auto abilities Z/X/C/V)
+---------------------------------------------------------------------
+
+local skillsFrame = Instance.new("Frame")
+skillsFrame.Position = UDim2.new(0, 12, 0, 56)
+skillsFrame.Size = UDim2.new(1, -24, 1, -68)
+skillsFrame.BackgroundColor3 = Color3.fromRGB(28, 28, 36)
+skillsFrame.BorderSizePixel = 0
+skillsFrame.Visible = false
+skillsFrame.Parent = mainFrame
+Instance.new("UICorner", skillsFrame).CornerRadius = UDim.new(0, 12)
+
+local skillTitle = Instance.new("TextLabel")
+skillTitle.BackgroundTransparency = 1
+skillTitle.Position = UDim2.new(0, 12, 0, 10)
+skillTitle.Size = UDim2.new(1, -24, 0, 24)
+skillTitle.Font = Enum.Font.GothamBold
+skillTitle.TextSize = 16
+skillTitle.TextXAlignment = Enum.TextXAlignment.Left
+skillTitle.TextColor3 = Color3.fromRGB(230, 230, 245)
+skillTitle.Text = "Auto Skills"
+skillTitle.Parent = skillsFrame
+
+local skillDesc = Instance.new("TextLabel")
+skillDesc.BackgroundTransparency = 1
+skillDesc.Position = UDim2.new(0, 12, 0, 36)
+skillDesc.Size = UDim2.new(1, -24, 0, 40)
+skillDesc.Font = Enum.Font.Gotham
+skillDesc.TextSize = 13
+skillDesc.TextXAlignment = Enum.TextXAlignment.Left
+skillDesc.TextYAlignment = Enum.TextYAlignment.Top
+skillDesc.TextWrapped = true
+skillDesc.TextColor3 = Color3.fromRGB(190, 190, 210)
+skillDesc.Text = "Each toggle will spam its ability every 0.5s: Z=1, X=2, C=3, V=4."
+skillDesc.Parent = skillsFrame
+
+local function makeSkillToggle(labelText, keyName, posY)
+	local btn = Instance.new("TextButton")
+	btn.Size = UDim2.new(0, 240, 0, 32)
+	btn.Position = UDim2.new(0, 12, 0, posY)
+	btn.BackgroundColor3 = Color3.fromRGB(50, 60, 90)
+	btn.BorderSizePixel = 0
+	btn.Font = Enum.Font.GothamSemibold
+	btn.TextSize = 13
+	btn.TextColor3 = Color3.fromRGB(235, 235, 245)
+	btn.Text = keyName .. " (" .. labelText .. "): OFF"
+	btn.Parent = skillsFrame
+	Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 10)
+
+	local stroke = Instance.new("UIStroke")
+	stroke.Thickness = 1.5
+	stroke.Color = Color3.fromRGB(160, 190, 255)
+	stroke.Transparency = 0.6
+	stroke.Parent = btn
+
+	return btn, stroke
+end
+
+local skillZEnabled = false
+local skillXEnabled = false
+local skillCEnabled = false
+local skillVEnabled = false
+
+local zBtn, zStroke = makeSkillToggle("Ability 1", "Z", 86)
+local xBtn, xStroke = makeSkillToggle("Ability 2", "X", 126)
+local cBtn, cStroke = makeSkillToggle("Ability 3", "C", 166)
+local vBtn, vStroke = makeSkillToggle("Ability 4", "V", 206)
+
+local function styleSkill(btn, stroke, on, labelText, keyName)
+	btn.Text = keyName .. " (" .. labelText .. "): " .. (on and "ON" or "OFF")
+	local goalColor = on and Color3.fromRGB(80, 140, 100) or Color3.fromRGB(50, 60, 90)
+	local goalTr = on and 0.1 or 0.6
+	TweenService:Create(btn, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		BackgroundColor3 = goalColor
+	}):Play()
+	TweenService:Create(stroke, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		Transparency = goalTr
+	}):Play()
+end
+
+zBtn.MouseButton1Click:Connect(function()
+	skillZEnabled = not skillZEnabled
+	styleSkill(zBtn, zStroke, skillZEnabled, "Ability 1", "Z")
+end)
+
+xBtn.MouseButton1Click:Connect(function()
+	skillXEnabled = not skillXEnabled
+	styleSkill(xBtn, xStroke, skillXEnabled, "Ability 2", "X")
+end)
+
+cBtn.MouseButton1Click:Connect(function()
+	skillCEnabled = not skillCEnabled
+	styleSkill(cBtn, cStroke, skillCEnabled, "Ability 3", "C")
+end)
+
+vBtn.MouseButton1Click:Connect(function()
+	skillVEnabled = not skillVEnabled
+	styleSkill(vBtn, vStroke, skillVEnabled, "Ability 4", "V")
+end)
+
+-- Skills loop: spam each enabled skill every 0.5 seconds
+task.spawn(function()
+	while true do
+		if skillZEnabled or skillXEnabled or skillCEnabled or skillVEnabled then
+			if skillZEnabled then
+				pcall(function()
+					AbilityRemote:FireServer(1)
+				end)
+			end
+			if skillXEnabled then
+				pcall(function()
+					AbilityRemote:FireServer(2)
+				end)
+			end
+			if skillCEnabled then
+				pcall(function()
+					AbilityRemote:FireServer(3)
+				end)
+			end
+			if skillVEnabled then
+				pcall(function()
+					AbilityRemote:FireServer(4)
 				end)
 			end
 			task.wait(0.5)
@@ -1199,28 +1569,29 @@ local mainWidgets = {
 local function setTab(tab)
 	currentTab = tab
 	local isMain = (tab == "Main")
+	local isFarming = (tab == "Farming")
+	local isSkills = (tab == "Skills")
 
 	for _, inst in ipairs(mainWidgets) do
 		inst.Visible = isMain
 	end
-	farmingFrame.Visible = not isMain
+	farmingFrame.Visible = isFarming
+	skillsFrame.Visible = isSkills
 
 	title.Text = tab
 
-	TweenService:Create(tabMainBtn, TweenInfo.new(0.12), {
-		BackgroundColor3 = isMain and Color3.fromRGB(70, 80, 120) or Color3.fromRGB(40, 40, 52)
-	}):Play()
-	TweenService:Create(tabMainStroke, TweenInfo.new(0.12), {
-		Transparency = isMain and 0.3 or 0.7
-	}):Play()
+	local function styleTab(btn, stroke, active)
+		TweenService:Create(btn, TweenInfo.new(0.12), {
+			BackgroundColor3 = active and Color3.fromRGB(70, 80, 120) or Color3.fromRGB(40, 40, 52)
+		}):Play()
+		TweenService:Create(stroke, TweenInfo.new(0.12), {
+			Transparency = active and 0.3 or 0.7
+		}):Play()
+	end
 
-	local farmSelected = not isMain
-	TweenService:Create(tabFarmBtn, TweenInfo.new(0.12), {
-		BackgroundColor3 = farmSelected and Color3.fromRGB(70, 80, 120) or Color3.fromRGB(40, 40, 52)
-	}):Play()
-	TweenService:Create(tabFarmStroke, TweenInfo.new(0.12), {
-		Transparency = farmSelected and 0.3 or 0.7
-	}):Play()
+	styleTab(tabMainBtn,  tabMainStroke,  isMain)
+	styleTab(tabFarmBtn,  tabFarmStroke,  isFarming)
+	styleTab(tabSkillBtn, tabSkillStroke, isSkills)
 end
 
 tabMainBtn.MouseButton1Click:Connect(function()
@@ -1229,6 +1600,10 @@ end)
 
 tabFarmBtn.MouseButton1Click:Connect(function()
 	setTab("Farming")
+end)
+
+tabSkillBtn.MouseButton1Click:Connect(function()
+	setTab("Skills")
 end)
 
 ---------------------------------------------------------------------
@@ -1244,6 +1619,12 @@ task.defer(function()
 	rebuildQuestList()
 	updateQuestSelectedLabel()
 	updateAutoQuestButton()
+	updateAutoFarmButton()
+
+	styleSkill(zBtn, zStroke, skillZEnabled, "Ability 1", "Z")
+	styleSkill(xBtn, xStroke, skillXEnabled, "Ability 2", "X")
+	styleSkill(cBtn, cStroke, skillCEnabled, "Ability 3", "C")
+	styleSkill(vBtn, vStroke, skillVEnabled, "Ability 4", "V")
 
 	setTab("Main")
 end)
