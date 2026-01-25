@@ -1,4 +1,4 @@
---// StarterPlayerScripts > LocalScript
+---// StarterPlayerScripts > LocalScript
 --// Smooth follow (Above/Below/Behind), persistent multi-select, auto-refresh,
 --// noclip, stable orientation, pretty UI slider, auto-skip dead NPCs,
 --// and second tab "Farming" with Toggle Attack remote spam.
