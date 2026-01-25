@@ -1,4 +1,4 @@
-------// StarterPlayerScripts > LocalScript
+--// StarterPlayerScripts > LocalScript
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -31,17 +31,17 @@ local AbilityRemote = ReplicatedStorage
 
 -- Quest list (UI text only; Arg is what remote uses)
 local quests = {
-	{ DisplayName = "Theivs (Lv. 1–99)",				    Arg = "QuestNPC1"  },
-	{ DisplayName = "Theiv Boss (Lv. 100–249)",		    Arg = "QuestNPC2"  },
-	{ DisplayName = "Monkeys (Lv. 250–499)",			    Arg = "QuestNPC3"  },
-	{ DisplayName = "Monkey Boss (Lv. 500–749)",		    Arg = "QuestNPC4"  },
-	{ DisplayName = "Desert Bandits (Lv. 750–999)",	    Arg = "QuestNPC5"  },
-	{ DisplayName = "Desert Bandit Boss (Lv. 1000–1499)", Arg = "QuestNPC6"  },
-	{ DisplayName = "Frost Rouge (Lv. 1500–1999)",	    Arg = "QuestNPC7"  },
-	{ DisplayName = "Winter Warden Boss (Lv. 2000–2999)",Arg = "QuestNPC8"  },
-	{ DisplayName = "Sorcerer Students (Lv. 3000–3999)", Arg = "QuestNPC9"  },
+	{ DisplayName = "Theivs (Lv. 1–99)",				     Arg = "QuestNPC1"  },
+	{ DisplayName = "Theiv Boss (Lv. 100–249)",		     Arg = "QuestNPC2"  },
+	{ DisplayName = "Monkeys (Lv. 250–499)",			     Arg = "QuestNPC3"  },
+	{ DisplayName = "Monkey Boss (Lv. 500–749)",		     Arg = "QuestNPC4"  },
+	{ DisplayName = "Desert Bandits (Lv. 750–999)",	     Arg = "QuestNPC5"  },
+	{ DisplayName = "Desert Bandit Boss (Lv. 1000–1499)",  Arg = "QuestNPC6"  },
+	{ DisplayName = "Frost Rouge (Lv. 1500–1999)",	     Arg = "QuestNPC7"  },
+	{ DisplayName = "Winter Warden Boss (Lv. 2000–2999)", Arg = "QuestNPC8"  },
+	{ DisplayName = "Sorcerer Students (Lv. 3000–3999)",  Arg = "QuestNPC9"  },
 	{ DisplayName = "Panda Sorcerer Boss (Lv. 4000–5000)",Arg = "QuestNPC10" },
-	{ DisplayName = "Hollows (Lv. 5000–6250)",		    Arg = "QuestNPC11" },
+	{ DisplayName = "Hollows (Lv. 5000–6250)",		     Arg = "QuestNPC11" },
 }
 
 -- Auto-level config: level ranges -> quest index + NPC group candidates
@@ -600,6 +600,35 @@ local function hasAnySelectedWeapon()
 end
 
 ---------------------------------------------------------------------
+-- Teleport helpers
+---------------------------------------------------------------------
+
+local function teleportToCFrame(cf)
+	if not cf then return end
+	local char = LocalPlayer.Character
+	if not char then return end
+	local root = char:FindFirstChild("HumanoidRootPart")
+	if not root then return end
+
+	root.CFrame = cf
+	root.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+	root.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+
+	if goalPart then
+		goalPart.CFrame = cf
+	end
+end
+
+local function findQuestNPCByArg(argName)
+	for _, inst in ipairs(workspace:GetDescendants()) do
+		if inst.Name == argName and (inst:IsA("Model") or inst:IsA("BasePart")) then
+			return inst
+		end
+	end
+	return nil
+end
+
+---------------------------------------------------------------------
 -- UI root + tabs
 ---------------------------------------------------------------------
 
@@ -695,10 +724,11 @@ local function makeTabButton(text, pos)
 	return b, stroke
 end
 
--- 3 tabs: Main, Farming, Skills
-local tabMainBtn,  tabMainStroke  = makeTabButton("Main",    UDim2.new(1, -290, 0.5, -13))
-local tabFarmBtn,  tabFarmStroke  = makeTabButton("Farming", UDim2.new(1, -190, 0.5, -13))
-local tabSkillBtn, tabSkillStroke = makeTabButton("Skills",  UDim2.new(1, -90,  0.5, -13))
+-- 4 tabs: Main, Farming, Skills, Teleport
+local tabMainBtn,     tabMainStroke     = makeTabButton("Main",     UDim2.new(1, -360, 0.5, -13))
+local tabFarmBtn,     tabFarmStroke     = makeTabButton("Farming",  UDim2.new(1, -270, 0.5, -13))
+local tabSkillBtn,    tabSkillStroke    = makeTabButton("Skills",   UDim2.new(1, -180, 0.5, -13))
+local tabTeleportBtn, tabTeleportStroke = makeTabButton("Teleport", UDim2.new(1, -90,  0.5, -13))
 
 ---------------------------------------------------------------------
 -- Main tab widgets
@@ -1604,16 +1634,16 @@ weaponPanel.BorderSizePixel = 0
 weaponPanel.Parent = skillsFrame
 Instance.new("UICorner", weaponPanel).CornerRadius = UDim.new(0, 10)
 
-local weaponTitle = Instance.new("TextLabel")
-weaponTitle.BackgroundTransparency = 1
-weaponTitle.Position = UDim2.new(0, 10, 0, 6)
-weaponTitle.Size = UDim2.new(1, -20, 0, 20)
-weaponTitle.Font = Enum.Font.GothamBold
-weaponTitle.TextSize = 14
-weaponTitle.TextXAlignment = Enum.TextXAlignment.Left
-weaponTitle.TextColor3 = Color3.fromRGB(220, 220, 240)
-weaponTitle.Text = "Auto Equip Weapons"
-weaponTitle.Parent = weaponPanel
+local weaponTitleLabel = Instance.new("TextLabel")
+weaponTitleLabel.BackgroundTransparency = 1
+weaponTitleLabel.Position = UDim2.new(0, 10, 0, 6)
+weaponTitleLabel.Size = UDim2.new(1, -20, 0, 20)
+weaponTitleLabel.Font = Enum.Font.GothamBold
+weaponTitleLabel.TextSize = 14
+weaponTitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+weaponTitleLabel.TextColor3 = Color3.fromRGB(220, 220, 240)
+weaponTitleLabel.Text = "Auto Equip Weapons"
+weaponTitleLabel.Parent = weaponPanel
 
 local weaponRefreshBtn = Instance.new("TextButton")
 weaponRefreshBtn.Size = UDim2.new(0, 70, 0, 22)
@@ -1781,6 +1811,189 @@ task.spawn(function()
 end)
 
 ---------------------------------------------------------------------
+-- Teleport tab: Quest NPC teleports + Player teleports
+---------------------------------------------------------------------
+
+local teleportFrame = Instance.new("Frame")
+teleportFrame.Position = UDim2.new(0, 12, 0, 56)
+teleportFrame.Size = UDim2.new(1, -24, 1, -68)
+teleportFrame.BackgroundColor3 = Color3.fromRGB(28, 28, 36)
+teleportFrame.BorderSizePixel = 0
+teleportFrame.Visible = false
+teleportFrame.Parent = mainFrame
+Instance.new("UICorner", teleportFrame).CornerRadius = UDim.new(0, 12)
+
+local tpTitle = Instance.new("TextLabel")
+tpTitle.BackgroundTransparency = 1
+tpTitle.Position = UDim2.new(0, 12, 0, 10)
+tpTitle.Size = UDim2.new(1, -24, 0, 24)
+tpTitle.Font = Enum.Font.GothamBold
+tpTitle.TextSize = 16
+tpTitle.TextXAlignment = Enum.TextXAlignment.Left
+tpTitle.TextColor3 = Color3.fromRGB(230, 230, 245)
+tpTitle.Text = "Teleport"
+tpTitle.Parent = teleportFrame
+
+local tpDesc = Instance.new("TextLabel")
+tpDesc.BackgroundTransparency = 1
+tpDesc.Position = UDim2.new(0, 12, 0, 36)
+tpDesc.Size = UDim2.new(1, -24, 0, 40)
+tpDesc.Font = Enum.Font.Gotham
+tpDesc.TextSize = 13
+tpDesc.TextXAlignment = Enum.TextXAlignment.Left
+tpDesc.TextYAlignment = Enum.TextYAlignment.Top
+tpDesc.TextWrapped = true
+tpDesc.TextColor3 = Color3.fromRGB(190, 190, 210)
+tpDesc.Text = "Left: Teleport to Quest NPCs. Right: Teleport to other players."
+tpDesc.Parent = teleportFrame
+
+-- Quest NPC teleports (left side)
+
+local tpQuestTitle = Instance.new("TextLabel")
+tpQuestTitle.BackgroundTransparency = 1
+tpQuestTitle.Position = UDim2.new(0, 12, 0, 76)
+tpQuestTitle.Size = UDim2.new(0.5, -18, 0, 18)
+tpQuestTitle.Font = Enum.Font.GothamBold
+tpQuestTitle.TextSize = 14
+tpQuestTitle.TextXAlignment = Enum.TextXAlignment.Left
+tpQuestTitle.TextColor3 = Color3.fromRGB(220, 220, 240)
+tpQuestTitle.Text = "Quest NPCs"
+tpQuestTitle.Parent = teleportFrame
+
+local tpQuestList = Instance.new("ScrollingFrame")
+tpQuestList.Position = UDim2.new(0, 12, 0, 98)
+tpQuestList.Size = UDim2.new(0.5, -18, 1, -110)
+tpQuestList.BackgroundColor3 = Color3.fromRGB(24, 24, 32)
+tpQuestList.BorderSizePixel = 0
+tpQuestList.ScrollBarThickness = 6
+tpQuestList.CanvasSize = UDim2.new(0, 0, 0, 0)
+tpQuestList.Parent = teleportFrame
+Instance.new("UICorner", tpQuestList).CornerRadius = UDim.new(0, 10)
+
+local tpQuestLayout = Instance.new("UIListLayout")
+tpQuestLayout.Padding = UDim.new(0, 4)
+tpQuestLayout.Parent = tpQuestList
+
+local function rebuildTpQuestListUI()
+	for _, c in ipairs(tpQuestList:GetChildren()) do
+		if c:IsA("TextButton") or c:IsA("Frame") then
+			c:Destroy()
+		end
+	end
+
+	local y = 0
+	for _, q in ipairs(quests) do
+		local btn = Instance.new("TextButton")
+		btn.Size = UDim2.new(1, -6, 0, 26)
+		btn.BackgroundColor3 = Color3.fromRGB(40, 40, 52)
+		btn.BorderSizePixel = 0
+		btn.Font = Enum.Font.GothamSemibold
+		btn.TextSize = 13
+		btn.TextXAlignment = Enum.TextXAlignment.Left
+		btn.TextColor3 = Color3.fromRGB(230, 230, 245)
+		btn.Text = "  TP: " .. q.DisplayName
+		btn.Parent = tpQuestList
+		Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
+
+		local glow = Instance.new("UIStroke")
+		glow.Thickness = 1.4
+		glow.Color = Color3.fromRGB(160, 190, 255)
+		glow.Transparency = 0.6
+		glow.Parent = btn
+
+		btn.MouseButton1Click:Connect(function()
+			local npc = findQuestNPCByArg(q.Arg)
+			if npc then
+				local cf = getPivotCFrame(npc)
+				if cf then
+					teleportToCFrame(cf * CFrame.new(0, 4, 0))
+				end
+			end
+		end)
+
+		y = y + 30
+	end
+
+	tpQuestList.CanvasSize = UDim2.new(0, 0, 0, math.max(y, tpQuestList.AbsoluteSize.Y))
+end
+
+-- Player teleports (right side)
+
+local tpPlayerTitle = Instance.new("TextLabel")
+tpPlayerTitle.BackgroundTransparency = 1
+tpPlayerTitle.Position = UDim2.new(0.5, 6, 0, 76)
+tpPlayerTitle.Size = UDim2.new(0.5, -18, 0, 18)
+tpPlayerTitle.Font = Enum.Font.GothamBold
+tpPlayerTitle.TextSize = 14
+tpPlayerTitle.TextXAlignment = Enum.TextXAlignment.Left
+tpPlayerTitle.TextColor3 = Color3.fromRGB(220, 220, 240)
+tpPlayerTitle.Text = "Players"
+tpPlayerTitle.Parent = teleportFrame
+
+local tpPlayerList = Instance.new("ScrollingFrame")
+tpPlayerList.Position = UDim2.new(0.5, 6, 0, 98)
+tpPlayerList.Size = UDim2.new(0.5, -18, 1, -110)
+tpPlayerList.BackgroundColor3 = Color3.fromRGB(24, 24, 32)
+tpPlayerList.BorderSizePixel = 0
+tpPlayerList.ScrollBarThickness = 6
+tpPlayerList.CanvasSize = UDim2.new(0, 0, 0, 0)
+tpPlayerList.Parent = teleportFrame
+Instance.new("UICorner", tpPlayerList).CornerRadius = UDim.new(0, 10)
+
+local tpPlayerLayout = Instance.new("UIListLayout")
+tpPlayerLayout.Padding = UDim.new(0, 4)
+tpPlayerLayout.Parent = tpPlayerList
+
+local function rebuildPlayerListUI()
+	for _, c in ipairs(tpPlayerList:GetChildren()) do
+		if c:IsA("TextButton") or c:IsA("Frame") then
+			c:Destroy()
+		end
+	end
+
+	local y = 0
+	for _, plr in ipairs(Players:GetPlayers()) do
+		if plr ~= LocalPlayer then
+			local btn = Instance.new("TextButton")
+			btn.Size = UDim2.new(1, -6, 0, 26)
+			btn.BackgroundColor3 = Color3.fromRGB(40, 40, 52)
+			btn.BorderSizePixel = 0
+			btn.Font = Enum.Font.GothamSemibold
+			btn.TextSize = 13
+			btn.TextXAlignment = Enum.TextXAlignment.Left
+			btn.TextColor3 = Color3.fromRGB(230, 230, 245)
+			btn.Text = "  TP to: " .. (plr.DisplayName or plr.Name)
+			btn.Parent = tpPlayerList
+			Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
+
+			local glow = Instance.new("UIStroke")
+			glow.Thickness = 1.4
+			glow.Color = Color3.fromRGB(160, 190, 255)
+			glow.Transparency = 0.6
+			glow.Parent = btn
+
+			btn.MouseButton1Click:Connect(function()
+				local char = plr.Character
+				if char then
+					local targetRoot = char:FindFirstChild("HumanoidRootPart")
+					if targetRoot then
+						local cf = targetRoot.CFrame * CFrame.new(0, 4, 0)
+						teleportToCFrame(cf)
+					end
+				end
+			end)
+
+			y = y + 30
+		end
+	end
+
+	tpPlayerList.CanvasSize = UDim2.new(0, 0, 0, math.max(y, tpPlayerList.AbsoluteSize.Y))
+end
+
+Players.PlayerAdded:Connect(rebuildPlayerListUI)
+Players.PlayerRemoving:Connect(rebuildPlayerListUI)
+
+---------------------------------------------------------------------
 -- Tabs logic
 ---------------------------------------------------------------------
 
@@ -1797,15 +2010,17 @@ local mainWidgets = {
 
 local function setTab(tab)
 	currentTab = tab
-	local isMain = (tab == "Main")
-	local isFarming = (tab == "Farming")
-	local isSkills = (tab == "Skills")
+	local isMain     = (tab == "Main")
+	local isFarming  = (tab == "Farming")
+	local isSkills   = (tab == "Skills")
+	local isTeleport = (tab == "Teleport")
 
 	for _, inst in ipairs(mainWidgets) do
 		inst.Visible = isMain
 	end
-	farmingFrame.Visible = isFarming
-	skillsFrame.Visible = isSkills
+	farmingFrame.Visible  = isFarming
+	skillsFrame.Visible   = isSkills
+	teleportFrame.Visible = isTeleport
 
 	title.Text = tab
 
@@ -1818,9 +2033,10 @@ local function setTab(tab)
 		}):Play()
 	end
 
-	styleTab(tabMainBtn,  tabMainStroke,  isMain)
-	styleTab(tabFarmBtn,  tabFarmStroke,  isFarming)
-	styleTab(tabSkillBtn, tabSkillStroke, isSkills)
+	styleTab(tabMainBtn,     tabMainStroke,     isMain)
+	styleTab(tabFarmBtn,     tabFarmStroke,     isFarming)
+	styleTab(tabSkillBtn,    tabSkillStroke,    isSkills)
+	styleTab(tabTeleportBtn, tabTeleportStroke, isTeleport)
 end
 
 tabMainBtn.MouseButton1Click:Connect(function()
@@ -1833,6 +2049,10 @@ end)
 
 tabSkillBtn.MouseButton1Click:Connect(function()
 	setTab("Skills")
+end)
+
+tabTeleportBtn.MouseButton1Click:Connect(function()
+	setTab("Teleport")
 end)
 
 ---------------------------------------------------------------------
@@ -1854,6 +2074,9 @@ task.defer(function()
 	rebuildWeaponListUI()
 	updateAutoEquipToggleButton()
 
+	rebuildTpQuestListUI()
+	rebuildPlayerListUI()
+
 	styleSkill(zBtn, zStroke, skillZEnabled, "Ability 1", "Z")
 	styleSkill(xBtn, xStroke, skillXEnabled, "Ability 2", "X")
 	styleSkill(cBtn, cStroke, skillCEnabled, "Ability 3", "C")
@@ -1869,6 +2092,7 @@ task.spawn(function()
 		updateSelectedLabel()
 		rebuildWeaponNames()
 		rebuildWeaponListUI()
+		rebuildPlayerListUI()
 		task.wait(UI_REFRESH_INTERVAL)
 	end
 end)
