@@ -12,15 +12,16 @@ local buyRemote = Events:WaitForChild("buy", 9e9)
 local sellRemote = Events:WaitForChild("sell", 9e9)
 local eggRemote = Events:WaitForChild("RegularPet", 9e9)
 
-local rollRemote = Players
-    :WaitForChild("CrimsonsMoons", 9e9)
-    :WaitForChild("PlayerGui", 9e9)
-    :WaitForChild("Main", 9e9)
-    :WaitForChild("Dice", 9e9)
-    :WaitForChild("RollState", 9e9)
+-- ✅ FIX: Get RollState from LOCAL player's PlayerGui
+local rollRemote = player
+	:WaitForChild("PlayerGui", 9e9)
+	:WaitForChild("Main", 9e9)
+	:WaitForChild("Dice", 9e9)
+	:WaitForChild("RollState", 9e9)
 
 local character = player.Character or player.CharacterAdded:Wait()
 local hrp = character:WaitForChild("HumanoidRootPart")
+
 
 -- =========================
 -- STATE
