@@ -1,0 +1,265 @@
+-- Super Fling GUI with Camera Lock, Ultra Fast Orbit, Target Details, and Enhancements
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local LocalPlayer = Players.LocalPlayer
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+local Camera = workspace.CurrentCamera
+
+-- GUI Setup
+local screenGui = Instance.new("ScreenGui", PlayerGui)
+screenGui.Name = "FlingOrbitGUI"
+screenGui.ResetOnSpawn = false
+
+local mainFrame = Instance.new("Frame", screenGui)
+mainFrame.Size = UDim2.new(0, 260, 0, 360)
+mainFrame.Position = UDim2.new(0, 10, 0.4, 0)
+mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 8)
+
+local toggleBtn = Instance.new("TextButton", mainFrame)
+toggleBtn.Size = UDim2.new(1, -20, 0, 40)
+toggleBtn.Position = UDim2.new(0, 10, 0, 10)
+toggleBtn.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
+toggleBtn.Text = "Start Fling"
+toggleBtn.TextColor3 = Color3.new(1, 1, 1)
+toggleBtn.Font = Enum.Font.SourceSansBold
+toggleBtn.TextSize = 16
+
+local dropdownLabel = Instance.new("TextLabel", mainFrame)
+dropdownLabel.Size = UDim2.new(1, -20, 0, 20)
+dropdownLabel.Position = UDim2.new(0, 10, 0, 60)
+dropdownLabel.Text = "Select Player:"
+dropdownLabel.TextColor3 = Color3.new(1, 1, 1)
+dropdownLabel.BackgroundTransparency = 1
+dropdownLabel.Font = Enum.Font.SourceSans
+dropdownLabel.TextSize = 14
+dropdownLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+local playerDropdown = Instance.new("TextButton", mainFrame)
+playerDropdown.Size = UDim2.new(1, -20, 0, 30)
+playerDropdown.Position = UDim2.new(0, 10, 0, 85)
+playerDropdown.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+playerDropdown.Text = "Select Player"
+playerDropdown.TextColor3 = Color3.new(1, 1, 1)
+playerDropdown.Font = Enum.Font.SourceSans
+playerDropdown.TextSize = 14
+
+local dropdownFrame = Instance.new("ScrollingFrame", mainFrame)
+dropdownFrame.Size = UDim2.new(1, -20, 0, 80)
+dropdownFrame.Position = UDim2.new(0, 10, 0, 115)
+dropdownFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+dropdownFrame.Visible = false
+dropdownFrame.ScrollBarThickness = 6
+dropdownFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+dropdownFrame.ClipsDescendants = true
+
+local layout = Instance.new("UIListLayout", dropdownFrame)
+layout.SortOrder = Enum.SortOrder.LayoutOrder
+layout.Padding = UDim.new(0, 2)
+
+local autoRefreshToggle = Instance.new("TextButton", mainFrame)
+autoRefreshToggle.Size = UDim2.new(1, -20, 0, 20)
+autoRefreshToggle.Position = UDim2.new(0, 10, 0, 200)
+autoRefreshToggle.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+autoRefreshToggle.Text = "Auto Refresh: ON"
+autoRefreshToggle.TextColor3 = Color3.new(1, 1, 1)
+autoRefreshToggle.Font = Enum.Font.SourceSans
+autoRefreshToggle.TextSize = 14
+
+local speedSlider = Instance.new("TextBox", mainFrame)
+speedSlider.Size = UDim2.new(1, -20, 0, 20)
+speedSlider.Position = UDim2.new(0, 10, 0, 225)
+speedSlider.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+speedSlider.Text = "1500"
+speedSlider.TextColor3 = Color3.new(1, 1, 1)
+speedSlider.Font = Enum.Font.SourceSans
+speedSlider.TextSize = 14
+speedSlider.ClearTextOnFocus = false
+
+local statusLabel = Instance.new("TextLabel", mainFrame)
+statusLabel.Size = UDim2.new(1, -20, 0, 20)
+statusLabel.Position = UDim2.new(0, 10, 0, 250)
+statusLabel.Text = "Status: Idle"
+statusLabel.TextColor3 = Color3.new(1, 1, 1)
+statusLabel.BackgroundTransparency = 1
+statusLabel.Font = Enum.Font.SourceSans
+statusLabel.TextSize = 14
+statusLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+local detailsLabel = Instance.new("TextLabel", mainFrame)
+detailsLabel.Size = UDim2.new(1, -20, 0, 20)
+detailsLabel.Position = UDim2.new(0, 10, 0, 270)
+detailsLabel.Text = "Distance: N/A"
+detailsLabel.TextColor3 = Color3.new(1, 1, 1)
+detailsLabel.BackgroundTransparency = 1
+detailsLabel.Font = Enum.Font.SourceSans
+detailsLabel.TextSize = 14
+detailsLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+local cameraLockToggle = Instance.new("TextButton", mainFrame)
+cameraLockToggle.Size = UDim2.new(1, -20, 0, 20)
+cameraLockToggle.Position = UDim2.new(0, 10, 0, 290)
+cameraLockToggle.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+cameraLockToggle.Text = "Camera Lock: OFF"
+cameraLockToggle.TextColor3 = Color3.new(1, 1, 1)
+cameraLockToggle.Font = Enum.Font.SourceSans
+cameraLockToggle.TextSize = 14
+
+local resetBtn = Instance.new("TextButton", mainFrame)
+resetBtn.Size = UDim2.new(1, -20, 0, 20)
+resetBtn.Position = UDim2.new(0, 10, 0, 315)
+resetBtn.BackgroundColor3 = Color3.fromRGB(255, 60, 60)
+resetBtn.Text = "Reset"
+resetBtn.TextColor3 = Color3.new(1, 1, 1)
+resetBtn.Font = Enum.Font.SourceSansBold
+resetBtn.TextSize = 14
+
+-- Dragging GUI
+local dragging = false
+local dragInput, dragStart, startPos
+
+mainFrame.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 then
+		dragging = true
+		dragStart = input.Position
+		startPos = mainFrame.Position
+		input.Changed:Connect(function()
+			if input.UserInputState == Enum.UserInputState.End then
+				dragging = false
+			end
+		end)
+	end
+end)
+
+mainFrame.InputChanged:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseMovement then
+		dragInput = input
+	end
+end)
+
+RunService.RenderStepped:Connect(function()
+	if dragging and dragInput then
+		local delta = dragInput.Position - dragStart
+		mainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+	end
+end)
+
+-- Dropdown and Selection
+playerDropdown.MouseButton1Click:Connect(function()
+	dropdownFrame.Visible = not dropdownFrame.Visible
+end)
+
+local autoRefresh = true
+autoRefreshToggle.MouseButton1Click:Connect(function()
+	autoRefresh = not autoRefresh
+	autoRefreshToggle.Text = "Auto Refresh: " .. (autoRefresh and "ON" or "OFF")
+end)
+
+resetBtn.MouseButton1Click:Connect(function()
+	screenGui:Destroy()
+end)
+
+local selectedPlayer = nil
+local function refreshDropdown()
+	for _, child in ipairs(dropdownFrame:GetChildren()) do
+		if child:IsA("TextButton") then child:Destroy() end
+	end
+	for _, player in ipairs(Players:GetPlayers()) do
+		if player ~= LocalPlayer then
+			local btn = Instance.new("TextButton")
+			btn.Size = UDim2.new(1, 0, 0, 24)
+			btn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+			btn.Text = player.Name
+			btn.TextColor3 = Color3.new(1, 1, 1)
+			btn.Font = Enum.Font.SourceSans
+			btn.TextSize = 14
+			btn.Parent = dropdownFrame
+			btn.MouseButton1Click:Connect(function()
+				playerDropdown.Text = "Target: " .. player.Name
+				selectedPlayer = player
+				dropdownFrame.Visible = false
+			end)
+		end
+	end
+	dropdownFrame.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y)
+end
+
+refreshDropdown()
+if autoRefresh then
+	Players.PlayerAdded:Connect(refreshDropdown)
+	Players.PlayerRemoving:Connect(refreshDropdown)
+end
+
+-- Camera Lock
+local cameraLock = false
+local cameraConn
+cameraLockToggle.MouseButton1Click:Connect(function()
+	cameraLock = not cameraLock
+	cameraLockToggle.Text = "Camera Lock: " .. (cameraLock and "ON" or "OFF")
+	if not cameraLock and cameraConn then
+		cameraConn:Disconnect()
+		cameraConn = nil
+		Camera.CameraSubject = LocalPlayer.Character:FindFirstChild("Humanoid")
+	end
+end)
+
+-- Fling Logic
+local flingConn, charConn
+local function startFling()
+	if not selectedPlayer then
+		statusLabel.Text = "Status: No player selected"
+		return
+	end
+	local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+	local hrp = char:WaitForChild("HumanoidRootPart")
+	statusLabel.Text = "Status: Flinging " .. selectedPlayer.Name
+
+	if cameraLock then
+		cameraConn = RunService.RenderStepped:Connect(function()
+			if selectedPlayer and selectedPlayer.Character then
+				local targetHRP = selectedPlayer.Character:FindFirstChild("HumanoidRootPart")
+				if targetHRP then
+					Camera.CameraSubject = targetHRP
+					Camera.CFrame = CFrame.new(Camera.CFrame.Position, targetHRP.Position)
+				end
+			end
+		end)
+	end
+
+	flingConn = RunService.Heartbeat:Connect(function()
+		if not selectedPlayer or not selectedPlayer.Character then return end
+		local targetHRP = selectedPlayer.Character:FindFirstChild("HumanoidRootPart")
+		if not targetHRP then return end
+		
+		local angleSpeed = tonumber(speedSlider.Text) or 1500
+		local angle = tick() * math.rad(angleSpeed)
+		local offset = Vector3.new(math.cos(angle) * 5, 0, math.sin(angle) * 5)
+		local spin = CFrame.Angles(angle, angle, angle)
+		local newCFrame = CFrame.new(targetHRP.Position + offset) * spin
+		char:PivotTo(newCFrame)
+		hrp.AssemblyAngularVelocity = Vector3.new(9999, 9999, 9999)
+		hrp.AssemblyLinearVelocity = (targetHRP.Position - hrp.Position).Unit * 200
+		Camera.CameraSubject = hrp
+		local distance = (targetHRP.Position - hrp.Position).Magnitude
+		detailsLabel.Text = string.format("Distance: %.1f studs", distance)
+	end)
+
+	charConn = LocalPlayer.CharacterAdded:Connect(startFling)
+end
+
+toggleBtn.MouseButton1Click:Connect(function()
+	if flingConn then
+		flingConn:Disconnect()
+		flingConn = nil
+		if charConn then charConn:Disconnect() end
+		if cameraConn then cameraConn:Disconnect() cameraConn = nil end
+		Camera.CameraSubject = LocalPlayer.Character:FindFirstChild("Humanoid")
+		statusLabel.Text = "Status: Stopped"
+		detailsLabel.Text = "Distance: N/A"
+		toggleBtn.Text = "Start Fling"
+	else
+		startFling()
+		toggleBtn.Text = "Stop Fling"
+	end
+end)
