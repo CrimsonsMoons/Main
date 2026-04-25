@@ -1,0 +1,165 @@
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+
+local LocalPlayer = Players.LocalPlayer
+local LootFolder = workspace:WaitForChild("LootAnchor")
+
+local Enabled = true
+local Radius = 60
+local PullSpeed = 45
+local StopDistance = 3
+local HeightOffset = 2
+
+local function getRoot()
+	local char = LocalPlayer.Character
+	return char and char:FindFirstChild("HumanoidRootPart")
+end
+
+local function getPosition(obj)
+	if obj:IsA("BasePart") then
+		return obj.Position
+	end
+
+	if obj:IsA("Model") then
+		return obj:GetPivot().Position
+	end
+
+	if obj:IsA("Attachment") then
+		return obj.WorldPosition
+	end
+
+	if obj:IsA("Vector3Value") then
+		return obj.Value
+	end
+
+	if obj:IsA("CFrameValue") then
+		return obj.Value.Position
+	end
+
+	return nil
+end
+
+local function moveObject(obj, newPos)
+	if obj:IsA("BasePart") then
+		obj.CanCollide = false
+		obj.AssemblyLinearVelocity = Vector3.zero
+		obj.AssemblyAngularVelocity = Vector3.zero
+		obj.CFrame = CFrame.new(newPos)
+		return
+	end
+
+	if obj:IsA("Model") then
+		obj:PivotTo(CFrame.new(newPos))
+		return
+	end
+
+	if obj:IsA("Attachment") then
+		obj.WorldCFrame = CFrame.new(newPos)
+		return
+	end
+
+	if obj:IsA("Vector3Value") then
+		obj.Value = newPos
+		return
+	end
+
+	if obj:IsA("CFrameValue") then
+		obj.Value = CFrame.new(newPos)
+		return
+	end
+end
+
+local function getRealTarget(obj)
+	if obj:IsA("BasePart") then
+		return obj
+	end
+
+	if obj:IsA("Model") then
+		return obj
+	end
+
+	if obj:IsA("Attachment") then
+		return obj
+	end
+
+	if obj:IsA("Vector3Value") or obj:IsA("CFrameValue") then
+		return obj
+	end
+
+	if obj:IsA("BillboardGui") or obj:IsA("SurfaceGui") then
+		if obj.Adornee then
+			return obj.Adornee
+		end
+
+		if obj.Parent:IsA("Attachment") then
+			return obj.Parent
+		end
+
+		if obj.Parent:IsA("BasePart") then
+			return obj.Parent
+		end
+	end
+
+	if obj:IsA("GuiObject") then
+		local gui = obj:FindFirstAncestorWhichIsA("BillboardGui") or obj:FindFirstAncestorWhichIsA("SurfaceGui")
+		if gui then
+			return getRealTarget(gui)
+		end
+	end
+
+	return nil
+end
+
+local function getLootTargets()
+	local targets = {}
+	local used = {}
+
+	for _, obj in ipairs(LootFolder:GetDescendants()) do
+		local target = getRealTarget(obj)
+
+		if target and not used[target] then
+			used[target] = true
+			table.insert(targets, target)
+		end
+	end
+
+	return targets
+end
+
+task.spawn(function()
+	while task.wait(2) do
+		local targets = getLootTargets()
+		print("[Loot Magnet] Targets found:", #targets)
+
+		for _, target in ipairs(targets) do
+			print(" -", target:GetFullName(), target.ClassName)
+		end
+	end
+end)
+
+RunService.RenderStepped:Connect(function(dt)
+	if not Enabled then return end
+
+	local root = getRoot()
+	if not root then return end
+
+	for _, loot in ipairs(getLootTargets()) do
+		local lootPos = getPosition(loot)
+
+		if lootPos then
+			local distance = (root.Position - lootPos).Magnitude
+
+			if distance <= Radius and distance > StopDistance then
+				local targetPos = root.Position + Vector3.new(0, HeightOffset, 0)
+				local direction = targetPos - lootPos
+
+				if direction.Magnitude > 0.01 then
+					local step = math.min(PullSpeed * dt, direction.Magnitude)
+					local newPos = lootPos + direction.Unit * step
+
+					moveObject(loot, newPos)
+				end
+			end
+		end
+	end
+end)
