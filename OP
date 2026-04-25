@@ -5,7 +5,7 @@ local LocalPlayer = Players.LocalPlayer
 local LootFolder = workspace:WaitForChild("LootAnchor")
 
 local Enabled = true
-local Radius = 60
+local Radius = 100
 local PullSpeed = 45
 local StopDistance = 3
 local HeightOffset = 2
