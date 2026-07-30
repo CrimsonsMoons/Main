@@ -12,6 +12,11 @@
 --   • Auto Farm enemy-name multi-selection
 --   • Persistent Mimic target selection
 --   • Separate enemy and Mimic farm toggles
+--   • Enemy Data tab with last-seen pivots
+--   • Cached-position travel for streamed-out enemies
+--   • Resources tab sourced from Cube Cave CurrentResources
+--   • Search fields on every dropdown
+--   • 220 preloaded last-seen pivots (live search still enabled)
 --   • Auto Block toggle (0.07-second interval)
 --   • Auto Use multiplier dropdown (1x–5x)
 --
@@ -54,6 +59,16 @@ local MainTab = Window:CreateTab({
 
 local MovementTab = Window:CreateTab({
 	name = "Movement",
+})
+
+local EnemyDataTab = Window:CreateTab({
+	name = "Enemy Data",
+	icon = Library.Icons.location,
+})
+
+local ResourcesTab = Window:CreateTab({
+	name = "Resources",
+	icon = Library.Icons.diamond,
 })
 
 --==================================================
@@ -116,6 +131,10 @@ SharedEnvironment.__CrimsonAutoFarmPersistent =
 		SelectedMimics = {},
 		EnemyNames = {},
 		MimicNames = {},
+		SelectedResources = {},
+		ResourceNames = {},
+		PositionRecords = {},
+		NextPositionRecordId = 0,
 	}
 
 local PersistentFarmState =
@@ -145,10 +164,1852 @@ local AutoFarmState = {
 		or {},
 	CurrentTween = nil,
 	CurrentTarget = nil,
+	CurrentCachedRecord = nil,
 }
 
 PersistentFarmState.EnemyNames = AutoFarmState.EnemyNames
 PersistentFarmState.MimicNames = AutoFarmState.MimicNames
+PersistentFarmState.PositionRecords =
+	type(PersistentFarmState.PositionRecords) == "table"
+	and PersistentFarmState.PositionRecords
+	or {}
+PersistentFarmState.NextPositionRecordId =
+	math.max(
+		0,
+		math.floor(
+			tonumber(PersistentFarmState.NextPositionRecordId) or 0
+		)
+	)
+
+
+--==================================================
+-- BUILT-IN ENEMY & MIMIC POSITIONS
+-- Imported from the user's Enemy Data export.
+-- These only seed the cache; the existing live scanner below
+-- continues discovering and updating new enemies automatically.
+--==================================================
+local BUILT_IN_POSITION_RECORDS = {
+	["R00341"] = {
+		Key = "R00341",
+		Area = "StarterArea",
+		Name = "Angry Wasp",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-1248.772583, -321.932739, -82.682350, 0.508212, 0.000000, 0.861232, 0.000000, 1.000000, 0.000000, -0.861232, 0.000000, 0.508212),
+		LastSeenUnix = 0,
+	},
+	["R00346"] = {
+		Key = "R00346",
+		Area = "StarterArea",
+		Name = "Angry Wasp",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-1224.525757, -321.932739, -62.453426, 0.430357, -0.000000, -0.902659, -0.000000, 1.000000, -0.000000, 0.902659, 0.000000, 0.430357),
+		LastSeenUnix = 0,
+	},
+	["R00352"] = {
+		Key = "R00352",
+		Area = "StarterArea",
+		Name = "Angry Wasp",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-920.086853, -351.152100, -376.171204, 0.554826, 0.000000, -0.831967, 0.000000, 1.000000, 0.000000, 0.831967, 0.000000, 0.554826),
+		LastSeenUnix = 0,
+	},
+	["R00354"] = {
+		Key = "R00354",
+		Area = "StarterArea",
+		Name = "Angry Wasp",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-883.614502, -350.932739, -319.983551, -0.336569, -0.000000, -0.941659, -0.000000, 1.000000, 0.000000, 0.941659, 0.000000, -0.336569),
+		LastSeenUnix = 0,
+	},
+	["R00355"] = {
+		Key = "R00355",
+		Area = "StarterArea",
+		Name = "Angry Wasp",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-897.271606, -350.932739, -277.993317, 0.917220, -0.000000, -0.398381, -0.000000, 1.000000, -0.000000, 0.398381, 0.000000, 0.917220),
+		LastSeenUnix = 0,
+	},
+	["R00358"] = {
+		Key = "R00358",
+		Area = "StarterArea",
+		Name = "Angry Wasp",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-909.610168, -350.932739, -339.002350, 0.339395, 0.000000, 0.940644, -0.000000, 1.000000, -0.000000, -0.940644, -0.000000, 0.339395),
+		LastSeenUnix = 0,
+	},
+	["R00368"] = {
+		Key = "R00368",
+		Area = "StarterArea",
+		Name = "Angry Wasp",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-1420.009521, -298.933624, -708.760132, -0.515037, 0.000000, 0.857168, 0.000000, 1.000000, 0.000000, -0.857168, 0.000000, -0.515037),
+		LastSeenUnix = 0,
+	},
+	["R00374"] = {
+		Key = "R00374",
+		Area = "StarterArea",
+		Name = "Angry Wasp",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-1402.249634, -298.932770, -703.220032, 0.292422, 0.000000, -0.956290, 0.000000, 1.000000, 0.000000, 0.956290, 0.000000, 0.292422),
+		LastSeenUnix = 0,
+	},
+	["R00375"] = {
+		Key = "R00375",
+		Area = "StarterArea",
+		Name = "Angry Wasp",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-1394.089600, -298.933289, -676.179871, -0.358378, 0.000000, 0.933577, 0.000000, 1.000000, 0.000000, -0.933577, 0.000000, -0.358378),
+		LastSeenUnix = 0,
+	},
+	["R00225"] = {
+		Key = "R00225",
+		Area = "StarterArea",
+		Name = "Ballzo",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-643.542114, -366.732422, 329.532471, -0.898790, 0.000000, -0.438379, 0.000000, 1.000000, 0.000000, 0.438379, 0.000000, -0.898790),
+		LastSeenUnix = 0,
+	},
+	["R00227"] = {
+		Key = "R00227",
+		Area = "StarterArea",
+		Name = "Ballzo",
+		Kind = "Enemy",
+		CFrame = CFrame.new(47.857765, -366.732422, 383.532471, -0.996192, 0.000000, -0.087188, 0.000000, 1.000000, 0.000000, 0.087188, 0.000000, -0.996192),
+		LastSeenUnix = 0,
+	},
+	["R00230"] = {
+		Key = "R00230",
+		Area = "StarterArea",
+		Name = "Ballzo",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-119.365463, -368.733185, 241.168320, 0.983687, -0.000000, 0.179887, 0.000000, 1.000000, 0.000000, -0.179887, -0.000000, 0.983687),
+		LastSeenUnix = 0,
+	},
+	["R00240"] = {
+		Key = "R00240",
+		Area = "StarterArea",
+		Name = "Ballzo",
+		Kind = "Enemy",
+		CFrame = CFrame.new(316.657898, -357.732422, -156.567627, 0.121902, 0.000000, 0.992542, 0.000000, 1.000000, 0.000000, -0.992542, 0.000000, 0.121902),
+		LastSeenUnix = 0,
+	},
+	["R00262"] = {
+		Key = "R00262",
+		Area = "StarterArea",
+		Name = "Ballzo",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-240.442108, -324.732422, -18.367626, 0.358378, 0.000000, 0.933577, 0.000000, 1.000000, 0.000000, -0.933577, 0.000000, 0.358378),
+		LastSeenUnix = 0,
+	},
+	["R00263"] = {
+		Key = "R00263",
+		Area = "StarterArea",
+		Name = "Ballzo",
+		Kind = "Enemy",
+		CFrame = CFrame.new(394.557892, -357.732422, -34.267628, 0.224960, 0.000000, 0.974368, 0.000000, 1.000000, 0.000000, -0.974368, 0.000000, 0.224960),
+		LastSeenUnix = 0,
+	},
+	["R00292"] = {
+		Key = "R00292",
+		Area = "StarterArea",
+		Name = "Ballzo",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-904.442139, -366.919769, 262.632477, -0.139204, 0.000000, 0.990264, 0.000000, 1.000000, 0.000000, -0.990264, 0.000000, -0.139204),
+		LastSeenUnix = 0,
+	},
+	["R00238"] = {
+		Key = "R00238",
+		Area = "StarterArea",
+		Name = "Ballzo Warrior",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-624.642090, -365.732422, 497.832489, 0.766061, 0.000000, 0.642768, 0.000000, 1.000000, 0.000000, -0.642768, 0.000000, 0.766061),
+		LastSeenUnix = 0,
+	},
+	["R00343"] = {
+		Key = "R00343",
+		Area = "StarterArea",
+		Name = "Big Mushman",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-1763.541992, -312.932281, 69.132301, -0.719358, 0.000000, 0.694639, 0.000000, 1.000000, 0.000000, -0.694639, 0.000000, -0.719358),
+		LastSeenUnix = 0,
+	},
+	["R00356"] = {
+		Key = "R00356",
+		Area = "StarterArea",
+		Name = "Big Mushman",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-2091.842285, -234.932266, -434.167633, 0.390718, 0.000000, -0.920511, 0.000000, 1.000000, 0.000000, 0.920511, 0.000000, 0.390718),
+		LastSeenUnix = 0,
+	},
+	["R00382"] = {
+		Key = "R00382",
+		Area = "StarterArea",
+		Name = "Big Mushman",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-1863.417603, -183.935593, -1067.840210, -0.163844, 0.003530, 0.986480, 0.003064, 0.999991, -0.003069, -0.986481, 0.002519, -0.163853),
+		LastSeenUnix = 0,
+	},
+	["R00236"] = {
+		Key = "R00236",
+		Area = "StarterArea",
+		Name = "Bloom Mimic",
+		Kind = "Mimic",
+		CFrame = CFrame.new(-5.062114, -337.732422, -948.927612, -0.933588, 0.000000, -0.358350, 0.000000, 1.000000, 0.000000, 0.358350, 0.000000, -0.933588),
+		LastSeenUnix = 0,
+	},
+	["R00248"] = {
+		Key = "R00248",
+		Area = "StarterArea",
+		Name = "Bloom Mimic",
+		Kind = "Mimic",
+		CFrame = CFrame.new(276.897888, -329.732422, -523.967651, 0.965930, 0.000000, 0.258805, 0.000000, 1.000000, 0.000000, -0.258805, 0.000000, 0.965930),
+		LastSeenUnix = 0,
+	},
+	["R00442"] = {
+		Key = "R00442",
+		Area = "StarterArea",
+		Name = "Blossom Keeper",
+		Kind = "Enemy",
+		CFrame = CFrame.new(773.198059, -229.446564, -2801.467529, -0.933588, 0.000000, 0.358350, 0.000000, 1.000000, 0.000000, -0.358350, 0.000000, -0.933588),
+		LastSeenUnix = 0,
+	},
+	["R00339"] = {
+		Key = "R00339",
+		Area = "StarterArea",
+		Name = "Bluecapey",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-1976.442261, -238.569504, 187.632370, 0.615635, 0.000000, -0.788032, 0.000000, 1.000000, 0.000000, 0.788032, 0.000000, 0.615635),
+		LastSeenUnix = 0,
+	},
+	["R00344"] = {
+		Key = "R00344",
+		Area = "StarterArea",
+		Name = "Bluecapey",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-1609.342041, -317.569489, 14.332419, -0.325603, 0.000000, 0.945507, 0.000000, 1.000000, 0.000000, -0.945507, 0.000000, -0.325603),
+		LastSeenUnix = 0,
+	},
+	["R00345"] = {
+		Key = "R00345",
+		Area = "StarterArea",
+		Name = "Bluecapey",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-2076.042236, -198.569504, 36.832386, -0.970287, 0.000000, 0.241956, 0.000000, 1.000000, 0.000000, -0.241956, 0.000000, -0.970287),
+		LastSeenUnix = 0,
+	},
+	["R00347"] = {
+		Key = "R00347",
+		Area = "StarterArea",
+		Name = "Bluecapey",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-1871.942017, -317.569489, -132.067627, 0.207886, 0.000000, -0.978153, 0.000000, 1.000000, 0.000000, 0.978153, 0.000000, 0.207886),
+		LastSeenUnix = 0,
+	},
+	["R00349"] = {
+		Key = "R00349",
+		Area = "StarterArea",
+		Name = "Bluecapey",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-2059.342285, -229.569504, -242.067627, -0.069787, 0.000000, -0.997562, 0.000000, 1.000000, 0.000000, 0.997562, 0.000000, -0.069787),
+		LastSeenUnix = 0,
+	},
+	["R00350"] = {
+		Key = "R00350",
+		Area = "StarterArea",
+		Name = "Bluecapey",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-1942.641968, -302.569489, -403.767639, 0.309061, 0.000000, 0.951042, 0.000000, 1.000000, 0.000000, -0.951042, 0.000000, 0.309061),
+		LastSeenUnix = 0,
+	},
+	["R00351"] = {
+		Key = "R00351",
+		Area = "StarterArea",
+		Name = "Bluecapey",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-1788.842163, -318.569489, -329.867615, 0.927179, 0.000000, 0.374618, 0.000000, 1.000000, 0.000000, -0.374618, 0.000000, 0.927179),
+		LastSeenUnix = 0,
+	},
+	["R00353"] = {
+		Key = "R00353",
+		Area = "StarterArea",
+		Name = "Bluecapey",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-1791.842163, -302.569489, -504.967621, 0.743148, 0.000000, -0.669127, 0.000000, 1.000000, 0.000000, 0.669127, 0.000000, 0.743148),
+		LastSeenUnix = 0,
+	},
+	["R00363"] = {
+		Key = "R00363",
+		Area = "StarterArea",
+		Name = "Bluecapey",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-2301.541992, -148.569504, -771.667603, 0.898790, 0.000000, -0.438379, 0.000000, 1.000000, 0.000000, 0.438379, 0.000000, 0.898790),
+		LastSeenUnix = 0,
+	},
+	["R00371"] = {
+		Key = "R00371",
+		Area = "StarterArea",
+		Name = "Bluecapey",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-2132.142334, -164.569504, -596.167725, -0.469467, 0.000000, 0.882950, 0.000000, 1.000000, 0.000000, -0.882950, 0.000000, -0.469467),
+		LastSeenUnix = 0,
+	},
+	["R00381"] = {
+		Key = "R00381",
+		Area = "StarterArea",
+		Name = "Bluecapey",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-2205.425293, -146.582260, -910.925659, 0.977161, -0.001106, -0.212496, 0.006604, 0.999661, 0.025168, 0.212396, -0.025997, 0.976838),
+		LastSeenUnix = 0,
+	},
+	["R00385"] = {
+		Key = "R00385",
+		Area = "StarterArea",
+		Name = "Bluecapey",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-2001.886597, -173.569504, -1028.940186, -0.973655, 0.000000, 0.228026, 0.000000, 1.000000, 0.000000, -0.228026, 0.000000, -0.973655),
+		LastSeenUnix = 0,
+	},
+	["R00408"] = {
+		Key = "R00408",
+		Area = "StarterArea",
+		Name = "Bumblecubee",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-85.442177, -319.732422, -1546.167603, 0.139204, 0.000000, 0.990264, 0.000000, 1.000000, 0.000000, -0.990264, 0.000000, 0.139204),
+		LastSeenUnix = 0,
+	},
+	["R00421"] = {
+		Key = "R00421",
+		Area = "StarterArea",
+		Name = "Bumblecubee",
+		Kind = "Enemy",
+		CFrame = CFrame.new(151.357819, -351.732422, -1536.867676, -0.857152, 0.000000, -0.515064, 0.000000, 1.000000, 0.000000, 0.515064, 0.000000, -0.857152),
+		LastSeenUnix = 0,
+	},
+	["R00425"] = {
+		Key = "R00425",
+		Area = "StarterArea",
+		Name = "Bumblecubee",
+		Kind = "Enemy",
+		CFrame = CFrame.new(356.757812, -351.732422, -1554.467529, -0.642764, 0.000000, -0.766065, 0.000000, 1.000000, 0.000000, 0.766065, 0.000000, -0.642764),
+		LastSeenUnix = 0,
+	},
+	["R00235"] = {
+		Key = "R00235",
+		Area = "StarterArea",
+		Name = "Buney",
+		Kind = "Enemy",
+		CFrame = CFrame.new(438.757812, -352.473328, -979.967651, -0.258864, 0.000000, -0.965914, 0.000000, 1.000000, 0.000000, 0.965914, 0.000000, -0.258864),
+		LastSeenUnix = 0,
+	},
+	["R00250"] = {
+		Key = "R00250",
+		Area = "StarterArea",
+		Name = "Buney",
+		Kind = "Enemy",
+		CFrame = CFrame.new(58.057854, -352.473328, -899.767639, 0.484826, 0.000000, 0.874611, 0.000000, 1.000000, 0.000000, -0.874611, 0.000000, 0.484826),
+		LastSeenUnix = 0,
+	},
+	["R00361"] = {
+		Key = "R00361",
+		Area = "StarterArea",
+		Name = "Buney",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-1396.889648, -353.473572, -765.219849, -0.190846, 0.000000, -0.981620, 0.000000, 1.000000, 0.000000, 0.981620, 0.000000, -0.190846),
+		LastSeenUnix = 0,
+	},
+	["R00366"] = {
+		Key = "R00366",
+		Area = "StarterArea",
+		Name = "Buney",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-1272.889648, -345.473572, -837.719849, 0.719358, 0.000000, -0.694639, 0.000000, 1.000000, 0.000000, 0.694639, 0.000000, 0.719358),
+		LastSeenUnix = 0,
+	},
+	["R00383"] = {
+		Key = "R00383",
+		Area = "StarterArea",
+		Name = "Buney",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-1305.489624, -332.473572, -975.819885, -0.987686, 0.000000, 0.156450, 0.000000, 1.000000, 0.000000, -0.156450, 0.000000, -0.987686),
+		LastSeenUnix = 0,
+	},
+	["R00410"] = {
+		Key = "R00410",
+		Area = "StarterArea",
+		Name = "Buney",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-18.742174, -320.473328, -1818.667603, -0.777146, 0.000000, -0.629321, 0.000000, 1.000000, 0.000000, 0.629321, 0.000000, -0.777146),
+		LastSeenUnix = 0,
+	},
+	["R00317"] = {
+		Key = "R00317",
+		Area = "StarterArea",
+		Name = "Coconut Crab",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-221.240005, -407.099945, 2917.699951, -0.951068, 0.000000, 0.308980, 0.000000, 1.000000, 0.000000, -0.308980, 0.000000, -0.951068),
+		LastSeenUnix = 0,
+	},
+	["R00323"] = {
+		Key = "R00323",
+		Area = "StarterArea",
+		Name = "Coconut Crab",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-603.940002, -414.599945, 2980.649902, 0.945518, 0.000000, -0.325568, 0.000000, 1.000000, 0.000000, 0.325568, 0.000000, 0.945518),
+		LastSeenUnix = 0,
+	},
+	["R00324"] = {
+		Key = "R00324",
+		Area = "StarterArea",
+		Name = "Coconut Crab",
+		Kind = "Enemy",
+		CFrame = CFrame.new(149.619995, -415.099945, 3058.250000, -0.998632, 0.000000, 0.052293, 0.000000, 1.000000, 0.000000, -0.052293, 0.000000, -0.998632),
+		LastSeenUnix = 0,
+	},
+	["R00325"] = {
+		Key = "R00325",
+		Area = "StarterArea",
+		Name = "Coconut Crab",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-383.600006, -427.099945, 3138.800049, -0.241953, 0.000000, 0.970288, 0.000000, 1.000000, 0.000000, -0.970288, 0.000000, -0.241953),
+		LastSeenUnix = 0,
+	},
+	["R00330"] = {
+		Key = "R00330",
+		Area = "StarterArea",
+		Name = "Coconut Crab",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-656.539978, -431.099945, 3221.050049, 0.838689, 0.000000, -0.544611, 0.000000, 1.000000, 0.000000, 0.544611, 0.000000, 0.838689),
+		LastSeenUnix = 0,
+	},
+	["R00443"] = {
+		Key = "R00443",
+		Area = "StarterArea",
+		Name = "Coconut Crab",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-68.720001, -422.599945, 3194.800049, -0.017502, 0.000000, -0.999847, 0.000000, 1.000000, 0.000000, 0.999847, 0.000000, -0.017502),
+		LastSeenUnix = 0,
+	},
+	["R00444"] = {
+		Key = "R00444",
+		Area = "StarterArea",
+		Name = "Coconut Crab",
+		Kind = "Enemy",
+		CFrame = CFrame.new(963.539978, -408.099945, 3168.979980, -0.615635, 0.000000, 0.788032, 0.000000, 1.000000, 0.000000, -0.788032, 0.000000, -0.615635),
+		LastSeenUnix = 0,
+	},
+	["R00228"] = {
+		Key = "R00228",
+		Area = "StarterArea",
+		Name = "Cubee",
+		Kind = "Enemy",
+		CFrame = CFrame.new(73.157852, -351.732422, -1126.667603, -0.913550, 0.000000, -0.406727, 0.000000, 1.000000, 0.000000, 0.406727, 0.000000, -0.913550),
+		LastSeenUnix = 0,
+	},
+	["R00237"] = {
+		Key = "R00237",
+		Area = "StarterArea",
+		Name = "Cubee",
+		Kind = "Enemy",
+		CFrame = CFrame.new(368.957886, -351.732422, -1135.467651, 0.529884, 0.000000, -0.848070, 0.000000, 1.000000, 0.000000, 0.848070, 0.000000, 0.529884),
+		LastSeenUnix = 0,
+	},
+	["R00260"] = {
+		Key = "R00260",
+		Area = "StarterArea",
+		Name = "Cubee",
+		Kind = "Enemy",
+		CFrame = CFrame.new(170.657852, -351.732422, -1032.867676, 0.601814, 0.000000, -0.798637, 0.000000, 1.000000, 0.000000, 0.798637, 0.000000, 0.601814),
+		LastSeenUnix = 0,
+	},
+	["R00409"] = {
+		Key = "R00409",
+		Area = "StarterArea",
+		Name = "Cubee",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-182.442169, -319.732422, -1691.967651, 0.325602, 0.000000, -0.945507, 0.000000, 1.000000, 0.000000, 0.945507, 0.000000, 0.325602),
+		LastSeenUnix = 0,
+	},
+	["R00423"] = {
+		Key = "R00423",
+		Area = "StarterArea",
+		Name = "Cubee",
+		Kind = "Enemy",
+		CFrame = CFrame.new(153.957825, -351.732422, -1767.767578, -0.890995, 0.000000, -0.454013, 0.000000, 1.000000, 0.000000, 0.454013, 0.000000, -0.890995),
+		LastSeenUnix = 0,
+	},
+	["R00232"] = {
+		Key = "R00232",
+		Area = "StarterArea",
+		Name = "Cubey",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-304.542267, -350.732422, -880.267639, -0.358378, 0.000000, 0.933577, 0.000000, 1.000000, 0.000000, -0.933577, 0.000000, -0.358378),
+		LastSeenUnix = 0,
+	},
+	["R00246"] = {
+		Key = "R00246",
+		Area = "StarterArea",
+		Name = "Cubey",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-315.942261, -351.732422, -1049.167603, -0.956295, 0.000000, 0.292405, 0.000000, 1.000000, 0.000000, -0.292405, 0.000000, -0.956295),
+		LastSeenUnix = 0,
+	},
+	["R00249"] = {
+		Key = "R00249",
+		Area = "StarterArea",
+		Name = "Cubey",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-221.642303, -346.732422, -698.267639, -0.920511, 0.000000, -0.390718, 0.000000, 1.000000, 0.000000, 0.390718, 0.000000, -0.920511),
+		LastSeenUnix = 0,
+	},
+	["R00378"] = {
+		Key = "R00378",
+		Area = "StarterArea",
+		Name = "Cubey",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-898.842224, -349.732422, -798.867615, 0.104543, 0.000000, -0.994520, 0.000000, 1.000000, 0.000000, 0.994520, 0.000000, 0.104543),
+		LastSeenUnix = 0,
+	},
+	["R00387"] = {
+		Key = "R00387",
+		Area = "StarterArea",
+		Name = "Cubey",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-1160.342285, -262.732422, -1180.567627, 0.992551, 0.000000, -0.121832, 0.000000, 1.000000, 0.000000, 0.121832, 0.000000, 0.992551),
+		LastSeenUnix = 0,
+	},
+	["R00390"] = {
+		Key = "R00390",
+		Area = "StarterArea",
+		Name = "Cubey",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-1191.742065, -281.732422, -1309.167603, 0.743148, 0.000000, 0.669127, 0.000000, 1.000000, 0.000000, -0.669127, 0.000000, 0.743148),
+		LastSeenUnix = 0,
+	},
+	["R00391"] = {
+		Key = "R00391",
+		Area = "StarterArea",
+		Name = "Cubey",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-1384.640259, -263.732758, -1347.240845, -0.232131, 0.000000, -0.972684, 0.000000, 1.000000, 0.000000, 0.972684, 0.000000, -0.232131),
+		LastSeenUnix = 0,
+	},
+	["R00396"] = {
+		Key = "R00396",
+		Area = "StarterArea",
+		Name = "Cubey",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-1328.042236, -270.732422, -1657.050415, 0.795391, 0.000000, 0.606097, 0.000000, 1.000000, 0.000000, -0.606097, 0.000000, 0.795391),
+		LastSeenUnix = 0,
+	},
+	["R00389"] = {
+		Key = "R00389",
+		Area = "StarterArea",
+		Name = "Cubey Bandit",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-1038.162231, -595.132324, -1297.187622, 0.669110, 0.000000, 0.743163, 0.000000, 1.000000, 0.000000, -0.743163, 0.000000, 0.669110),
+		LastSeenUnix = 0,
+	},
+	["R00388"] = {
+		Key = "R00388",
+		Area = "StarterArea",
+		Name = "Cubey Mage",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-1283.842285, -281.732422, -1231.267578, -0.104543, 0.000000, 0.994520, 0.000000, 1.000000, 0.000000, -0.994520, 0.000000, -0.104543),
+		LastSeenUnix = 0,
+	},
+	["R00394"] = {
+		Key = "R00394",
+		Area = "StarterArea",
+		Name = "Cubey Mage",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-1090.642212, -264.732391, -1548.567627, -0.984813, 0.000000, 0.173621, 0.000000, 1.000000, 0.000000, -0.173621, 0.000000, -0.984813),
+		LastSeenUnix = 0,
+	},
+	["R00397"] = {
+		Key = "R00397",
+		Area = "StarterArea",
+		Name = "Cubey Mage",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-1228.742188, -281.732422, -1608.467651, -0.990270, 0.000000, -0.139157, 0.000000, 1.000000, 0.000000, 0.139157, 0.000000, -0.990270),
+		LastSeenUnix = 0,
+	},
+	["R00359"] = {
+		Key = "R00359",
+		Area = "StarterArea",
+		Name = "Cublin",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-1266.489624, -352.732666, -414.819885, -0.406715, 0.000000, 0.913555, 0.000000, 1.000000, 0.000000, -0.913555, 0.000000, -0.406715),
+		LastSeenUnix = 0,
+	},
+	["R00364"] = {
+		Key = "R00364",
+		Area = "StarterArea",
+		Name = "Cublin",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-1265.789673, -352.732666, -609.519897, 0.087131, 0.000000, 0.996197, 0.000000, 1.000000, 0.000000, -0.996197, 0.000000, 0.087131),
+		LastSeenUnix = 0,
+	},
+	["R00367"] = {
+		Key = "R00367",
+		Area = "StarterArea",
+		Name = "Cublin",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-1485.589600, -352.732666, -560.019897, 0.996192, 0.000000, -0.087188, 0.000000, 1.000000, 0.000000, 0.087188, 0.000000, 0.996192),
+		LastSeenUnix = 0,
+	},
+	["R00340"] = {
+		Key = "R00340",
+		Area = "StarterArea",
+		Name = "Cublin Warrior",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-1122.389648, -352.732666, -154.619873, -0.642764, 0.000000, -0.766065, 0.000000, 1.000000, 0.000000, 0.766065, 0.000000, -0.642764),
+		LastSeenUnix = 0,
+	},
+	["R00348"] = {
+		Key = "R00348",
+		Area = "StarterArea",
+		Name = "Cublin Warrior",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-1268.389648, -352.732666, -227.919876, -0.121902, 0.000000, -0.992542, 0.000000, 1.000000, 0.000000, 0.992542, 0.000000, -0.121902),
+		LastSeenUnix = 0,
+	},
+	["R00376"] = {
+		Key = "R00376",
+		Area = "StarterArea",
+		Name = "Cublin Warrior",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-1544.416748, -352.734680, -722.627747, -0.342057, -0.000000, 0.939679, -0.000000, 1.000000, 0.000000, -0.939679, -0.000000, -0.342057),
+		LastSeenUnix = 0,
+	},
+	["R00377"] = {
+		Key = "R00377",
+		Area = "StarterArea",
+		Name = "Cublin Warrior",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-1527.889648, -352.767426, -771.539856, -0.965772, 0.000000, 0.259394, 0.000000, 1.000000, 0.000000, -0.259394, 0.000000, -0.965772),
+		LastSeenUnix = 0,
+	},
+	["R00379"] = {
+		Key = "R00379",
+		Area = "StarterArea",
+		Name = "Cublin Warrior",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-1434.089600, -352.732666, -869.419861, 0.882952, 0.000000, 0.469464, 0.000000, 1.000000, 0.000000, -0.469464, 0.000000, 0.882952),
+		LastSeenUnix = 0,
+	},
+	["R00365"] = {
+		Key = "R00365",
+		Area = "StarterArea",
+		Name = "Cylindery",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-922.342224, -348.850311, -885.667725, 0.207886, 0.000000, -0.978153, 0.000000, 1.000000, 0.000000, 0.978153, 0.000000, 0.207886),
+		LastSeenUnix = 0,
+	},
+	["R00332"] = {
+		Key = "R00332",
+		Area = "StarterArea",
+		Name = "Eruption Furnace",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-2282.342041, -409.382416, 1813.432373, -0.808998, 0.000000, -0.587812, 0.000000, 1.000000, 0.000000, 0.587812, 0.000000, -0.808998),
+		LastSeenUnix = 0,
+	},
+	["R00241"] = {
+		Key = "R00241",
+		Area = "StarterArea",
+		Name = "Field Mousey",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-774.772217, -352.466675, -647.197632, 0.992551, 0.000000, -0.121832, 0.000000, 1.000000, 0.000000, 0.121832, 0.000000, 0.992551),
+		LastSeenUnix = 0,
+	},
+	["R00256"] = {
+		Key = "R00256",
+		Area = "StarterArea",
+		Name = "Field Mousey",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-266.242279, -352.466675, -582.267639, -0.987686, 0.000000, 0.156450, 0.000000, 1.000000, 0.000000, -0.156450, 0.000000, -0.987686),
+		LastSeenUnix = 0,
+	},
+	["R00372"] = {
+		Key = "R00372",
+		Area = "StarterArea",
+		Name = "Field Mousey",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-896.582214, -352.466675, -654.237610, 0.994518, 0.000000, 0.104565, 0.000000, 1.000000, 0.000000, -0.104565, 0.000000, 0.994518),
+		LastSeenUnix = 0,
+	},
+	["R00258"] = {
+		Key = "R00258",
+		Area = "StarterArea",
+		Name = "Fire Flowey",
+		Kind = "Enemy",
+		CFrame = CFrame.new(365.257843, -349.476532, -873.467651, -0.139204, 0.000000, 0.990264, 0.000000, 1.000000, 0.000000, -0.990264, 0.000000, -0.139204),
+		LastSeenUnix = 0,
+	},
+	["R00426"] = {
+		Key = "R00426",
+		Area = "StarterArea",
+		Name = "Firefly",
+		Kind = "Enemy",
+		CFrame = CFrame.new(809.197998, -391.732391, -2230.117676, 0.587749, 0.000000, -0.809044, 0.000000, 1.000000, 0.000000, 0.809044, 0.000000, 0.587749),
+		LastSeenUnix = 0,
+	},
+	["R00428"] = {
+		Key = "R00428",
+		Area = "StarterArea",
+		Name = "Firefly",
+		Kind = "Enemy",
+		CFrame = CFrame.new(970.398010, -393.732391, -2399.967529, -0.438347, 0.000000, 0.898806, 0.000000, 1.000000, 0.000000, -0.898806, 0.000000, -0.438347),
+		LastSeenUnix = 0,
+	},
+	["R00432"] = {
+		Key = "R00432",
+		Area = "StarterArea",
+		Name = "Firefly",
+		Kind = "Enemy",
+		CFrame = CFrame.new(727.598022, -391.732391, -2569.567627, -0.990270, 0.000000, 0.139157, 0.000000, 1.000000, 0.000000, -0.139157, 0.000000, -0.990270),
+		LastSeenUnix = 0,
+	},
+	["R00441"] = {
+		Key = "R00441",
+		Area = "StarterArea",
+		Name = "Firefly",
+		Kind = "Enemy",
+		CFrame = CFrame.new(761.218018, -393.732391, -2769.117676, -0.987686, 0.000000, 0.156450, 0.000000, 1.000000, 0.000000, -0.156450, 0.000000, -0.987686),
+		LastSeenUnix = 0,
+	},
+	["R00418"] = {
+		Key = "R00418",
+		Area = "StarterArea",
+		Name = "Floral Turtley",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-105.961990, -237.858948, -2590.017578, -0.139204, 0.000000, -0.990264, 0.000000, 1.000000, 0.000000, 0.990264, 0.000000, -0.139204),
+		LastSeenUnix = 0,
+	},
+	["R00422"] = {
+		Key = "R00422",
+		Area = "StarterArea",
+		Name = "Floral Turtley",
+		Kind = "Enemy",
+		CFrame = CFrame.new(89.478004, -233.858948, -2434.917725, -0.961250, 0.000000, 0.275678, 0.000000, 1.000000, 0.000000, -0.275678, 0.000000, -0.961250),
+		LastSeenUnix = 0,
+	},
+	["R00438"] = {
+		Key = "R00438",
+		Area = "StarterArea",
+		Name = "Floral Turtley",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-175.441986, -179.858948, -2935.117676, 0.000000, 0.000000, 1.000000, 0.000000, 1.000000, 0.000000, -1.000000, 0.000000, 0.000000),
+		LastSeenUnix = 0,
+	},
+	["R00242"] = {
+		Key = "R00242",
+		Area = "StarterArea",
+		Name = "Flowey",
+		Kind = "Enemy",
+		CFrame = CFrame.new(209.457855, -351.732422, -1221.567627, -0.992551, 0.000000, -0.121832, 0.000000, 1.000000, 0.000000, 0.121832, 0.000000, -0.992551),
+		LastSeenUnix = 0,
+	},
+	["R00243"] = {
+		Key = "R00243",
+		Area = "StarterArea",
+		Name = "Frogey",
+		Kind = "Enemy",
+		CFrame = CFrame.new(172.721191, -367.858429, 197.793198, -0.926368, -0.006093, -0.376570, -0.010612, 0.999894, 0.009927, 0.376469, 0.013193, -0.926335),
+		LastSeenUnix = 0,
+	},
+	["R00245"] = {
+		Key = "R00245",
+		Area = "StarterArea",
+		Name = "Frogey",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-335.142242, -366.732422, 499.832489, 0.906297, 0.000000, -0.422642, 0.000000, 1.000000, 0.000000, 0.422642, 0.000000, 0.906297),
+		LastSeenUnix = 0,
+	},
+	["R00257"] = {
+		Key = "R00257",
+		Area = "StarterArea",
+		Name = "Frogey",
+		Kind = "Enemy",
+		CFrame = CFrame.new(241.857758, -366.919769, 398.832458, -0.719358, 0.000000, -0.694639, 0.000000, 1.000000, 0.000000, 0.694639, 0.000000, -0.719358),
+		LastSeenUnix = 0,
+	},
+	["R00259"] = {
+		Key = "R00259",
+		Area = "StarterArea",
+		Name = "Frogey",
+		Kind = "Enemy",
+		CFrame = CFrame.new(163.457764, -366.732422, 694.632507, 0.920511, 0.000000, 0.390718, 0.000000, 1.000000, 0.000000, -0.390718, 0.000000, 0.920511),
+		LastSeenUnix = 0,
+	},
+	["R00300"] = {
+		Key = "R00300",
+		Area = "StarterArea",
+		Name = "Frogey",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-847.342102, -366.732422, 771.932495, -0.422593, 0.000000, 0.906320, 0.000000, 1.000000, 0.000000, -0.906320, 0.000000, -0.422593),
+		LastSeenUnix = 0,
+	},
+	["R00401"] = {
+		Key = "R00401",
+		Area = "StarterArea",
+		Name = "Frost Buney",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-2087.772217, -40.010696, -1867.545532, 0.411401, 0.000000, -0.911455, 0.000000, 1.000000, 0.000000, 0.911455, 0.000000, 0.411401),
+		LastSeenUnix = 0,
+	},
+	["R00415"] = {
+		Key = "R00415",
+		Area = "StarterArea",
+		Name = "Frost Buney",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-1134.042114, -75.444916, -2624.467285, -0.890995, 0.000000, -0.454013, 0.000000, 1.000000, 0.000000, 0.454013, 0.000000, -0.890995),
+		LastSeenUnix = 0,
+	},
+	["R00419"] = {
+		Key = "R00419",
+		Area = "StarterArea",
+		Name = "Frost Buney",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-1293.741943, -28.944895, -2754.367676, 0.374604, 0.000000, 0.927185, 0.000000, 1.000000, 0.000000, -0.927185, 0.000000, 0.374604),
+		LastSeenUnix = 0,
+	},
+	["R00338"] = {
+		Key = "R00338",
+		Area = "StarterArea",
+		Name = "Ghostey",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-1230.942139, -366.732422, 328.932465, 0.974366, 0.000000, -0.224967, 0.000000, 1.000000, 0.000000, 0.224967, 0.000000, 0.974366),
+		LastSeenUnix = 0,
+	},
+	["R00393"] = {
+		Key = "R00393",
+		Area = "StarterArea",
+		Name = "Ice Lizardey",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-1980.902832, 88.073776, -1548.086548, 0.920511, 0.000000, -0.390718, 0.000000, 1.000000, 0.000000, 0.390718, 0.000000, 0.920511),
+		LastSeenUnix = 0,
+	},
+	["R00412"] = {
+		Key = "R00412",
+		Area = "StarterArea",
+		Name = "Ice Lizardey",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-1149.572021, -56.426270, -2341.747559, 0.453973, 0.000000, 0.891016, 0.000000, 1.000000, 0.000000, -0.891016, 0.000000, 0.453973),
+		LastSeenUnix = 0,
+	},
+	["R00233"] = {
+		Key = "R00233",
+		Area = "StarterArea",
+		Name = "Lilypadey",
+		Kind = "Enemy",
+		CFrame = CFrame.new(342.457764, -366.132416, 643.032471, 0.906297, 0.000000, -0.422642, 0.000000, 1.000000, 0.000000, 0.422642, 0.000000, 0.906297),
+		LastSeenUnix = 0,
+	},
+	["R00234"] = {
+		Key = "R00234",
+		Area = "StarterArea",
+		Name = "Lilypadey",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-285.142242, -366.132416, 278.632477, 0.601814, 0.000000, 0.798637, 0.000000, 1.000000, 0.000000, -0.798637, 0.000000, 0.601814),
+		LastSeenUnix = 0,
+	},
+	["R00255"] = {
+		Key = "R00255",
+		Area = "StarterArea",
+		Name = "Lilypadey",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-96.915474, -368.133453, 550.406067, -0.230247, 0.000000, 0.973132, 0.000000, 1.000000, 0.000000, -0.973132, 0.000000, -0.230247),
+		LastSeenUnix = 0,
+	},
+	["R00299"] = {
+		Key = "R00299",
+		Area = "StarterArea",
+		Name = "Lilypadey",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-870.942139, -366.132416, 494.332489, 0.642763, 0.000000, 0.766065, 0.000000, 1.000000, 0.000000, -0.766065, 0.000000, 0.642763),
+		LastSeenUnix = 0,
+	},
+	["R00309"] = {
+		Key = "R00309",
+		Area = "StarterArea",
+		Name = "Lilypadey",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-1014.833557, -367.245605, 676.161621, 0.078202, 0.000000, 0.996938, 0.000000, 1.000000, 0.000000, -0.996938, 0.000000, 0.078202),
+		LastSeenUnix = 0,
+	},
+	["R00433"] = {
+		Key = "R00433",
+		Area = "StarterArea",
+		Name = "Living Berry Bush",
+		Kind = "Enemy",
+		CFrame = CFrame.new(842.757996, -385.932251, -2419.167725, 0.309061, 0.000000, -0.951042, 0.000000, 1.000000, 0.000000, 0.951042, 0.000000, 0.309061),
+		LastSeenUnix = 0,
+	},
+	["R00392"] = {
+		Key = "R00392",
+		Area = "StarterArea",
+		Name = "Mini Cubey",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-868.042236, -208.476105, -1683.367676, 0.898790, 0.000000, -0.438379, 0.000000, 1.000000, 0.000000, 0.438379, 0.000000, 0.898790),
+		LastSeenUnix = 0,
+	},
+	["R00395"] = {
+		Key = "R00395",
+		Area = "StarterArea",
+		Name = "Mini Cubey",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-971.742249, -198.476105, -1564.967651, -0.544666, 0.000000, 0.838653, 0.000000, 1.000000, 0.000000, -0.838653, 0.000000, -0.544666),
+		LastSeenUnix = 0,
+	},
+	["R00399"] = {
+		Key = "R00399",
+		Area = "StarterArea",
+		Name = "Mini Cubey",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-1000.642090, -208.476105, -1721.767578, -0.207886, 0.000000, -0.978153, 0.000000, 1.000000, 0.000000, 0.978153, 0.000000, -0.207886),
+		LastSeenUnix = 0,
+	},
+	["R00404"] = {
+		Key = "R00404",
+		Area = "StarterArea",
+		Name = "Mini Cubey",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-725.242249, -208.476105, -1700.967651, -0.997562, 0.000000, -0.069792, 0.000000, 1.000000, 0.000000, 0.069792, 0.000000, -0.997562),
+		LastSeenUnix = 0,
+	},
+	["R00405"] = {
+		Key = "R00405",
+		Area = "StarterArea",
+		Name = "Mini Cubey",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-695.442261, -208.476105, -1509.767578, -0.990270, 0.000000, 0.139157, 0.000000, 1.000000, 0.000000, -0.139157, 0.000000, -0.990270),
+		LastSeenUnix = 0,
+	},
+	["R00406"] = {
+		Key = "R00406",
+		Area = "StarterArea",
+		Name = "Mini Cubey",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-583.342346, -208.476105, -1554.767578, 1.000000, 0.000000, 0.000000, 0.000000, 1.000000, 0.000000, 0.000000, 0.000000, 1.000000),
+		LastSeenUnix = 0,
+	},
+	["R00407"] = {
+		Key = "R00407",
+		Area = "StarterArea",
+		Name = "Mini Cubey",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-601.342285, -208.476105, -1729.067627, -0.656063, 0.000000, 0.754706, 0.000000, 1.000000, 0.000000, -0.754706, 0.000000, -0.656063),
+		LastSeenUnix = 0,
+	},
+	["R00360"] = {
+		Key = "R00360",
+		Area = "StarterArea",
+		Name = "Mini Leafy",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-1106.030640, -346.859314, -390.538757, 0.286936, 0.000000, 0.957950, 0.000000, 1.000000, 0.000000, -0.957950, 0.000000, 0.286936),
+		LastSeenUnix = 0,
+	},
+	["R00326"] = {
+		Key = "R00326",
+		Area = "StarterArea",
+		Name = "Mini Tankzo",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-2119.441895, -424.732422, 1135.632324, -0.970287, 0.000000, -0.241956, 0.000000, 1.000000, 0.000000, 0.241956, 0.000000, -0.970287),
+		LastSeenUnix = 0,
+	},
+	["R00328"] = {
+		Key = "R00328",
+		Area = "StarterArea",
+		Name = "Mini Tankzo",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-2080.941895, -419.732422, 1692.832397, 0.642763, 0.000000, -0.766065, 0.000000, 1.000000, 0.000000, 0.766065, 0.000000, 0.642763),
+		LastSeenUnix = 0,
+	},
+	["R00331"] = {
+		Key = "R00331",
+		Area = "StarterArea",
+		Name = "Mini Tankzo",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-2231.842041, -424.732422, 2186.832275, -0.121902, 0.000000, 0.992542, 0.000000, 1.000000, 0.000000, -0.992542, 0.000000, -0.121902),
+		LastSeenUnix = 0,
+	},
+	["R00334"] = {
+		Key = "R00334",
+		Area = "StarterArea",
+		Name = "Mini Tankzo",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-2618.941895, -424.732422, 1991.932373, 0.559210, 0.000000, -0.829026, 0.000000, 1.000000, 0.000000, 0.829026, 0.000000, 0.559210),
+		LastSeenUnix = 0,
+	},
+	["R00264"] = {
+		Key = "R00264",
+		Area = "StarterArea",
+		Name = "Mousey",
+		Kind = "Enemy",
+		CFrame = CFrame.new(254.657822, -293.232422, 1132.932129, -0.933588, 0.000000, 0.358350, 0.000000, 1.000000, 0.000000, -0.358350, 0.000000, -0.933588),
+		LastSeenUnix = 0,
+	},
+	["R00272"] = {
+		Key = "R00272",
+		Area = "StarterArea",
+		Name = "Mousey",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-162.902115, -326.732422, 1541.432373, 0.241954, 0.000000, -0.970288, 0.000000, 1.000000, 0.000000, 0.970288, 0.000000, 0.241954),
+		LastSeenUnix = 0,
+	},
+	["R00288"] = {
+		Key = "R00288",
+		Area = "StarterArea",
+		Name = "Mousey",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-618.222107, -323.732422, 2043.482422, 0.890995, 0.000000, -0.454013, 0.000000, 1.000000, 0.000000, 0.454013, 0.000000, 0.890995),
+		LastSeenUnix = 0,
+	},
+	["R00305"] = {
+		Key = "R00305",
+		Area = "StarterArea",
+		Name = "Mousey",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-605.182129, -347.732422, 2466.482422, -0.777146, 0.000000, 0.629321, 0.000000, 1.000000, 0.000000, -0.629321, 0.000000, -0.777146),
+		LastSeenUnix = 0,
+	},
+	["R00239"] = {
+		Key = "R00239",
+		Area = "StarterArea",
+		Name = "Mushey",
+		Kind = "Enemy",
+		CFrame = CFrame.new(265.557892, -360.732422, -40.167625, -0.529884, 0.000000, 0.848070, 0.000000, 1.000000, 0.000000, -0.848070, 0.000000, -0.529884),
+		LastSeenUnix = 0,
+	},
+	["R00247"] = {
+		Key = "R00247",
+		Area = "StarterArea",
+		Name = "Mushey",
+		Kind = "Enemy",
+		CFrame = CFrame.new(169.257889, -360.732422, -101.367630, 0.838689, 0.000000, 0.544611, 0.000000, 1.000000, 0.000000, -0.544611, 0.000000, 0.838689),
+		LastSeenUnix = 0,
+	},
+	["R00261"] = {
+		Key = "R00261",
+		Area = "StarterArea",
+		Name = "Mushey",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-42.642128, -357.732422, -212.267624, -0.642764, 0.000000, 0.766065, 0.000000, 1.000000, 0.000000, -0.766065, 0.000000, -0.642764),
+		LastSeenUnix = 0,
+	},
+	["R00357"] = {
+		Key = "R00357",
+		Area = "StarterArea",
+		Name = "Mushey",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-1040.642090, -364.732422, 246.232376, 0.017502, 0.000000, -0.999847, 0.000000, 1.000000, 0.000000, 0.999847, 0.000000, 0.017502),
+		LastSeenUnix = 0,
+	},
+	["R00342"] = {
+		Key = "R00342",
+		Area = "StarterArea",
+		Name = "Mystic Mimic",
+		Kind = "Mimic",
+		CFrame = CFrame.new(-2139.382080, -330.732422, 67.192390, -0.974367, 0.000000, -0.224967, 0.000000, 1.000000, 0.000000, 0.224967, 0.000000, -0.974367),
+		LastSeenUnix = 0,
+	},
+	["R00370"] = {
+		Key = "R00370",
+		Area = "StarterArea",
+		Name = "Mystic Mimic",
+		Kind = "Mimic",
+		CFrame = CFrame.new(-2330.102295, -146.732422, -597.207642, -0.970287, 0.000000, 0.241956, 0.000000, 1.000000, 0.000000, -0.241956, 0.000000, -0.970287),
+		LastSeenUnix = 0,
+	},
+	["R00373"] = {
+		Key = "R00373",
+		Area = "StarterArea",
+		Name = "Mystic Mimic",
+		Kind = "Mimic",
+		CFrame = CFrame.new(-1785.942139, -302.732422, -707.007629, 0.920511, 0.000000, 0.390718, 0.000000, 1.000000, 0.000000, -0.390718, 0.000000, 0.920511),
+		LastSeenUnix = 0,
+	},
+	["R00380"] = {
+		Key = "R00380",
+		Area = "StarterArea",
+		Name = "Mystic Mimic",
+		Kind = "Mimic",
+		CFrame = CFrame.new(-1790.102295, -176.732422, -1060.647583, -0.544666, 0.000000, -0.838653, 0.000000, 1.000000, 0.000000, 0.838653, 0.000000, -0.544666),
+		LastSeenUnix = 0,
+	},
+	["R00386"] = {
+		Key = "R00386",
+		Area = "StarterArea",
+		Name = "Mystic Mimic",
+		Kind = "Mimic",
+		CFrame = CFrame.new(-2010.182251, -168.732422, -1150.647583, -0.390718, 0.000000, -0.920511, 0.000000, 1.000000, 0.000000, 0.920511, 0.000000, -0.390718),
+		LastSeenUnix = 0,
+	},
+	["R00420"] = {
+		Key = "R00420",
+		Area = "StarterArea",
+		Name = "Petalith",
+		Kind = "Enemy",
+		CFrame = CFrame.new(270.378021, -225.732361, -2328.867676, 0.499959, 0.000000, -0.866049, 0.000000, 1.000000, 0.000000, 0.866049, 0.000000, 0.499959),
+		LastSeenUnix = 0,
+	},
+	["R00427"] = {
+		Key = "R00427",
+		Area = "StarterArea",
+		Name = "Petalith",
+		Kind = "Enemy",
+		CFrame = CFrame.new(765.738037, -239.732361, -2203.067627, -0.848060, 0.000000, 0.529900, 0.000000, 1.000000, 0.000000, -0.529900, 0.000000, -0.848060),
+		LastSeenUnix = 0,
+	},
+	["R00430"] = {
+		Key = "R00430",
+		Area = "StarterArea",
+		Name = "Petalith",
+		Kind = "Enemy",
+		CFrame = CFrame.new(636.298035, -235.732361, -2376.067627, -0.258864, 0.000000, 0.965914, 0.000000, 1.000000, 0.000000, -0.965914, 0.000000, -0.258864),
+		LastSeenUnix = 0,
+	},
+	["R00431"] = {
+		Key = "R00431",
+		Area = "StarterArea",
+		Name = "Petalith",
+		Kind = "Enemy",
+		CFrame = CFrame.new(776.018005, -173.732361, -2549.367676, -0.951068, 0.000000, 0.308980, 0.000000, 1.000000, 0.000000, -0.308980, 0.000000, -0.951068),
+		LastSeenUnix = 0,
+	},
+	["R00435"] = {
+		Key = "R00435",
+		Area = "StarterArea",
+		Name = "Petalith",
+		Kind = "Enemy",
+		CFrame = CFrame.new(1055.817871, -225.732361, -2107.317627, 0.121902, 0.000000, -0.992542, 0.000000, 1.000000, 0.000000, 0.992542, 0.000000, 0.121902),
+		LastSeenUnix = 0,
+	},
+	["R00436"] = {
+		Key = "R00436",
+		Area = "StarterArea",
+		Name = "Petalith",
+		Kind = "Enemy",
+		CFrame = CFrame.new(701.997986, -235.732361, -3016.417725, 0.190846, 0.000000, 0.981620, 0.000000, 1.000000, 0.000000, -0.981620, 0.000000, 0.190846),
+		LastSeenUnix = 0,
+	},
+	["R00439"] = {
+		Key = "R00439",
+		Area = "StarterArea",
+		Name = "Petalith",
+		Kind = "Enemy",
+		CFrame = CFrame.new(1165.878052, -230.732361, -2267.417725, -0.978144, 0.000000, -0.207926, 0.000000, 1.000000, 0.000000, 0.207926, 0.000000, -0.978144),
+		LastSeenUnix = 0,
+	},
+	["R00440"] = {
+		Key = "R00440",
+		Area = "StarterArea",
+		Name = "Petalith",
+		Kind = "Enemy",
+		CFrame = CFrame.new(446.458008, -190.732361, -3010.217529, -0.342043, 0.000000, 0.939684, 0.000000, 1.000000, 0.000000, -0.939684, 0.000000, -0.342043),
+		LastSeenUnix = 0,
+	},
+	["R00267"] = {
+		Key = "R00267",
+		Area = "StarterArea",
+		Name = "Prickley",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-335.502106, -314.276123, 1594.632324, -0.629286, 0.000000, 0.777174, 0.000000, 1.000000, 0.000000, -0.777174, 0.000000, -0.629286),
+		LastSeenUnix = 0,
+	},
+	["R00271"] = {
+		Key = "R00271",
+		Area = "StarterArea",
+		Name = "Prickley",
+		Kind = "Enemy",
+		CFrame = CFrame.new(316.317871, -331.776123, 1580.632324, -0.754709, 0.000000, -0.656061, 0.000000, 1.000000, 0.000000, 0.656061, 0.000000, -0.754709),
+		LastSeenUnix = 0,
+	},
+	["R00289"] = {
+		Key = "R00289",
+		Area = "StarterArea",
+		Name = "Prickley",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-562.202942, -347.276123, 2219.816162, 0.561097, 0.000000, 0.827750, 0.000000, 1.000000, 0.000000, -0.827750, 0.000000, 0.561097),
+		LastSeenUnix = 0,
+	},
+	["R00291"] = {
+		Key = "R00291",
+		Area = "StarterArea",
+		Name = "Prickley",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-703.402100, -326.276123, 1832.532349, -0.956295, 0.000000, -0.292405, 0.000000, 1.000000, 0.000000, 0.292405, 0.000000, -0.956295),
+		LastSeenUnix = 0,
+	},
+	["R00294"] = {
+		Key = "R00294",
+		Area = "StarterArea",
+		Name = "Prickley",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-435.522156, -336.276123, 2062.732422, 0.898790, 0.000000, -0.438379, 0.000000, 1.000000, 0.000000, 0.438379, 0.000000, 0.898790),
+		LastSeenUnix = 0,
+	},
+	["R00295"] = {
+		Key = "R00295",
+		Area = "StarterArea",
+		Name = "Prickley",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-828.542114, -351.276123, 1559.282349, 0.945518, 0.000000, 0.325568, 0.000000, 1.000000, 0.000000, -0.325568, 0.000000, 0.945518),
+		LastSeenUnix = 0,
+	},
+	["R00303"] = {
+		Key = "R00303",
+		Area = "StarterArea",
+		Name = "Prickley",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-1213.482056, -352.276123, 2108.932373, -0.207886, 0.000000, 0.978153, 0.000000, 1.000000, 0.000000, -0.978153, 0.000000, -0.207886),
+		LastSeenUnix = 0,
+	},
+	["R00304"] = {
+		Key = "R00304",
+		Area = "StarterArea",
+		Name = "Prickley",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-325.002136, -352.276123, 2407.082275, -0.719358, 0.000000, -0.694639, 0.000000, 1.000000, 0.000000, 0.694639, 0.000000, -0.719358),
+		LastSeenUnix = 0,
+	},
+	["R00306"] = {
+		Key = "R00306",
+		Area = "StarterArea",
+		Name = "Prickley",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-1170.362061, -368.276123, 1507.932373, -0.913550, 0.000000, -0.406727, 0.000000, 1.000000, 0.000000, 0.406727, 0.000000, -0.913550),
+		LastSeenUnix = 0,
+	},
+	["R00307"] = {
+		Key = "R00307",
+		Area = "StarterArea",
+		Name = "Prickley",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-1229.642090, -368.276123, 1972.582397, -0.629286, 0.000000, -0.777174, 0.000000, 1.000000, 0.000000, 0.777174, 0.000000, -0.629286),
+		LastSeenUnix = 0,
+	},
+	["R00310"] = {
+		Key = "R00310",
+		Area = "StarterArea",
+		Name = "Prickley",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-1000.542114, -362.276123, 1616.782349, 0.961250, 0.000000, -0.275678, 0.000000, 1.000000, 0.000000, 0.275678, 0.000000, 0.961250),
+		LastSeenUnix = 0,
+	},
+	["R00311"] = {
+		Key = "R00311",
+		Area = "StarterArea",
+		Name = "Prickley",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-1073.222168, -365.276123, 1820.832397, 0.224960, 0.000000, -0.974368, 0.000000, 1.000000, 0.000000, 0.974368, 0.000000, 0.224960),
+		LastSeenUnix = 0,
+	},
+	["R00314"] = {
+		Key = "R00314",
+		Area = "StarterArea",
+		Name = "Prickley",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-1257.222168, -341.276123, 2265.332275, 0.694650, 0.000000, 0.719348, 0.000000, 1.000000, 0.000000, -0.719348, 0.000000, 0.694650),
+		LastSeenUnix = 0,
+	},
+	["R00316"] = {
+		Key = "R00316",
+		Area = "StarterArea",
+		Name = "Prickley",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-1351.962158, -371.276123, 1670.482422, -0.808998, 0.000000, 0.587812, 0.000000, 1.000000, 0.000000, -0.587812, 0.000000, -0.808998),
+		LastSeenUnix = 0,
+	},
+	["R00318"] = {
+		Key = "R00318",
+		Area = "StarterArea",
+		Name = "Prickley",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-1456.490234, -313.070312, 2331.908203, 0.450117, 0.013524, -0.892867, -0.008559, 0.999905, 0.010830, 0.892929, 0.002767, 0.450190),
+		LastSeenUnix = 0,
+	},
+	["R00319"] = {
+		Key = "R00319",
+		Area = "StarterArea",
+		Name = "Prickley",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-1370.922119, -309.276123, 2494.282471, -0.999392, 0.000000, 0.034869, 0.000000, 1.000000, 0.000000, -0.034869, 0.000000, -0.999392),
+		LastSeenUnix = 0,
+	},
+	["R00320"] = {
+		Key = "R00320",
+		Area = "StarterArea",
+		Name = "Prickley",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-1520.250488, -384.189301, 1916.617188, -0.569955, 0.000000, 0.821676, 0.000000, 1.000000, 0.000000, -0.821676, 0.000000, -0.569955),
+		LastSeenUnix = 0,
+	},
+	["R00321"] = {
+		Key = "R00321",
+		Area = "StarterArea",
+		Name = "Prickley",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-1380.262085, -363.276123, 2053.332275, 0.573599, 0.000000, -0.819137, 0.000000, 1.000000, 0.000000, 0.819137, 0.000000, 0.573599),
+		LastSeenUnix = 0,
+	},
+	["R00322"] = {
+		Key = "R00322",
+		Area = "StarterArea",
+		Name = "Prickley",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-1392.169434, -375.276550, 1790.612793, -0.535032, 0.000000, 0.844832, 0.000000, 1.000000, 0.000000, -0.844832, 0.000000, -0.535032),
+		LastSeenUnix = 0,
+	},
+	["R00369"] = {
+		Key = "R00369",
+		Area = "StarterArea",
+		Name = "Redwood Mimic",
+		Kind = "Mimic",
+		CFrame = CFrame.new(-1544.889648, -339.732666, -531.859863, 0.190846, 0.000000, -0.981620, 0.000000, 1.000000, 0.000000, 0.981620, 0.000000, 0.190846),
+		LastSeenUnix = 0,
+	},
+	["R00327"] = {
+		Key = "R00327",
+		Area = "StarterArea",
+		Name = "Roadkillzo",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-2139.541992, -424.732422, 2019.332397, -0.173624, 0.000000, -0.984812, 0.000000, 1.000000, 0.000000, 0.984812, 0.000000, -0.173624),
+		LastSeenUnix = 0,
+	},
+	["R00329"] = {
+		Key = "R00329",
+		Area = "StarterArea",
+		Name = "Roadkillzo",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-2169.342041, -430.732422, 1486.632324, 0.898790, 0.000000, -0.438379, 0.000000, 1.000000, 0.000000, 0.438379, 0.000000, 0.898790),
+		LastSeenUnix = 0,
+	},
+	["R00333"] = {
+		Key = "R00333",
+		Area = "StarterArea",
+		Name = "Roadkillzo",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-2845.941895, -424.732422, 1984.832397, 0.920511, 0.000000, 0.390718, 0.000000, 1.000000, 0.000000, -0.390718, 0.000000, 0.920511),
+		LastSeenUnix = 0,
+	},
+	["R00335"] = {
+		Key = "R00335",
+		Area = "StarterArea",
+		Name = "Roadkillzo",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-3073.842041, -424.732422, 2085.532471, 0.882952, 0.000000, -0.469464, 0.000000, 1.000000, 0.000000, 0.469464, 0.000000, 0.882952),
+		LastSeenUnix = 0,
+	},
+	["R00336"] = {
+		Key = "R00336",
+		Area = "StarterArea",
+		Name = "Roadkillzo",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-3129.741943, -415.732422, 2278.732422, 0.766061, 0.000000, -0.642768, 0.000000, 1.000000, 0.000000, 0.642768, 0.000000, 0.766061),
+		LastSeenUnix = 0,
+	},
+	["R00337"] = {
+		Key = "R00337",
+		Area = "StarterArea",
+		Name = "Roadkillzo",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-3518.741943, -423.732422, 2145.832275, 0.707134, 0.000000, 0.707079, 0.000000, 1.000000, 0.000000, -0.707079, 0.000000, 0.707134),
+		LastSeenUnix = 0,
+	},
+	["R00268"] = {
+		Key = "R00268",
+		Area = "StarterArea",
+		Name = "Scorpion",
+		Kind = "Enemy",
+		CFrame = CFrame.new(228.753021, -489.532623, 1509.337158, 0.866007, 0.000000, -0.500031, 0.000000, 1.000000, 0.000000, 0.500031, 0.000000, 0.866007),
+		LastSeenUnix = 0,
+	},
+	["R00269"] = {
+		Key = "R00269",
+		Area = "StarterArea",
+		Name = "Scorpion",
+		Kind = "Enemy",
+		CFrame = CFrame.new(51.616459, -482.532715, 1448.759644, 0.900031, -0.000000, -0.435826, 0.000000, 1.000000, 0.000000, 0.435826, -0.000000, 0.900031),
+		LastSeenUnix = 0,
+	},
+	["R00274"] = {
+		Key = "R00274",
+		Area = "StarterArea",
+		Name = "Scorpion",
+		Kind = "Enemy",
+		CFrame = CFrame.new(22.853018, -483.532623, 1685.087158, -0.970287, 0.000000, -0.241956, 0.000000, 1.000000, 0.000000, 0.241956, 0.000000, -0.970287),
+		LastSeenUnix = 0,
+	},
+	["R00275"] = {
+		Key = "R00275",
+		Area = "StarterArea",
+		Name = "Scorpion",
+		Kind = "Enemy",
+		CFrame = CFrame.new(275.273010, -491.532623, 1693.987183, -0.422593, 0.000000, 0.906320, 0.000000, 1.000000, 0.000000, -0.906320, 0.000000, -0.422593),
+		LastSeenUnix = 0,
+	},
+	["R00276"] = {
+		Key = "R00276",
+		Area = "StarterArea",
+		Name = "Scorpion",
+		Kind = "Enemy",
+		CFrame = CFrame.new(407.073029, -496.532623, 1714.187134, 0.156446, 0.000000, 0.987687, 0.000000, 1.000000, 0.000000, -0.987687, 0.000000, 0.156446),
+		LastSeenUnix = 0,
+	},
+	["R00277"] = {
+		Key = "R00277",
+		Area = "StarterArea",
+		Name = "Scorpion",
+		Kind = "Enemy",
+		CFrame = CFrame.new(409.053009, -503.532623, 1866.787109, -0.913550, 0.000000, -0.406727, 0.000000, 1.000000, 0.000000, 0.406727, 0.000000, -0.913550),
+		LastSeenUnix = 0,
+	},
+	["R00281"] = {
+		Key = "R00281",
+		Area = "StarterArea",
+		Name = "Scorpion",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-158.146988, -518.532593, 1940.737183, -0.292421, 0.000000, -0.956290, 0.000000, 1.000000, 0.000000, 0.956290, 0.000000, -0.292421),
+		LastSeenUnix = 0,
+	},
+	["R00282"] = {
+		Key = "R00282",
+		Area = "StarterArea",
+		Name = "Scorpion",
+		Kind = "Enemy",
+		CFrame = CFrame.new(33.053379, -533.532837, 1939.445557, 0.999684, 0.000000, -0.025155, 0.000000, 1.000000, 0.000000, 0.025155, 0.000000, 0.999684),
+		LastSeenUnix = 0,
+	},
+	["R00283"] = {
+		Key = "R00283",
+		Area = "StarterArea",
+		Name = "Scorpion",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-24.170988, -531.544312, 1841.184326, 0.389054, 0.000000, -0.921215, -0.000000, 1.000000, -0.000000, 0.921215, 0.000000, 0.389054),
+		LastSeenUnix = 0,
+	},
+	["R00284"] = {
+		Key = "R00284",
+		Area = "StarterArea",
+		Name = "Scorpion",
+		Kind = "Enemy",
+		CFrame = CFrame.new(173.793015, -516.532593, 1818.437134, 0.681974, 0.000000, -0.731377, 0.000000, 1.000000, 0.000000, 0.731377, 0.000000, 0.681974),
+		LastSeenUnix = 0,
+	},
+	["R00285"] = {
+		Key = "R00285",
+		Area = "StarterArea",
+		Name = "Scorpion",
+		Kind = "Enemy",
+		CFrame = CFrame.new(480.433014, -500.532623, 1812.587158, -0.933588, 0.000000, -0.358350, 0.000000, 1.000000, 0.000000, 0.358350, 0.000000, -0.933588),
+		LastSeenUnix = 0,
+	},
+	["R00287"] = {
+		Key = "R00287",
+		Area = "StarterArea",
+		Name = "Scorpion",
+		Kind = "Enemy",
+		CFrame = CFrame.new(232.613022, -517.532593, 2026.087158, -0.719358, 0.000000, 0.694639, 0.000000, 1.000000, 0.000000, -0.694639, 0.000000, -0.719358),
+		LastSeenUnix = 0,
+	},
+	["R00296"] = {
+		Key = "R00296",
+		Area = "StarterArea",
+		Name = "Scorpion",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-259.506989, -509.532623, 2126.437256, -0.974367, 0.000000, 0.224967, 0.000000, 1.000000, 0.000000, -0.224967, 0.000000, -0.974367),
+		LastSeenUnix = 0,
+	},
+	["R00398"] = {
+		Key = "R00398",
+		Area = "StarterArea",
+		Name = "Snowdeerey",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-2259.791992, 36.967625, -1622.166626, -0.981622, 0.000000, 0.190838, 0.000000, 1.000000, 0.000000, -0.190838, 0.000000, -0.981622),
+		LastSeenUnix = 0,
+	},
+	["R00400"] = {
+		Key = "R00400",
+		Area = "StarterArea",
+		Name = "Snowdeerey",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-2359.940430, 28.967621, -1839.966675, 0.997562, 0.000000, 0.069792, 0.000000, 1.000000, 0.000000, -0.069792, 0.000000, 0.997562),
+		LastSeenUnix = 0,
+	},
+	["R00402"] = {
+		Key = "R00402",
+		Area = "StarterArea",
+		Name = "Snowdeerey",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-1621.208740, 14.630563, -2133.224609, -0.325603, 0.000000, 0.945507, 0.000000, 1.000000, 0.000000, -0.945507, 0.000000, -0.325603),
+		LastSeenUnix = 0,
+	},
+	["R00411"] = {
+		Key = "R00411",
+		Area = "StarterArea",
+		Name = "Snowdeerey",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-1836.041260, -0.032360, -2223.867920, 0.052280, 0.000000, 0.998632, 0.000000, 1.000000, 0.000000, -0.998632, 0.000000, 0.052280),
+		LastSeenUnix = 0,
+	},
+	["R00413"] = {
+		Key = "R00413",
+		Area = "StarterArea",
+		Name = "Snowdeerey",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-584.041992, -147.532379, -2322.767578, -0.656063, 0.000000, -0.754706, 0.000000, 1.000000, 0.000000, 0.754706, 0.000000, -0.656063),
+		LastSeenUnix = 0,
+	},
+	["R00414"] = {
+		Key = "R00414",
+		Area = "StarterArea",
+		Name = "Snowdeerey",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-1456.642090, -0.532372, -2361.267578, 0.069787, 0.000000, -0.997562, 0.000000, 1.000000, 0.000000, 0.997562, 0.000000, 0.069787),
+		LastSeenUnix = 0,
+	},
+	["R00416"] = {
+		Key = "R00416",
+		Area = "StarterArea",
+		Name = "Snowdeerey",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-1424.641968, -25.532372, -2554.767578, -0.939701, 0.000000, 0.341998, 0.000000, 1.000000, 0.000000, -0.341998, 0.000000, -0.939701),
+		LastSeenUnix = 0,
+	},
+	["R00417"] = {
+		Key = "R00417",
+		Area = "StarterArea",
+		Name = "Snowdeerey",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-639.541992, -159.532379, -2657.567627, 0.838689, 0.000000, -0.544611, 0.000000, 1.000000, 0.000000, 0.544611, 0.000000, 0.838689),
+		LastSeenUnix = 0,
+	},
+	["R00437"] = {
+		Key = "R00437",
+		Area = "StarterArea",
+		Name = "Snowdeerey",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-830.634888, -113.032455, -2888.278809, -0.974367, 0.000000, 0.224967, 0.000000, 1.000000, 0.000000, -0.224967, 0.000000, -0.974367),
+		LastSeenUnix = 0,
+	},
+	["R00280"] = {
+		Key = "R00280",
+		Area = "StarterArea",
+		Name = "Solar Elemental",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-544.042114, -309.732422, 1694.182373, 0.974366, 0.000000, -0.224967, 0.000000, 1.000000, 0.000000, 0.224967, 0.000000, 0.974366),
+		LastSeenUnix = 0,
+	},
+	["R00286"] = {
+		Key = "R00286",
+		Area = "StarterArea",
+		Name = "Solar Elemental",
+		Kind = "Enemy",
+		CFrame = CFrame.new(297.557892, -330.732422, 1801.982422, -0.882952, 0.000000, 0.469464, 0.000000, 1.000000, 0.000000, -0.469464, 0.000000, -0.882952),
+		LastSeenUnix = 0,
+	},
+	["R00298"] = {
+		Key = "R00298",
+		Area = "StarterArea",
+		Name = "Solar Elemental",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-207.002121, -335.732422, 2117.432373, -0.156446, 0.000000, -0.987687, 0.000000, 1.000000, 0.000000, 0.987687, 0.000000, -0.156446),
+		LastSeenUnix = 0,
+	},
+	["R00312"] = {
+		Key = "R00312",
+		Area = "StarterArea",
+		Name = "Solar Elemental",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-1061.862061, -344.732422, 2281.032471, -0.819156, 0.000000, 0.573571, 0.000000, 1.000000, 0.000000, -0.573571, 0.000000, -0.819156),
+		LastSeenUnix = 0,
+	},
+	["R00424"] = {
+		Key = "R00424",
+		Area = "StarterArea",
+		Name = "Stoney",
+		Kind = "Enemy",
+		CFrame = CFrame.new(391.957825, -343.332367, -1811.967651, -0.857152, 0.000000, -0.515064, 0.000000, 1.000000, 0.000000, 0.515064, 0.000000, -0.857152),
+		LastSeenUnix = 0,
+	},
+	["R00429"] = {
+		Key = "R00429",
+		Area = "StarterArea",
+		Name = "Strawberrey",
+		Kind = "Enemy",
+		CFrame = CFrame.new(923.817993, -392.476074, -2567.417725, -0.390718, 0.000000, 0.920511, 0.000000, 1.000000, 0.000000, -0.920511, 0.000000, -0.390718),
+		LastSeenUnix = 0,
+	},
+	["R00434"] = {
+		Key = "R00434",
+		Area = "StarterArea",
+		Name = "Strawberrey",
+		Kind = "Enemy",
+		CFrame = CFrame.new(930.977966, -391.276062, -2645.517578, -0.731385, 0.000000, 0.681965, 0.000000, 1.000000, 0.000000, -0.681965, 0.000000, -0.731385),
+		LastSeenUnix = 0,
+	},
+	["R00313"] = {
+		Key = "R00313",
+		Area = "StarterArea",
+		Name = "Swamp Hydrey",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-1219.542114, -363.658997, 494.132507, 0.788017, 0.000000, -0.615654, 0.000000, 1.000000, 0.000000, 0.615654, 0.000000, 0.788017),
+		LastSeenUnix = 0,
+	},
+	["R00266"] = {
+		Key = "R00266",
+		Area = "StarterArea",
+		Name = "Tumblezo",
+		Kind = "Enemy",
+		CFrame = CFrame.new(30.277885, -326.732422, 1467.982422, 0.224960, 0.000000, 0.974368, 0.000000, 1.000000, 0.000000, -0.974368, 0.000000, 0.224960),
+		LastSeenUnix = 0,
+	},
+	["R00273"] = {
+		Key = "R00273",
+		Area = "StarterArea",
+		Name = "Tumblezo",
+		Kind = "Enemy",
+		CFrame = CFrame.new(60.897903, -316.732422, 1282.632324, 0.913550, 0.000000, 0.406727, 0.000000, 1.000000, 0.000000, -0.406727, 0.000000, 0.913550),
+		LastSeenUnix = 0,
+	},
+	["R00278"] = {
+		Key = "R00278",
+		Area = "StarterArea",
+		Name = "Tumblezo",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-411.442108, -270.732422, 1756.582397, 0.808997, 0.000000, -0.587812, 0.000000, 1.000000, 0.000000, 0.587812, 0.000000, 0.808997),
+		LastSeenUnix = 0,
+	},
+	["R00279"] = {
+		Key = "R00279",
+		Area = "StarterArea",
+		Name = "Tumblezo",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-391.082123, -278.732422, 1894.732422, -0.987686, 0.000000, -0.156450, 0.000000, 1.000000, 0.000000, 0.156450, 0.000000, -0.987686),
+		LastSeenUnix = 0,
+	},
+	["R00293"] = {
+		Key = "R00293",
+		Area = "StarterArea",
+		Name = "Tumblezo",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-707.682129, -344.732422, 1714.932373, 0.956295, 0.000000, -0.292405, 0.000000, 1.000000, 0.000000, 0.292405, 0.000000, 0.956295),
+		LastSeenUnix = 0,
+	},
+	["R00297"] = {
+		Key = "R00297",
+		Area = "StarterArea",
+		Name = "Tumblezo",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-795.022095, -334.732422, 2133.182373, -0.798617, 0.000000, -0.601840, 0.000000, 1.000000, 0.000000, 0.601840, 0.000000, -0.798617),
+		LastSeenUnix = 0,
+	},
+	["R00301"] = {
+		Key = "R00301",
+		Area = "StarterArea",
+		Name = "Tumblezo",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-851.542114, -366.732422, 1853.132324, 0.974366, 0.000000, 0.224967, 0.000000, 1.000000, 0.000000, -0.224967, 0.000000, 0.974366),
+		LastSeenUnix = 0,
+	},
+	["R00308"] = {
+		Key = "R00308",
+		Area = "StarterArea",
+		Name = "Tumblezo",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-801.309753, -349.786438, 2361.222656, 0.967421, 0.001652, 0.253168, -0.000004, 0.999979, -0.006510, -0.253173, 0.006297, 0.967400),
+		LastSeenUnix = 0,
+	},
+	["R00265"] = {
+		Key = "R00265",
+		Area = "StarterArea",
+		Name = "Vampiric Druid",
+		Kind = "Enemy",
+		CFrame = CFrame.new(432.897797, -313.132416, 1275.432373, -0.819156, 0.000000, 0.573571, 0.000000, 1.000000, 0.000000, -0.573571, 0.000000, -0.819156),
+		LastSeenUnix = 0,
+	},
+	["R00270"] = {
+		Key = "R00270",
+		Area = "StarterArea",
+		Name = "Vampiric Outlaw",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-195.242096, -240.129379, 1500.792358, 0.829036, 0.000000, 0.559195, 0.000000, 1.000000, 0.000000, -0.559195, 0.000000, 0.829036),
+		LastSeenUnix = 0,
+	},
+	["R00290"] = {
+		Key = "R00290",
+		Area = "StarterArea",
+		Name = "Vampiric Outlaw",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-694.792114, -231.129379, 1912.272339, 0.342043, 0.000000, 0.939684, 0.000000, 1.000000, 0.000000, -0.939684, 0.000000, 0.342043),
+		LastSeenUnix = 0,
+	},
+	["R00302"] = {
+		Key = "R00302",
+		Area = "StarterArea",
+		Name = "Vampiric Outlaw",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-884.072144, -266.129333, 2264.512451, -0.484826, 0.000000, 0.874611, 0.000000, 1.000000, 0.000000, -0.874611, 0.000000, -0.484826),
+		LastSeenUnix = 0,
+	},
+	["R00315"] = {
+		Key = "R00315",
+		Area = "StarterArea",
+		Name = "Vampiric Outlaw",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-1327.402100, -264.129333, 2223.232422, -0.173624, 0.000000, -0.984812, 0.000000, 1.000000, 0.000000, 0.984812, 0.000000, -0.173624),
+		LastSeenUnix = 0,
+	},
+	["R00229"] = {
+		Key = "R00229",
+		Area = "StarterArea",
+		Name = "Wedgey",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-810.942261, -351.732422, -773.867615, -0.173624, 0.000000, -0.984812, 0.000000, 1.000000, 0.000000, 0.984812, 0.000000, -0.173624),
+		LastSeenUnix = 0,
+	},
+	["R00244"] = {
+		Key = "R00244",
+		Area = "StarterArea",
+		Name = "Wedgey",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-694.542236, -348.732422, -558.467651, 0.573599, 0.000000, 0.819137, 0.000000, 1.000000, 0.000000, -0.819137, 0.000000, 0.573599),
+		LastSeenUnix = 0,
+	},
+	["R00251"] = {
+		Key = "R00251",
+		Area = "StarterArea",
+		Name = "Wedgey",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-578.542236, -348.732422, -673.067627, 0.309061, 0.000000, 0.951042, 0.000000, 1.000000, 0.000000, -0.951042, 0.000000, 0.309061),
+		LastSeenUnix = 0,
+	},
+	["R00252"] = {
+		Key = "R00252",
+		Area = "StarterArea",
+		Name = "Wedgey",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-440.642242, -347.732422, -583.567627, 0.069787, 0.000000, -0.997562, 0.000000, 1.000000, 0.000000, 0.997562, 0.000000, 0.069787),
+		LastSeenUnix = 0,
+	},
+	["R00253"] = {
+		Key = "R00253",
+		Area = "StarterArea",
+		Name = "Wedgey",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-371.942261, -351.732422, -778.767639, -0.992551, 0.000000, -0.121832, 0.000000, 1.000000, 0.000000, 0.121832, 0.000000, -0.992551),
+		LastSeenUnix = 0,
+	},
+	["R00384"] = {
+		Key = "R00384",
+		Area = "StarterArea",
+		Name = "Wedgey",
+		Kind = "Enemy",
+		CFrame = CFrame.new(-844.642212, -350.732422, -963.167725, 0.829036, 0.000000, -0.559195, 0.000000, 1.000000, 0.000000, 0.559195, 0.000000, 0.829036),
+		LastSeenUnix = 0,
+	},
+	["R00226"] = {
+		Key = "R00226",
+		Area = "StarterArea",
+		Name = "Wooden Mimic",
+		Kind = "Mimic",
+		CFrame = CFrame.new(-418.022125, -361.732422, 367.072357, -0.997562, 0.000000, 0.069792, 0.000000, 1.000000, 0.000000, -0.069792, 0.000000, -0.997562),
+		LastSeenUnix = 0,
+	},
+	["R00231"] = {
+		Key = "R00231",
+		Area = "StarterArea",
+		Name = "Wooden Mimic",
+		Kind = "Mimic",
+		CFrame = CFrame.new(-817.262085, -321.732422, 251.712372, -0.275689, 0.000000, 0.961247, 0.000000, 1.000000, 0.000000, -0.961247, 0.000000, -0.275689),
+		LastSeenUnix = 0,
+	},
+	["R00254"] = {
+		Key = "R00254",
+		Area = "StarterArea",
+		Name = "Wooden Mimic",
+		Kind = "Mimic",
+		CFrame = CFrame.new(-221.822235, -307.732422, -846.887634, -0.642764, 0.000000, 0.766065, 0.000000, 1.000000, 0.000000, -0.766065, 0.000000, -0.642764),
+		LastSeenUnix = 0,
+	},
+	["R00362"] = {
+		Key = "R00362",
+		Area = "StarterArea",
+		Name = "Wooden Mimic",
+		Kind = "Mimic",
+		CFrame = CFrame.new(-999.742249, -339.732422, -602.647644, 0.139204, 0.000000, -0.990264, 0.000000, 1.000000, 0.000000, 0.990264, 0.000000, 0.139204),
+		LastSeenUnix = 0,
+	},
+	["R00403"] = {
+		Key = "R00403",
+		Area = "StarterArea",
+		Name = "Wooden Mimic",
+		Kind = "Mimic",
+		CFrame = CFrame.new(-706.649780, -186.732666, -1844.139893, -0.615635, 0.000000, 0.788032, 0.000000, 1.000000, 0.000000, -0.788032, 0.000000, -0.615635),
+		LastSeenUnix = 0,
+	},
+}
+
+local function mergeBuiltInPositionRecords()
+	for key, record in pairs(BUILT_IN_POSITION_RECORDS) do
+		-- Keep newer runtime-discovered records if one already exists.
+		if PersistentFarmState.PositionRecords[key] == nil then
+			PersistentFarmState.PositionRecords[key] = record
+		end
+
+		local lowerName = string.lower(record.Name)
+
+		if not string.find(lowerName, "target dummy", 1, true) then
+			if record.Kind == "Mimic"
+				or string.find(lowerName, "mimic", 1, true) then
+
+				AutoFarmState.MimicNames[record.Name] = true
+			else
+				AutoFarmState.EnemyNames[record.Name] = true
+			end
+		end
+	end
+
+	PersistentFarmState.EnemyNames = AutoFarmState.EnemyNames
+	PersistentFarmState.MimicNames = AutoFarmState.MimicNames
+	PersistentFarmState.PositionRecords =
+		PersistentFarmState.PositionRecords
+
+	PersistentFarmState.NextPositionRecordId = math.max(
+		PersistentFarmState.NextPositionRecordId,
+		444
+	)
+end
+
+mergeBuiltInPositionRecords()
+local EnemyPositionState = {
+	Records = PersistentFarmState.PositionRecords,
+	InstanceRecordKeys = setmetatable({}, {
+		__mode = "k",
+	}),
+	SelectedKey = nil,
+	TravelIndex = 0,
+	NewRecordVersion = 0,
+}
+
+local ResourceState = {
+	Selected =
+		type(PersistentFarmState.SelectedResources) == "table"
+		and table.clone(PersistentFarmState.SelectedResources)
+		or {},
+	Names =
+		type(PersistentFarmState.ResourceNames) == "table"
+		and PersistentFarmState.ResourceNames
+		or {},
+	VisibleCount = 0,
+}
+
+PersistentFarmState.SelectedResources =
+	ResourceState.Selected
+
+PersistentFarmState.ResourceNames =
+	ResourceState.Names
 
 local FlyState = {
 	Enabled = false,
@@ -953,6 +2814,121 @@ local function getEnemyRoot(enemy)
 		or enemy:FindFirstChildWhichIsA("BasePart", true)
 end
 
+local function getEnemyPivot(enemy)
+	if not enemy or not enemy.Parent then
+		return nil
+	end
+
+	if enemy:IsA("Model") then
+		local ok, pivot = pcall(function()
+			return enemy:GetPivot()
+		end)
+
+		if ok and typeof(pivot) == "CFrame" then
+			return pivot
+		end
+	end
+
+	local root = getEnemyRoot(enemy)
+
+	return root and root.CFrame or nil
+end
+
+local function nextPositionRecordKey()
+	PersistentFarmState.NextPositionRecordId += 1
+
+	return string.format(
+		"R%05d",
+		PersistentFarmState.NextPositionRecordId
+	)
+end
+
+local function findNearestPositionRecord(
+	areaName,
+	enemyName,
+	position,
+	maxDistance
+)
+	local bestKey
+	local bestDistance = math.huge
+
+	for key, record in pairs(EnemyPositionState.Records) do
+		if record.Area == areaName
+			and record.Name == enemyName
+			and typeof(record.CFrame) == "CFrame" then
+
+			local distance =
+				(record.CFrame.Position - position).Magnitude
+
+			if distance <= maxDistance
+				and distance < bestDistance then
+
+				bestKey = key
+				bestDistance = distance
+			end
+		end
+	end
+
+	return bestKey
+end
+
+local function recordEnemyPivot(areaName, enemy)
+	if not enemy
+		or not enemy.Parent
+		or isBlacklistedEnemyName(enemy.Name) then
+
+		return false
+	end
+
+	local pivot = getEnemyPivot(enemy)
+
+	if not pivot then
+		return false
+	end
+
+	local key =
+		EnemyPositionState.InstanceRecordKeys[enemy]
+
+	if not key then
+		key = findNearestPositionRecord(
+			areaName,
+			enemy.Name,
+			pivot.Position,
+			12
+		)
+
+		if not key then
+			key = nextPositionRecordKey()
+			EnemyPositionState.NewRecordVersion += 1
+		end
+
+		EnemyPositionState.InstanceRecordKeys[enemy] = key
+	end
+
+	local isNew =
+		EnemyPositionState.Records[key] == nil
+
+	EnemyPositionState.Records[key] = {
+		Key = key,
+		Area = areaName,
+		Name = enemy.Name,
+		Kind = isMimicName(enemy.Name)
+			and "Mimic"
+			or "Enemy",
+		CFrame = pivot,
+		LastSeenUnix = os.time(),
+	}
+
+	PersistentFarmState.PositionRecords =
+		EnemyPositionState.Records
+
+	if isNew then
+		EnemyPositionState.NewRecordVersion += 1
+	end
+
+	return isNew
+end
+
 local function isAliveEnemy(enemy)
 	local humanoid = getEnemyHumanoid(enemy)
 	local root = getEnemyRoot(enemy)
@@ -1012,6 +2988,8 @@ local function scanEnemyNamesAndMimics()
 		if folder then
 			for _, enemy in ipairs(folder:GetChildren()) do
 				if not isBlacklistedEnemyName(enemy.Name) then
+					recordEnemyPivot(areaName, enemy)
+
 					if isMimicName(enemy.Name) then
 						if rememberMimicName(enemy.Name) then
 							mimicChanged = true
@@ -1074,6 +3052,8 @@ local function collectFarmTargets()
 				folder:GetChildren()
 			) do
 				if not isBlacklistedEnemyName(enemy.Name) then
+					recordEnemyPivot(areaName, enemy)
+
 					local mimic = isMimicName(enemy.Name)
 
 					if mimic then
@@ -1112,6 +3092,110 @@ local function isAnyFarmEnabled()
 		or AutoFarmState.MimicEnabled
 end
 
+local function getSortedPositionRecordKeys()
+	local keys = {}
+
+	for key, record in pairs(EnemyPositionState.Records) do
+		if type(record) == "table"
+			and typeof(record.CFrame) == "CFrame"
+			and not isBlacklistedEnemyName(record.Name) then
+
+			table.insert(keys, key)
+		end
+	end
+
+	table.sort(keys, function(a, b)
+		local recordA = EnemyPositionState.Records[a]
+		local recordB = EnemyPositionState.Records[b]
+
+		local areaA = tostring(recordA and recordA.Area or "")
+		local areaB = tostring(recordB and recordB.Area or "")
+
+		if areaA ~= areaB then
+			return areaA < areaB
+		end
+
+		local nameA = tostring(recordA and recordA.Name or "")
+		local nameB = tostring(recordB and recordB.Name or "")
+
+		if nameA ~= nameB then
+			return nameA < nameB
+		end
+
+		return a < b
+	end)
+
+	return keys
+end
+
+local function cachedRecordMatchesFilters(
+	record,
+	enemySet,
+	mimicSet
+)
+	if not record
+		or not record.Name
+		or not record.Area
+		or typeof(record.CFrame) ~= "CFrame"
+		or isBlacklistedEnemyName(record.Name) then
+
+		return false
+	end
+
+	local mimic = record.Kind == "Mimic"
+		or isMimicName(record.Name)
+
+	if mimic then
+		if not AutoFarmState.MimicEnabled then
+			return false
+		end
+
+		return next(mimicSet) == nil
+			or mimicSet[record.Name] == true
+	end
+
+	if not AutoFarmState.EnemyEnabled then
+		return false
+	end
+
+	return next(enemySet) == nil
+		or enemySet[record.Name] == true
+end
+
+local function getNextCachedFarmRecord()
+	local keys = getSortedPositionRecordKeys()
+
+	if #keys == 0 then
+		return nil
+	end
+
+	local enemySet =
+		arrayToSet(AutoFarmState.SelectedEnemies)
+	local mimicSet =
+		arrayToSet(AutoFarmState.SelectedMimics)
+
+	for offset = 1, #keys do
+		local index =
+			((EnemyPositionState.TravelIndex + offset - 1)
+				% #keys) + 1
+
+		local key = keys[index]
+		local record =
+			EnemyPositionState.Records[key]
+
+		if cachedRecordMatchesFilters(
+			record,
+			enemySet,
+			mimicSet
+		) then
+			EnemyPositionState.TravelIndex = index
+			return record
+		end
+	end
+
+	return nil
+end
+
 local function cancelFarmTween()
 	local tween = AutoFarmState.CurrentTween
 
@@ -1129,6 +3213,53 @@ local function getFarmCharacterRoot()
 
 	return character
 		and character:FindFirstChild("HumanoidRootPart")
+end
+
+local function tweenToCachedRecord(record)
+	local playerRoot = getFarmCharacterRoot()
+
+	if not playerRoot
+		or not record
+		or typeof(record.CFrame) ~= "CFrame" then
+
+		return false
+	end
+
+	local destination =
+		record.CFrame * CFrame.new(0, 3, 0)
+
+	local distance =
+		(playerRoot.Position - destination.Position).Magnitude
+
+	local duration = math.clamp(
+		distance / AutoFarmState.TweenSpeed,
+		0.05,
+		2
+	)
+
+	cancelFarmTween()
+
+	local tween = TweenService:Create(
+		playerRoot,
+		TweenInfo.new(
+			duration,
+			Enum.EasingStyle.Linear,
+			Enum.EasingDirection.Out
+		),
+		{
+			CFrame = destination,
+		}
+	)
+
+	AutoFarmState.CurrentTween = tween
+	AutoFarmState.CurrentCachedRecord = record
+
+	tween:Play()
+	tween.Completed:Wait()
+
+	AutoFarmState.CurrentTween = nil
+
+	return true
 end
 
 local function tweenBehindEnemy(enemy)
@@ -1196,7 +3327,17 @@ local function runAutoFarm(generation)
 		if not target then
 			AutoFarmState.CurrentTarget = nil
 			cancelFarmTween()
-			task.wait(0.20)
+
+			local cachedRecord =
+				getNextCachedFarmRecord()
+
+			if cachedRecord then
+				tweenToCachedRecord(cachedRecord)
+				task.wait(0.15)
+			else
+				task.wait(0.20)
+			end
+
 			continue
 		end
 
@@ -1234,12 +3375,14 @@ local function runAutoFarm(generation)
 
 	cancelFarmTween()
 	AutoFarmState.CurrentTarget = nil
+	AutoFarmState.CurrentCachedRecord = nil
 end
 
 local function restartAutoFarmLoop()
 	AutoFarmState.Generation += 1
 	cancelFarmTween()
 	AutoFarmState.CurrentTarget = nil
+	AutoFarmState.CurrentCachedRecord = nil
 
 	if not isAnyFarmEnabled() then
 		return
@@ -1304,6 +3447,323 @@ local EnemyNameScannerConnection =
 	end)
 
 trackConnection(EnemyNameScannerConnection)
+
+--==================================================
+-- RESOURCES: CUBE CAVE CURRENT RESOURCES
+--==================================================
+local ResourceDropdown
+local ResourceVisibleCountDisplay
+local ResourceCachedCountDisplay
+
+local function getCurrentResourcesFolder()
+	local resourceSpawns =
+		Workspace:FindFirstChild("ResourceSpawns")
+
+	local cubeCave =
+		resourceSpawns
+		and resourceSpawns:FindFirstChild("Cube Cave")
+
+	local spawnRegion =
+		cubeCave
+		and cubeCave:FindFirstChild("SpawnRegion")
+
+	return spawnRegion
+		and spawnRegion:FindFirstChild("CurrentResources")
+end
+
+local function sortedResourceNames()
+	local names = {}
+
+	for name, exists in pairs(ResourceState.Names) do
+		if exists then
+			table.insert(names, name)
+		end
+	end
+
+	table.sort(names, function(a, b)
+		return string.lower(a) < string.lower(b)
+	end)
+
+	return names
+end
+
+local function refreshResourceDisplays()
+	if ResourceVisibleCountDisplay then
+		ResourceVisibleCountDisplay:Set(
+			ResourceState.VisibleCount
+		)
+	end
+
+	if ResourceCachedCountDisplay then
+		ResourceCachedCountDisplay:Set(
+			#sortedResourceNames()
+		)
+	end
+end
+
+local function refreshResourceDropdown()
+	if not ResourceDropdown then
+		return
+	end
+
+	local selections =
+		table.clone(ResourceState.Selected)
+
+	ResourceDropdown:SetItems(
+		sortedResourceNames()
+	)
+
+	ResourceDropdown:Set(
+		selections,
+		true
+	)
+end
+
+local function scanCurrentResources()
+	local folder = getCurrentResourcesFolder()
+	local changed = false
+	local visibleCount = 0
+
+	if folder then
+		for _, resource in ipairs(folder:GetChildren()) do
+			visibleCount += 1
+
+			local resourceName =
+				tostring(resource.Name)
+
+			if resourceName ~= ""
+				and not ResourceState.Names[resourceName] then
+
+				ResourceState.Names[resourceName] = true
+				changed = true
+			end
+		end
+	end
+
+	ResourceState.VisibleCount = visibleCount
+	PersistentFarmState.ResourceNames =
+		ResourceState.Names
+
+	if changed then
+		refreshResourceDropdown()
+	end
+
+	refreshResourceDisplays()
+end
+
+local ResourceScannerConnection =
+	RunService.Heartbeat:Connect(function()
+		if not ResourceState._NextScan
+			or os.clock() >= ResourceState._NextScan then
+
+			ResourceState._NextScan =
+				os.clock() + 1
+
+			scanCurrentResources()
+		end
+	end)
+
+trackConnection(ResourceScannerConnection)
+
+--==================================================
+-- ENEMY DATA: LAST-SEEN POSITION EXPORT
+--==================================================
+local EnemyDataDropdown
+local EnemyDataCodeBlock
+local EnemyDataLabelToKey = {}
+
+local function formatNumber(value)
+	return string.format("%.6f", tonumber(value) or 0)
+end
+
+local function formatCFrame(cframe)
+	local components = {
+		cframe:GetComponents(),
+	}
+
+	for index, value in ipairs(components) do
+		components[index] = formatNumber(value)
+	end
+
+	return "CFrame.new("
+		.. table.concat(components, ", ")
+		.. ")"
+end
+
+local function formatEnemyPositionRecord(record)
+	if not record
+		or typeof(record.CFrame) ~= "CFrame" then
+
+		return "-- No enemy position selected"
+	end
+
+	local position = record.CFrame.Position
+
+	return table.concat({
+		"{",
+		'    Area = "' .. tostring(record.Area) .. '",',
+		'    Name = "' .. tostring(record.Name) .. '",',
+		'    Type = "' .. tostring(record.Kind) .. '",',
+		"    Position = Vector3.new("
+			.. formatNumber(position.X) .. ", "
+			.. formatNumber(position.Y) .. ", "
+			.. formatNumber(position.Z) .. "),",
+		"    Pivot = " .. formatCFrame(record.CFrame) .. ",",
+		"    RecordId = \"" .. tostring(record.Key) .. "\",",
+		"}",
+	}, "\n")
+end
+
+local function formatAllEnemyPositionRecords()
+	local lines = {
+		"-- Crimson Hub enemy and Mimic position data",
+		"-- Paste this entire block back into ChatGPT.",
+		"return {",
+	}
+
+	for _, key in ipairs(getSortedPositionRecordKeys()) do
+		local record =
+			EnemyPositionState.Records[key]
+
+		local formatted =
+			formatEnemyPositionRecord(record)
+
+		local recordLines = {}
+
+		for line in formatted:gmatch("[^\n]+") do
+			table.insert(recordLines, line)
+		end
+
+		for index, line in ipairs(recordLines) do
+			if index == #recordLines and line == "}" then
+				table.insert(lines, "    },")
+			else
+				table.insert(lines, "    " .. line)
+			end
+		end
+
+		table.insert(lines, "")
+	end
+
+	table.insert(lines, "}")
+
+	return table.concat(lines, "\n")
+end
+
+local function copyText(textValue)
+	local clipboardFunction
+
+	if type(setclipboard) == "function" then
+		clipboardFunction = setclipboard
+	elseif type(toclipboard) == "function" then
+		clipboardFunction = toclipboard
+	elseif type(syn) == "table"
+		and type(syn.write_clipboard) == "function" then
+
+		clipboardFunction = syn.write_clipboard
+	end
+
+	if clipboardFunction then
+		local ok, errorMessage =
+			pcall(clipboardFunction, textValue)
+
+		if ok then
+			print("Copied enemy position data to clipboard")
+			return true
+		end
+
+		warn(
+			"Clipboard copy failed:",
+			errorMessage
+		)
+	end
+
+	print(textValue)
+	warn(
+		"Clipboard API unavailable. "
+		.. "The enemy data was printed to the console."
+	)
+
+	return false
+end
+
+local function makeEnemyDataDropdownLabel(record)
+	local position = record.CFrame.Position
+
+	return string.format(
+		"[%s] %s | %s | %s | %.1f, %.1f, %.1f",
+		tostring(record.Key),
+		tostring(record.Kind),
+		tostring(record.Area),
+		tostring(record.Name),
+		position.X,
+		position.Y,
+		position.Z
+	)
+end
+
+local function refreshEnemyDataUI()
+	if not EnemyDataDropdown then
+		return
+	end
+
+	local items = {}
+	local previousKey =
+		EnemyPositionState.SelectedKey
+
+	table.clear(EnemyDataLabelToKey)
+
+	for _, key in ipairs(getSortedPositionRecordKeys()) do
+		local record =
+			EnemyPositionState.Records[key]
+
+		local label =
+			makeEnemyDataDropdownLabel(record)
+
+		EnemyDataLabelToKey[label] = key
+		table.insert(items, label)
+	end
+
+	EnemyDataDropdown:SetItems(items)
+
+	if previousKey
+		and EnemyPositionState.Records[previousKey] then
+
+		local selectedLabel
+
+		for label, key in pairs(EnemyDataLabelToKey) do
+			if key == previousKey then
+				selectedLabel = label
+				break
+			end
+		end
+
+		if selectedLabel then
+			EnemyDataDropdown:Set(
+				selectedLabel,
+				true
+			)
+		end
+	elseif items[1] then
+		EnemyPositionState.SelectedKey =
+			EnemyDataLabelToKey[items[1]]
+
+		EnemyDataDropdown:Set(
+			items[1],
+			true
+		)
+	end
+
+	if EnemyDataCodeBlock then
+		EnemyDataCodeBlock:Set(
+			formatEnemyPositionRecord(
+				EnemyPositionState.Records[
+					EnemyPositionState.SelectedKey
+				]
+			)
+		)
+	end
+end
 
 --==================================================
 -- MOVEMENT: SIMPLE FLY
@@ -1485,9 +3945,12 @@ AutoUseToggle = MainTab:Toggle({
 	end,
 })
 
-MainTab:Dropdown({
+MainTab:SearchDropdown({
 	name = "Auto Use Multiplier",
 	description = "Remote calls fired during each 0.05-second cycle",
+	searchPlaceholder = "Search multiplier...",
+	maxVisible = 5,
+	multi = false,
 	items = {
 		"1x",
 		"2x",
@@ -1613,9 +4076,12 @@ MainTab:Section({
 
 scanEnemyNamesAndMimics()
 
-EnemyDropdown = MainTab:MultiDropdown({
+EnemyDropdown = MainTab:SearchDropdown({
 	name = "Enemies",
 	description = "Select enemy names discovered inside the Enemies folders",
+	searchPlaceholder = "Search enemies...",
+	maxVisible = 8,
+	multi = true,
 	items = sortedEnemyNames(),
 	default = AutoFarmState.SelectedEnemies,
 	placeholder = "All non-Mimic enemies",
@@ -1634,9 +4100,12 @@ EnemyDropdown = MainTab:MultiDropdown({
 	end,
 })
 
-MimicDropdown = MainTab:MultiDropdown({
+MimicDropdown = MainTab:SearchDropdown({
 	name = "Mimics",
 	description = "Select which Mimic names the Mimic toggle should farm",
+	searchPlaceholder = "Search Mimics...",
+	maxVisible = 8,
+	multi = true,
 	items = sortedMimicNames(),
 	default = AutoFarmState.SelectedMimics,
 	placeholder = "All Mimics",
@@ -1682,6 +4151,220 @@ MainTab:Info({
 		.. "Names and selections stay saved after despawning. "
 		.. "Target Dummy is always blacklisted.",
 })
+
+--==================================================
+-- RESOURCES TAB UI
+--==================================================
+ResourcesTab:Section({
+	name = "Cube Cave Resources",
+	subtitle = "Reads resource names from SpawnRegion.CurrentResources",
+	icon = Library.Icons.diamond,
+})
+
+scanCurrentResources()
+
+ResourceDropdown = ResourcesTab:SearchDropdown({
+	name = "Resources",
+	description = "Select one or more discovered resource names",
+	searchPlaceholder = "Search resources...",
+	maxVisible = 9,
+	multi = true,
+	items = sortedResourceNames(),
+	default = ResourceState.Selected,
+	placeholder = "Select resources",
+	flag = "resourcesSelectedNames",
+
+	callback = function(values)
+		ResourceState.Selected =
+			type(values) == "table"
+			and table.clone(values)
+			or {}
+
+		PersistentFarmState.SelectedResources =
+			table.clone(ResourceState.Selected)
+	end,
+})
+
+ResourcesTab:Button({
+	name = "Scan Resources Now",
+	description = "Refreshes names from Cube Cave CurrentResources",
+	icon = Library.Icons.refresh,
+
+	callback = function()
+		scanCurrentResources()
+		refreshResourceDropdown()
+	end,
+})
+
+ResourceVisibleCountDisplay = ResourcesTab:NumberDisplay({
+	name = "Currently Visible",
+	description = "Resource instances currently inside CurrentResources",
+	value = ResourceState.VisibleCount,
+	suffix = "",
+})
+
+ResourceCachedCountDisplay = ResourcesTab:NumberDisplay({
+	name = "Cached Names",
+	description = "Resource names retained after they disappear",
+	value = #sortedResourceNames(),
+	suffix = "",
+})
+
+ResourcesTab:Info({
+	text = "Path: workspace.ResourceSpawns[\"Cube Cave\"].SpawnRegion.CurrentResources. "
+		.. "Names and selections remain cached when resources despawn or stream out.",
+})
+
+refreshResourceDropdown()
+refreshResourceDisplays()
+
+--==================================================
+-- ENEMY DATA TAB UI
+--==================================================
+EnemyDataTab:Section({
+	name = "Enemy & Mimic Positions",
+	subtitle = "Records the last-seen pivot before StreamingEnabled unloads them",
+	icon = Library.Icons.location,
+})
+
+EnemyDataDropdown = EnemyDataTab:SearchDropdown({
+	name = "Recorded Enemy",
+	description = "Choose a cached enemy or Mimic position",
+	searchPlaceholder = "Search recorded enemies...",
+	maxVisible = 8,
+	multi = false,
+	items = {},
+	placeholder = "No positions recorded yet",
+	flag = "enemyDataSelectedRecord",
+
+	callback = function(value)
+		local key =
+			EnemyDataLabelToKey[value]
+
+		EnemyPositionState.SelectedKey = key
+
+		if EnemyDataCodeBlock then
+			EnemyDataCodeBlock:Set(
+				formatEnemyPositionRecord(
+					EnemyPositionState.Records[key]
+				)
+			)
+		end
+	end,
+})
+
+EnemyDataCodeBlock = EnemyDataTab:CodeBlock({
+	title = "Selected Position",
+	code = "-- No enemy positions recorded yet",
+	copy = true,
+	maxHeight = 240,
+})
+
+EnemyDataTab:Button({
+	name = "Scan Visible Enemies Now",
+	description = "Updates names and last-seen pivots from every Enemies folder",
+	icon = Library.Icons.refresh,
+
+	callback = function()
+		scanEnemyNamesAndMimics()
+		refreshEnemyDataUI()
+	end,
+})
+
+EnemyDataTab:Button({
+	name = "Copy Selected Position",
+	description = "Copies the selected area, enemy name, position, and full pivot",
+	icon = Library.Icons.copy,
+
+	callback = function()
+		local record =
+			EnemyPositionState.Records[
+				EnemyPositionState.SelectedKey
+			]
+
+		copyText(
+			formatEnemyPositionRecord(record)
+		)
+	end,
+})
+
+EnemyDataTab:Button({
+	name = "Copy All Enemy Data",
+	description = "Copies every recorded Enemy and Mimic position for you to send",
+	icon = Library.Icons.copy,
+
+	callback = function()
+		copyText(
+			formatAllEnemyPositionRecords()
+		)
+	end,
+})
+
+EnemyDataTab:Button({
+	name = "Clear Recorded Positions",
+	description = "Deletes the saved last-seen position cache",
+	icon = Library.Icons.trash,
+
+	callback = function()
+		table.clear(EnemyPositionState.Records)
+		table.clear(
+			EnemyPositionState.InstanceRecordKeys
+		)
+
+		PersistentFarmState.PositionRecords =
+			EnemyPositionState.Records
+
+		EnemyPositionState.SelectedKey = nil
+		EnemyPositionState.TravelIndex = 0
+		EnemyPositionState.NewRecordVersion += 1
+
+		refreshEnemyDataUI()
+	end,
+})
+
+EnemyDataTab:Info({
+	text = "The cache keeps area, enemy name, Mimic type, position, "
+		.. "and full CFrame after the model streams out. "
+		.. "Use Copy All Enemy Data and paste it back into chat.",
+})
+
+scanEnemyNamesAndMimics()
+refreshEnemyDataUI()
+
+local EnemyDataRefreshConnection =
+	RunService.Heartbeat:Connect(function()
+		if not EnemyPositionState._NextUIRefresh
+			or os.clock()
+				>= EnemyPositionState._NextUIRefresh then
+
+			EnemyPositionState._NextUIRefresh =
+				os.clock() + 1
+
+			local version =
+				EnemyPositionState.NewRecordVersion
+
+			if EnemyPositionState._LastUIVersion
+				~= version then
+
+				EnemyPositionState._LastUIVersion =
+					version
+
+				refreshEnemyDataUI()
+			elseif EnemyDataCodeBlock
+				and EnemyPositionState.SelectedKey then
+
+				EnemyDataCodeBlock:Set(
+					formatEnemyPositionRecord(
+						EnemyPositionState.Records[
+							EnemyPositionState.SelectedKey
+						]
+					)
+				)
+			end
+		end
+	end)
+
+trackConnection(EnemyDataRefreshConnection)
 
 --==================================================
 -- MOVEMENT TAB UI
@@ -1752,6 +4435,7 @@ Library:RegisterGlobalCleanup(function()
 	AutoFarmState.MimicEnabled = false
 	AutoFarmState.Generation += 1
 	AutoFarmState.CurrentTarget = nil
+	AutoFarmState.CurrentCachedRecord = nil
 	cancelFarmTween()
 
 	FlyState.Enabled = false
@@ -1766,4 +4450,4 @@ Library:RegisterGlobalCleanup(function()
 end, "CrimsonHubMainMovementCleanup")
 
 print("Crimson Hub loaded")
-print("RightShift = UI | J = Auto Use | X = Fly | Enemy and Mimic Farm in Main")
+print("RightShift = UI | J = Auto Use | X = Fly | Searchable Enemies, Mimics, Resources, and Enemy Data")
