@@ -1,0 +1,1769 @@
+--==================================================
+-- CRIMSON HUB - MAIN + MOVEMENT
+-- Ventura / MenuXD
+--
+-- Main tab:
+--   • Auto Use Equipped Item
+--   • J keybind
+--   • UseItem remote every 0.05 seconds
+--   • Equipped Tool Hitbox (off by default)
+--   • Hitbox visual outline
+--   • Hitbox size slider (5–40)
+--   • Auto Farm enemy-name multi-selection
+--   • Persistent Mimic target selection
+--   • Separate enemy and Mimic farm toggles
+--   • Auto Block toggle (0.07-second interval)
+--   • Auto Use multiplier dropdown (1x–5x)
+--
+-- Movement tab:
+--   • Fly toggle
+--   • X keybind
+--   • Fly speed slider
+--   • Vertical speed slider
+--==================================================
+
+--==================================================
+-- SERVICES
+--==================================================
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local Workspace = game:GetService("Workspace")
+
+local LocalPlayer = Players.LocalPlayer
+
+--==================================================
+-- LOAD VENTURA / MENUXD
+--==================================================
+local Library = loadstring(game:HttpGet(
+	"https://raw.githubusercontent.com/DestroyTheO/MenuXD/refs/heads/main/Main"
+))()
+
+local Window = Library:CreateWindow({
+	name = "Crimson Hub",
+	subtitle = "Universal",
+	theme = "Carbon",
+	toggleKey = Enum.KeyCode.RightShift,
+})
+
+local MainTab = Window:CreateTab({
+	name = "Main",
+})
+
+local MovementTab = Window:CreateTab({
+	name = "Movement",
+})
+
+--==================================================
+-- USE ITEM REMOTE
+--==================================================
+local UseItemRemote = ReplicatedStorage
+	:WaitForChild("ClientRemotes")
+	:WaitForChild("Character")
+	:WaitForChild("UseItem")
+
+local BlockRemote = ReplicatedStorage
+	:WaitForChild("ClientRemotes")
+	:WaitForChild("Character")
+	:WaitForChild("Block")
+
+--==================================================
+-- SETTINGS
+--==================================================
+local AUTO_USE_KEY = Enum.KeyCode.J
+local AUTO_USE_INTERVAL = 0.05
+local FLY_KEY = Enum.KeyCode.X
+
+local AutoBlockState = {
+	Enabled = false,
+	Generation = 0,
+	Interval = 0.07,
+}
+
+local AutoUseState = {
+	Enabled = false,
+	Generation = 0,
+	Multiplier = 1,
+}
+
+local HitboxState = {
+	Enabled = false,
+	VisualEnabled = true,
+	Size = 40,
+}
+
+local AREA_NAMES = {
+	"StarterArea",
+	"MinesArea",
+	"DesertTemple",
+	"CublinDungeon",
+	"CaveArea",
+	"BeeHiveArea",
+	"AbyssArea",
+}
+
+local SharedEnvironment =
+	(type(getgenv) == "function" and getgenv())
+	or shared
+	or _G
+
+SharedEnvironment.__CrimsonAutoFarmPersistent =
+	SharedEnvironment.__CrimsonAutoFarmPersistent
+	or {
+		SelectedEnemies = {},
+		SelectedMimics = {},
+		EnemyNames = {},
+		MimicNames = {},
+	}
+
+local PersistentFarmState =
+	SharedEnvironment.__CrimsonAutoFarmPersistent
+
+local AutoFarmState = {
+	EnemyEnabled = false,
+	MimicEnabled = false,
+	Generation = 0,
+	TweenSpeed = 250,
+	BehindDistance = 4,
+	SelectedEnemies =
+		type(PersistentFarmState.SelectedEnemies) == "table"
+		and table.clone(PersistentFarmState.SelectedEnemies)
+		or {},
+	SelectedMimics =
+		type(PersistentFarmState.SelectedMimics) == "table"
+		and table.clone(PersistentFarmState.SelectedMimics)
+		or {},
+	EnemyNames =
+		type(PersistentFarmState.EnemyNames) == "table"
+		and PersistentFarmState.EnemyNames
+		or {},
+	MimicNames =
+		type(PersistentFarmState.MimicNames) == "table"
+		and PersistentFarmState.MimicNames
+		or {},
+	CurrentTween = nil,
+	CurrentTarget = nil,
+}
+
+PersistentFarmState.EnemyNames = AutoFarmState.EnemyNames
+PersistentFarmState.MimicNames = AutoFarmState.MimicNames
+
+local FlyState = {
+	Enabled = false,
+	Speed = 175,
+	VerticalSpeed = 75,
+	YLevel = nil,
+}
+
+--==================================================
+-- CONNECTION / CLEANUP STORAGE
+--==================================================
+local Connections = {}
+local BoundContainers = {}
+local OriginalHitboxProperties = {}
+local HitboxVisuals = {}
+
+local function trackConnection(connection)
+	if connection then
+		table.insert(Connections, connection)
+	end
+
+	return connection
+end
+
+local function disconnectAll()
+	for index = #Connections, 1, -1 do
+		local connection = Connections[index]
+
+		pcall(function()
+			connection:Disconnect()
+		end)
+
+		Connections[index] = nil
+	end
+end
+
+--==================================================
+-- CHARACTER CONTAINER DETECTION
+--==================================================
+local function getPlayerCharactersFolder()
+	return Workspace:FindFirstChild("PlayerCharacters")
+end
+
+local function isCharacterLike(model)
+	return model
+		and (
+			model:FindFirstChildWhichIsA("Humanoid")
+			or model:FindFirstChild("HumanoidRootPart")
+			or model:FindFirstChild("UpperTorso")
+			or model:FindFirstChild("Torso")
+		)
+end
+
+local function getCustomCharacter()
+	local folder = getPlayerCharactersFolder()
+
+	if not folder then
+		return nil
+	end
+
+	local direct =
+		folder:FindFirstChild(LocalPlayer.Name)
+		or folder:FindFirstChild(LocalPlayer.DisplayName)
+		or folder:FindFirstChild("H20_SUNNY")
+
+	if direct then
+		return direct
+	end
+
+	-- Fallback: locate the character that matches LocalPlayer.Character.
+	local normalCharacter = LocalPlayer.Character
+
+	if normalCharacter then
+		for _, child in ipairs(folder:GetChildren()) do
+			if child == normalCharacter then
+				return child
+			end
+		end
+	end
+
+	-- Last-resort fallback when the folder contains only one character.
+	local possible = {}
+
+	for _, child in ipairs(folder:GetChildren()) do
+		if child:IsA("Model") and isCharacterLike(child) then
+			table.insert(possible, child)
+		end
+	end
+
+	if #possible == 1 then
+		return possible[1]
+	end
+
+	return nil
+end
+
+local function getMovementCharacter()
+	local normalCharacter = LocalPlayer.Character
+
+	if normalCharacter
+		and normalCharacter.Parent
+		and normalCharacter:FindFirstChild("HumanoidRootPart") then
+
+		return normalCharacter
+	end
+
+	return getCustomCharacter()
+end
+
+local function getHumanoid()
+	local character = getMovementCharacter()
+
+	return character
+		and character:FindFirstChildWhichIsA("Humanoid")
+end
+
+local function getRoot()
+	local character = getMovementCharacter()
+
+	return character
+		and character:FindFirstChild("HumanoidRootPart")
+end
+
+local function isAlive()
+	local humanoid = getHumanoid()
+
+	return humanoid
+		and humanoid.Health > 0
+end
+
+--==================================================
+-- EQUIPPED ITEM DETECTION
+--==================================================
+local IgnoredCharacterNames = {
+	["Humanoid"] = true,
+	["HumanoidRootPart"] = true,
+	["Head"] = true,
+	["UpperTorso"] = true,
+	["LowerTorso"] = true,
+	["Torso"] = true,
+
+	["RightHand"] = true,
+	["LeftHand"] = true,
+	["RightLowerArm"] = true,
+	["LeftLowerArm"] = true,
+	["RightUpperArm"] = true,
+	["LeftUpperArm"] = true,
+	["Right Arm"] = true,
+	["Left Arm"] = true,
+
+	["RightFoot"] = true,
+	["LeftFoot"] = true,
+	["RightLowerLeg"] = true,
+	["LeftLowerLeg"] = true,
+	["RightUpperLeg"] = true,
+	["LeftUpperLeg"] = true,
+	["Right Leg"] = true,
+	["Left Leg"] = true,
+
+	["Animate"] = true,
+	["Health"] = true,
+	["Body Colors"] = true,
+}
+
+local KnownHeldKeywords = {
+	"sword",
+	"pickaxe",
+	"hatchet",
+	"shovel",
+	"axe",
+	"hammer",
+	"weapon",
+	"tool",
+}
+
+local function isIgnoredCharacterObject(item)
+	if not item then
+		return true
+	end
+
+	if IgnoredCharacterNames[item.Name] then
+		return true
+	end
+
+	return item:IsA("Humanoid")
+		or item:IsA("Animator")
+		or item:IsA("Accessory")
+		or item:IsA("Shirt")
+		or item:IsA("Pants")
+		or item:IsA("BodyColors")
+		or item:IsA("CharacterMesh")
+		or item:IsA("Script")
+		or item:IsA("LocalScript")
+		or item:IsA("ModuleScript")
+end
+
+local function containsKnownHeldKeyword(name)
+	local lowerName = string.lower(name)
+
+	for _, keyword in ipairs(KnownHeldKeywords) do
+		if string.find(lowerName, keyword, 1, true) then
+			return true
+		end
+	end
+
+	return false
+end
+
+local function hasHeldPart(item)
+	if item:IsA("BasePart") then
+		return true
+	end
+
+	return item:FindFirstChild("Handle", true)
+		or item:FindFirstChild("Hitbox", true)
+		or item:FindFirstChild("HitBox", true)
+		or item:FindFirstChild("Grip", true)
+end
+
+local function isPossibleHeldItem(item)
+	if not item or not item.Parent or isIgnoredCharacterObject(item) then
+		return false
+	end
+
+	if item:IsA("Tool") then
+		return true
+	end
+
+	if containsKnownHeldKeyword(item.Name) then
+		return true
+	end
+
+	if item:IsA("Model") or item:IsA("Folder") then
+		return hasHeldPart(item) ~= nil
+	end
+
+	return false
+end
+
+local function getEquipmentContainers()
+	local containers = {}
+	local seen = {}
+
+	local function add(container)
+		if container and container.Parent and not seen[container] then
+			seen[container] = true
+			table.insert(containers, container)
+		end
+	end
+
+	add(getCustomCharacter())
+	add(LocalPlayer.Character)
+
+	return containers
+end
+
+local function getEquippedItem()
+	local containers = getEquipmentContainers()
+
+	-- First priority: standard equipped Tool objects.
+	for _, container in ipairs(containers) do
+		for _, child in ipairs(container:GetChildren()) do
+			if child:IsA("Tool") then
+				return child
+			end
+		end
+	end
+
+	-- Second priority: known held-item names.
+	for _, container in ipairs(containers) do
+		for _, child in ipairs(container:GetChildren()) do
+			if not isIgnoredCharacterObject(child)
+				and containsKnownHeldKeyword(child.Name) then
+
+				return child
+			end
+		end
+	end
+
+	-- Final fallback: models/folders containing Handle, Hitbox, or Grip.
+	for _, container in ipairs(containers) do
+		for _, child in ipairs(container:GetChildren()) do
+			if isPossibleHeldItem(child) then
+				return child
+			end
+		end
+	end
+
+	return nil
+end
+
+--==================================================
+-- MAIN: AUTO BLOCK
+--==================================================
+local AutoBlockToggle
+
+local function fireBlock()
+	if not BlockRemote or not BlockRemote.Parent then
+		return false
+	end
+
+	BlockRemote:FireServer(true)
+	return true
+end
+
+local function setAutoBlockEnabled(state, synchronizeToggle)
+	AutoBlockState.Enabled = state == true
+	AutoBlockState.Generation += 1
+
+	if synchronizeToggle and AutoBlockToggle then
+		AutoBlockToggle:Set(
+			AutoBlockState.Enabled,
+			true
+		)
+	end
+
+	if not AutoBlockState.Enabled then
+		print("Auto Block: OFF")
+		return
+	end
+
+	print("Auto Block: ON")
+
+	local generation = AutoBlockState.Generation
+
+	task.spawn(function()
+		while AutoBlockState.Enabled
+			and AutoBlockState.Generation == generation do
+
+			fireBlock()
+			task.wait(AutoBlockState.Interval)
+		end
+	end)
+end
+
+--==================================================
+-- MAIN: USEITEM REMOTE
+--==================================================
+local function fireEquippedItem()
+	local item = getEquippedItem()
+
+	if not item or not item.Parent then
+		return false
+	end
+
+	local lowerName = string.lower(item.Name)
+
+	-- Preserve the sword argument format originally supplied.
+	if string.find(lowerName, "sword", 1, true) then
+		UseItemRemote:FireServer(
+			item,
+			false,
+			nil,
+			nil,
+			0.6
+		)
+	else
+		UseItemRemote:FireServer(
+			item,
+			false
+		)
+	end
+
+	return true
+end
+
+local AutoUseToggle
+
+local function setAutoUseEnabled(state, synchronizeToggle)
+	AutoUseState.Enabled = state == true
+	AutoUseState.Generation += 1
+
+	if synchronizeToggle and AutoUseToggle then
+		AutoUseToggle:Set(AutoUseState.Enabled, true)
+	end
+
+	if not AutoUseState.Enabled then
+		print("Auto Use: OFF")
+		return
+	end
+
+	print("Auto Use: ON")
+
+	local thisGeneration = AutoUseState.Generation
+
+	task.spawn(function()
+		while AutoUseState.Enabled
+			and AutoUseState.Generation == thisGeneration do
+
+			local multiplier = math.clamp(
+				tonumber(AutoUseState.Multiplier) or 1,
+				1,
+				5
+			)
+
+			for _ = 1, multiplier do
+				if not AutoUseState.Enabled
+					or AutoUseState.Generation ~= thisGeneration then
+
+					break
+				end
+
+				fireEquippedItem()
+			end
+
+			task.wait(AUTO_USE_INTERVAL)
+		end
+	end)
+end
+
+--==================================================
+-- MAIN: TOOL HITBOX
+--==================================================
+local function rememberHitboxProperties(part)
+	if OriginalHitboxProperties[part] then
+		return
+	end
+
+	OriginalHitboxProperties[part] = {
+		Size = part.Size,
+		CanCollide = part.CanCollide,
+		CanTouch = part.CanTouch,
+		CanQuery = part.CanQuery,
+		Massless = part.Massless,
+		Transparency = part.Transparency,
+	}
+end
+
+local function removeHitboxVisual(part)
+	local visual = HitboxVisuals[part]
+
+	if visual then
+		pcall(function()
+			visual:Destroy()
+		end)
+	end
+
+	HitboxVisuals[part] = nil
+end
+
+local function removeAllHitboxVisuals()
+	local parts = {}
+
+	for part in pairs(HitboxVisuals) do
+		table.insert(parts, part)
+	end
+
+	for _, part in ipairs(parts) do
+		removeHitboxVisual(part)
+	end
+end
+
+local function updateHitboxVisual(part)
+	if not HitboxState.Enabled
+		or not HitboxState.VisualEnabled
+		or not part
+		or not part.Parent then
+
+		removeHitboxVisual(part)
+		return
+	end
+
+	local visual = HitboxVisuals[part]
+
+	if not visual or not visual.Parent then
+		visual = Instance.new("SelectionBox")
+		visual.Name = "CrimsonHitboxVisual"
+		visual.Adornee = part
+		visual.Color3 = Color3.fromRGB(255, 65, 65)
+		visual.SurfaceColor3 = Color3.fromRGB(255, 65, 65)
+		visual.SurfaceTransparency = 1
+		visual.LineThickness = 0.04
+		visual.Parent = part
+
+		HitboxVisuals[part] = visual
+	else
+		visual.Adornee = part
+	end
+end
+
+local function restoreHitboxPart(part)
+	local original = OriginalHitboxProperties[part]
+
+	removeHitboxVisual(part)
+
+	if not original then
+		return
+	end
+
+	if part and part.Parent then
+		pcall(function()
+			part.Size = original.Size
+			part.CanCollide = original.CanCollide
+			part.CanTouch = original.CanTouch
+			part.CanQuery = original.CanQuery
+			part.Massless = original.Massless
+			part.Transparency = original.Transparency
+		end)
+	end
+
+	OriginalHitboxProperties[part] = nil
+end
+
+local function restoreAllHitboxes()
+	local parts = {}
+
+	for part in pairs(OriginalHitboxProperties) do
+		table.insert(parts, part)
+	end
+
+	for _, part in ipairs(parts) do
+		restoreHitboxPart(part)
+	end
+end
+
+local function getHitboxParts(item)
+	local results = {}
+	local added = {}
+
+	local function add(part)
+		if not part
+			or not part:IsA("BasePart")
+			or added[part] then
+
+			return
+		end
+
+		added[part] = true
+		table.insert(results, part)
+	end
+
+	if item:IsA("BasePart") then
+		add(item)
+	end
+
+	for _, descendant in ipairs(item:GetDescendants()) do
+		if descendant:IsA("BasePart") then
+			local lowerName = string.lower(descendant.Name)
+
+			if string.find(lowerName, "hitbox", 1, true)
+				or lowerName == "hit box" then
+
+				add(descendant)
+			end
+		end
+	end
+
+	-- Use Handle only when the item has no dedicated hitbox.
+	if #results == 0 then
+		add(item:FindFirstChild("Handle", true))
+	end
+
+	return results
+end
+
+local function resizeHitboxPart(part)
+	if not HitboxState.Enabled
+		or not part
+		or not part.Parent then
+
+		return
+	end
+
+	rememberHitboxProperties(part)
+
+	local size = math.clamp(
+		tonumber(HitboxState.Size) or 40,
+		5,
+		40
+	)
+
+	part.Size = Vector3.new(size, size, size)
+	part.CanCollide = false
+	part.CanTouch = true
+	part.CanQuery = true
+	part.Massless = true
+
+	updateHitboxVisual(part)
+end
+
+local function applyHitboxToItem(item)
+	if not HitboxState.Enabled
+		or not isPossibleHeldItem(item) then
+
+		return false
+	end
+
+	local hitboxes = getHitboxParts(item)
+
+	if #hitboxes == 0 then
+		return false
+	end
+
+	for _, part in ipairs(hitboxes) do
+		resizeHitboxPart(part)
+	end
+
+	return true
+end
+
+local function applyHitboxToEquippedItem()
+	if not HitboxState.Enabled then
+		return
+	end
+
+	local item = getEquippedItem()
+
+	if item then
+		applyHitboxToItem(item)
+	end
+end
+
+local function bindEquipmentContainer(container)
+	if not container
+		or not container.Parent
+		or BoundContainers[container] then
+
+		return
+	end
+
+	BoundContainers[container] = true
+
+	-- Apply to an item already equipped.
+	task.defer(applyHitboxToEquippedItem)
+
+	trackConnection(container.ChildAdded:Connect(function(child)
+		task.spawn(function()
+			-- Some tools add Handle/Hitbox after being parented.
+			for _ = 1, 15 do
+				if not child.Parent then
+					break
+				end
+
+				if HitboxState.Enabled and isPossibleHeldItem(child) then
+					if applyHitboxToItem(child) then
+						break
+					end
+				end
+
+				task.wait(0.1)
+			end
+		end)
+	end))
+
+	trackConnection(container.AncestryChanged:Connect(function(_, parent)
+		if not parent then
+			BoundContainers[container] = nil
+		end
+	end))
+end
+
+local function bindCurrentEquipmentContainers()
+	for _, container in ipairs(getEquipmentContainers()) do
+		bindEquipmentContainer(container)
+	end
+end
+
+local function setHitboxEnabled(state)
+	HitboxState.Enabled = state == true
+
+	if HitboxState.Enabled then
+		bindCurrentEquipmentContainers()
+		applyHitboxToEquippedItem()
+	else
+		restoreAllHitboxes()
+		removeAllHitboxVisuals()
+	end
+
+	print(
+		"Tool Hitbox:",
+		HitboxState.Enabled and "ON" or "OFF"
+	)
+end
+
+local function setHitboxVisualEnabled(state)
+	HitboxState.VisualEnabled = state == true
+
+	if HitboxState.VisualEnabled and HitboxState.Enabled then
+		applyHitboxToEquippedItem()
+	else
+		removeAllHitboxVisuals()
+	end
+
+	print(
+		"Hitbox Visual:",
+		HitboxState.VisualEnabled and "ON" or "OFF"
+	)
+end
+
+--==================================================
+-- MAIN: AUTO FARM
+--==================================================
+local EnemyDropdown
+local MimicDropdown
+local EnemyFarmToggle
+local MimicFarmToggle
+
+local function arrayToSet(values)
+	local result = {}
+
+	if type(values) == "table" then
+		for _, value in ipairs(values) do
+			result[value] = true
+		end
+	end
+
+	return result
+end
+
+local function isBlacklistedEnemyName(name)
+	return type(name) == "string"
+		and string.find(
+			string.lower(name),
+			"target dummy",
+			1,
+			true
+		) ~= nil
+end
+
+local function isMimicName(name)
+	return type(name) == "string"
+		and string.find(
+			string.lower(name),
+			"mimic",
+			1,
+			true
+		) ~= nil
+end
+
+local function sortedEnemyNames()
+	local names = {}
+
+	for name, exists in pairs(AutoFarmState.EnemyNames) do
+		if exists
+			and not isBlacklistedEnemyName(name)
+			and not isMimicName(name) then
+
+			table.insert(names, name)
+		end
+	end
+
+	table.sort(names, function(a, b)
+		return string.lower(a) < string.lower(b)
+	end)
+
+	return names
+end
+
+local function sortedMimicNames()
+	local names = {}
+
+	for name, exists in pairs(AutoFarmState.MimicNames) do
+		if exists and not isBlacklistedEnemyName(name) then
+			table.insert(names, name)
+		end
+	end
+
+	table.sort(names, function(a, b)
+		return string.lower(a) < string.lower(b)
+	end)
+
+	return names
+end
+
+local function getAreaEnemiesFolder(areaName)
+	local areas = Workspace:FindFirstChild("Areas")
+	local area = areas and areas:FindFirstChild(areaName)
+
+	return area and area:FindFirstChild("Enemies")
+end
+
+local function getEnemyHumanoid(enemy)
+	if not enemy or not enemy.Parent then
+		return nil
+	end
+
+	local named = enemy:FindFirstChild("EnemyHumanoid", true)
+
+	if named and named:IsA("Humanoid") then
+		return named
+	end
+
+	return enemy:FindFirstChildWhichIsA("Humanoid", true)
+end
+
+local function getEnemyRoot(enemy)
+	if not enemy or not enemy.Parent then
+		return nil
+	end
+
+	if enemy:IsA("BasePart") then
+		return enemy
+	end
+
+	local primaryPart =
+		enemy:IsA("Model")
+		and enemy.PrimaryPart
+		or nil
+
+	return enemy:FindFirstChild("HumanoidRootPart", true)
+		or primaryPart
+		or enemy:FindFirstChildWhichIsA("BasePart", true)
+end
+
+local function isAliveEnemy(enemy)
+	local humanoid = getEnemyHumanoid(enemy)
+	local root = getEnemyRoot(enemy)
+
+	return humanoid
+		and root
+		and humanoid.Health > 0
+		and humanoid.MaxHealth > 0
+end
+
+local function rememberEnemyName(name)
+	if type(name) ~= "string"
+		or isBlacklistedEnemyName(name) then
+
+		return false
+	end
+
+	if isMimicName(name) then
+		return false
+	end
+
+	if AutoFarmState.EnemyNames[name] then
+		return false
+	end
+
+	AutoFarmState.EnemyNames[name] = true
+	PersistentFarmState.EnemyNames = AutoFarmState.EnemyNames
+
+	return true
+end
+
+local function rememberMimicName(name)
+	if type(name) ~= "string"
+		or isBlacklistedEnemyName(name)
+		or not isMimicName(name) then
+
+		return false
+	end
+
+	if AutoFarmState.MimicNames[name] then
+		return false
+	end
+
+	AutoFarmState.MimicNames[name] = true
+	PersistentFarmState.MimicNames = AutoFarmState.MimicNames
+
+	return true
+end
+
+local function scanEnemyNamesAndMimics()
+	local enemyChanged = false
+	local mimicChanged = false
+
+	for _, areaName in ipairs(AREA_NAMES) do
+		local folder = getAreaEnemiesFolder(areaName)
+
+		if folder then
+			for _, enemy in ipairs(folder:GetChildren()) do
+				if not isBlacklistedEnemyName(enemy.Name) then
+					if isMimicName(enemy.Name) then
+						if rememberMimicName(enemy.Name) then
+							mimicChanged = true
+						end
+					else
+						if rememberEnemyName(enemy.Name) then
+							enemyChanged = true
+						end
+					end
+				end
+			end
+		end
+	end
+
+	-- These caches only grow. Names are never removed when enemies
+	-- despawn, so selections remain available for future respawns.
+	if enemyChanged and EnemyDropdown then
+		EnemyDropdown:SetItems(sortedEnemyNames())
+		EnemyDropdown:Set(
+			AutoFarmState.SelectedEnemies,
+			true
+		)
+	end
+
+	if mimicChanged and MimicDropdown then
+		MimicDropdown:SetItems(sortedMimicNames())
+		MimicDropdown:Set(
+			AutoFarmState.SelectedMimics,
+			true
+		)
+	end
+end
+
+local function targetMatchesNameFilters(enemy, enemySet, mimicSet)
+	if isBlacklistedEnemyName(enemy.Name) then
+		return false
+	end
+
+	if isMimicName(enemy.Name) then
+		return next(mimicSet) == nil
+			or mimicSet[enemy.Name] == true
+	end
+
+	return next(enemySet) == nil
+		or enemySet[enemy.Name] == true
+end
+
+local function collectFarmTargets()
+	local targets = {}
+	local selectedEnemySet =
+		arrayToSet(AutoFarmState.SelectedEnemies)
+	local selectedMimicSet =
+		arrayToSet(AutoFarmState.SelectedMimics)
+
+	for _, areaName in ipairs(AREA_NAMES) do
+		local folder = getAreaEnemiesFolder(areaName)
+
+		if folder then
+			for _, enemy in ipairs(
+				folder:GetChildren()
+			) do
+				if not isBlacklistedEnemyName(enemy.Name) then
+					local mimic = isMimicName(enemy.Name)
+
+					if mimic then
+						rememberMimicName(enemy.Name)
+					else
+						rememberEnemyName(enemy.Name)
+					end
+
+					local categoryEnabled =
+						(mimic and AutoFarmState.MimicEnabled)
+						or (
+							not mimic
+							and AutoFarmState.EnemyEnabled
+						)
+
+					if categoryEnabled
+						and isAliveEnemy(enemy)
+						and targetMatchesNameFilters(
+							enemy,
+							selectedEnemySet,
+							selectedMimicSet
+						) then
+
+						table.insert(targets, enemy)
+					end
+				end
+			end
+		end
+	end
+
+	return targets
+end
+
+local function isAnyFarmEnabled()
+	return AutoFarmState.EnemyEnabled
+		or AutoFarmState.MimicEnabled
+end
+
+local function cancelFarmTween()
+	local tween = AutoFarmState.CurrentTween
+
+	if tween then
+		pcall(function()
+			tween:Cancel()
+		end)
+	end
+
+	AutoFarmState.CurrentTween = nil
+end
+
+local function getFarmCharacterRoot()
+	local character = getMovementCharacter()
+
+	return character
+		and character:FindFirstChild("HumanoidRootPart")
+end
+
+local function tweenBehindEnemy(enemy)
+	local playerRoot = getFarmCharacterRoot()
+	local enemyRoot = getEnemyRoot(enemy)
+	local enemyHumanoid = getEnemyHumanoid(enemy)
+
+	if not playerRoot
+		or not enemyRoot
+		or not enemyHumanoid
+		or enemyHumanoid.Health <= 0 then
+
+		return false
+	end
+
+	local destination =
+		enemyRoot.CFrame
+		* CFrame.new(
+			0,
+			0,
+			AutoFarmState.BehindDistance
+		)
+
+	local distance =
+		(playerRoot.Position - destination.Position).Magnitude
+
+	local duration = math.clamp(
+		distance / AutoFarmState.TweenSpeed,
+		0.03,
+		0.25
+	)
+
+	cancelFarmTween()
+
+	local tween = TweenService:Create(
+		playerRoot,
+		TweenInfo.new(
+			duration,
+			Enum.EasingStyle.Linear,
+			Enum.EasingDirection.Out
+		),
+		{
+			CFrame = destination,
+		}
+	)
+
+	AutoFarmState.CurrentTween = tween
+	tween:Play()
+
+	task.wait(math.min(duration, 0.10))
+
+	return enemyHumanoid.Health > 0
+		and enemy.Parent ~= nil
+end
+
+local function runAutoFarm(generation)
+	while isAnyFarmEnabled()
+		and AutoFarmState.Generation == generation do
+
+		scanEnemyNamesAndMimics()
+
+		local targets = collectFarmTargets()
+		local target = targets[1]
+
+		if not target then
+			AutoFarmState.CurrentTarget = nil
+			cancelFarmTween()
+			task.wait(0.20)
+			continue
+		end
+
+		AutoFarmState.CurrentTarget = target
+
+		while isAnyFarmEnabled()
+			and AutoFarmState.Generation == generation
+			and target.Parent
+			and isAliveEnemy(target) do
+
+			local targetIsMimic =
+				isMimicName(target.Name)
+
+			local categoryStillEnabled =
+				(
+					targetIsMimic
+					and AutoFarmState.MimicEnabled
+				)
+				or (
+					not targetIsMimic
+					and AutoFarmState.EnemyEnabled
+				)
+
+			if not categoryStillEnabled
+				or not tweenBehindEnemy(target) then
+
+				break
+			end
+		end
+
+		cancelFarmTween()
+		AutoFarmState.CurrentTarget = nil
+		task.wait()
+	end
+
+	cancelFarmTween()
+	AutoFarmState.CurrentTarget = nil
+end
+
+local function restartAutoFarmLoop()
+	AutoFarmState.Generation += 1
+	cancelFarmTween()
+	AutoFarmState.CurrentTarget = nil
+
+	if not isAnyFarmEnabled() then
+		return
+	end
+
+	local generation = AutoFarmState.Generation
+
+	task.spawn(function()
+		runAutoFarm(generation)
+	end)
+end
+
+local function setEnemyFarmEnabled(state, synchronizeToggle)
+	AutoFarmState.EnemyEnabled = state == true
+
+	if synchronizeToggle and EnemyFarmToggle then
+		EnemyFarmToggle:Set(
+			AutoFarmState.EnemyEnabled,
+			true
+		)
+	end
+
+	restartAutoFarmLoop()
+
+	print(
+		"Auto Farm Enemies:",
+		AutoFarmState.EnemyEnabled and "ON" or "OFF"
+	)
+end
+
+local function setMimicFarmEnabled(state, synchronizeToggle)
+	AutoFarmState.MimicEnabled = state == true
+
+	if synchronizeToggle and MimicFarmToggle then
+		MimicFarmToggle:Set(
+			AutoFarmState.MimicEnabled,
+			true
+		)
+	end
+
+	restartAutoFarmLoop()
+
+	print(
+		"Auto Farm Mimics:",
+		AutoFarmState.MimicEnabled and "ON" or "OFF"
+	)
+end
+
+-- Discover enemy and Mimic names even while Auto Farm is off.
+-- The name caches are never cleared when folders become empty.
+local EnemyNameScannerConnection =
+	RunService.Heartbeat:Connect(function()
+		if not AutoFarmState._NextMimicScan
+			or os.clock()
+				>= AutoFarmState._NextMimicScan then
+
+			AutoFarmState._NextMimicScan =
+				os.clock() + 1
+
+			scanEnemyNamesAndMimics()
+		end
+	end)
+
+trackConnection(EnemyNameScannerConnection)
+
+--==================================================
+-- MOVEMENT: SIMPLE FLY
+--==================================================
+local FlyToggle
+
+local function setFlyEnabled(state, synchronizeToggle)
+	FlyState.Enabled = state == true
+	FlyState.YLevel = nil
+
+	if synchronizeToggle and FlyToggle then
+		FlyToggle:Set(FlyState.Enabled, true)
+	end
+
+	if not FlyState.Enabled then
+		local root = getRoot()
+
+		if root then
+			root.AssemblyLinearVelocity = Vector3.zero
+			root.AssemblyAngularVelocity = Vector3.zero
+		end
+	end
+
+	print("Fly:", FlyState.Enabled and "ON" or "OFF")
+end
+
+local FlyConnection = RunService.PreSimulation:Connect(function(deltaTime)
+	if not FlyState.Enabled or not isAlive() then
+		FlyState.YLevel = nil
+		return
+	end
+
+	local root = getRoot()
+	local humanoid = getHumanoid()
+
+	if not root or not humanoid then
+		return
+	end
+
+	if FlyState.YLevel == nil then
+		FlyState.YLevel = root.Position.Y
+	end
+
+	local verticalInput = 0
+
+	if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
+		verticalInput += 1
+	end
+
+	if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
+		verticalInput -= 1
+	end
+
+	FlyState.YLevel +=
+		verticalInput
+		* FlyState.VerticalSpeed
+		* deltaTime
+
+	root.CFrame +=
+		humanoid.MoveDirection
+		* FlyState.Speed
+		* deltaTime
+
+	local velocity = root.AssemblyLinearVelocity
+
+	root.AssemblyLinearVelocity = Vector3.new(
+		velocity.X,
+		0,
+		velocity.Z
+	)
+
+	root.CFrame += Vector3.new(
+		0,
+		FlyState.YLevel - root.Position.Y,
+		0
+	)
+end)
+
+trackConnection(FlyConnection)
+
+--==================================================
+-- CHARACTER / CUSTOM CONTAINER WATCHERS
+--==================================================
+trackConnection(LocalPlayer.CharacterAdded:Connect(function(character)
+	task.defer(function()
+		bindEquipmentContainer(character)
+		bindCurrentEquipmentContainers()
+	end)
+end))
+
+local PlayerCharactersFolder = getPlayerCharactersFolder()
+
+if PlayerCharactersFolder then
+	trackConnection(PlayerCharactersFolder.ChildAdded:Connect(function(child)
+		if child.Name == LocalPlayer.Name
+			or child.Name == LocalPlayer.DisplayName
+			or child.Name == "H20_SUNNY" then
+
+			task.defer(function()
+				bindEquipmentContainer(child)
+				applyHitboxToEquippedItem()
+			end)
+		end
+	end))
+else
+	trackConnection(Workspace.ChildAdded:Connect(function(child)
+		if child.Name ~= "PlayerCharacters" then
+			return
+		end
+
+		PlayerCharactersFolder = child
+
+		trackConnection(child.ChildAdded:Connect(function(character)
+			if character.Name == LocalPlayer.Name
+				or character.Name == LocalPlayer.DisplayName
+				or character.Name == "H20_SUNNY" then
+
+				task.defer(function()
+					bindEquipmentContainer(character)
+					applyHitboxToEquippedItem()
+				end)
+			end
+		end))
+
+		task.defer(bindCurrentEquipmentContainers)
+	end))
+end
+
+bindCurrentEquipmentContainers()
+
+if HitboxState.Enabled then
+	task.defer(applyHitboxToEquippedItem)
+end
+
+--==================================================
+-- KEYBINDS
+--==================================================
+local InputConnection = UserInputService.InputBegan:Connect(
+	function(input, gameProcessed)
+		if gameProcessed
+			or UserInputService:GetFocusedTextBox() then
+
+			return
+		end
+
+		if input.KeyCode == AUTO_USE_KEY then
+			setAutoUseEnabled(
+				not AutoUseState.Enabled,
+				true
+			)
+
+		elseif input.KeyCode == FLY_KEY then
+			setFlyEnabled(
+				not FlyState.Enabled,
+				true
+			)
+		end
+	end
+)
+
+trackConnection(InputConnection)
+
+--==================================================
+-- MAIN TAB UI: REMOTE
+--==================================================
+MainTab:Section({
+	name = "Auto Use",
+	subtitle = "Automatically uses the item equipped in your hands",
+})
+
+AutoUseToggle = MainTab:Toggle({
+	name = "Auto Use Equipped Item",
+	description = "Fires ClientRemotes.Character.UseItem every 0.05 seconds",
+	default = false,
+	flag = "mainAutoUseEquippedItem",
+
+	callback = function(state)
+		setAutoUseEnabled(state, false)
+	end,
+})
+
+MainTab:Dropdown({
+	name = "Auto Use Multiplier",
+	description = "Remote calls fired during each 0.05-second cycle",
+	items = {
+		"1x",
+		"2x",
+		"3x",
+		"4x",
+		"5x",
+	},
+	default = "1x",
+	flag = "mainAutoUseMultiplier",
+
+	callback = function(value)
+		local multiplier = tonumber(
+			tostring(value):match("%d+")
+		)
+
+		AutoUseState.Multiplier = math.clamp(
+			multiplier or 1,
+			1,
+			5
+		)
+
+		print(
+			"Auto Use Multiplier:",
+			AutoUseState.Multiplier .. "x"
+		)
+	end,
+})
+
+MainTab:ControlHint({
+	name = "Toggle Auto Use",
+	key = "J",
+	description = "Press J to turn Auto Use on or off",
+})
+
+MainTab:Info({
+	text = "Remote: ReplicatedStorage.ClientRemotes.Character.UseItem. "
+		.. "Multiplier controls how many times it fires per cycle.",
+})
+
+--==================================================
+-- MAIN TAB UI: HITBOX
+--==================================================
+MainTab:Section({
+	name = "Tool Hitbox",
+	subtitle = "Changes the currently equipped tool's hitbox",
+})
+
+MainTab:Toggle({
+	name = "Equipped Tool Hitbox",
+	description = "Resizes Hitbox, HitBox, or Handle",
+	default = HitboxState.Enabled,
+	flag = "mainEquippedToolHitbox",
+
+	callback = function(state)
+		setHitboxEnabled(state)
+	end,
+})
+
+MainTab:Toggle({
+	name = "Hitbox Visual",
+	description = "Shows only a red outline around the resized hitbox",
+	default = HitboxState.VisualEnabled,
+	flag = "mainToolHitboxVisual",
+
+	callback = function(state)
+		setHitboxVisualEnabled(state)
+	end,
+})
+
+MainTab:Slider({
+	name = "Tool Hitbox Size",
+	description = "Applied equally to X, Y, and Z",
+	min = 5,
+	max = 40,
+	default = HitboxState.Size,
+	round = 1,
+	suffix = " studs",
+	flag = "mainToolHitboxSize",
+
+	callback = function(value)
+		HitboxState.Size = math.clamp(value, 5, 40)
+
+		if HitboxState.Enabled then
+			applyHitboxToEquippedItem()
+		end
+	end,
+})
+
+MainTab:Info({
+	text = "Hitbox starts OFF. Size range: 5–40 studs.",
+})
+
+--==================================================
+-- MAIN TAB UI: AUTO BLOCK
+--==================================================
+MainTab:Section({
+	name = "Auto Block",
+	subtitle = "Continuously sends the block action",
+})
+
+AutoBlockToggle = MainTab:Toggle({
+	name = "Auto Block",
+	description = "Fires Character.Block with true every 0.07 seconds",
+	default = false,
+	flag = "mainAutoBlockEnabled",
+
+	callback = function(state)
+		setAutoBlockEnabled(state, false)
+	end,
+})
+
+MainTab:Info({
+	text = "Auto Block starts off and stops immediately when disabled.",
+})
+
+--==================================================
+-- MAIN TAB UI: AUTO FARM
+--==================================================
+MainTab:Section({
+	name = "Auto Farm",
+	subtitle = "Farm regular enemies and Mimics with separate toggles",
+})
+
+scanEnemyNamesAndMimics()
+
+EnemyDropdown = MainTab:MultiDropdown({
+	name = "Enemies",
+	description = "Select enemy names discovered inside the Enemies folders",
+	items = sortedEnemyNames(),
+	default = AutoFarmState.SelectedEnemies,
+	placeholder = "All non-Mimic enemies",
+	flag = "mainAutoFarmEnemies",
+
+	callback = function(values)
+		AutoFarmState.SelectedEnemies =
+			type(values) == "table"
+			and table.clone(values)
+			or {}
+
+		PersistentFarmState.SelectedEnemies =
+			table.clone(
+				AutoFarmState.SelectedEnemies
+			)
+	end,
+})
+
+MimicDropdown = MainTab:MultiDropdown({
+	name = "Mimics",
+	description = "Select which Mimic names the Mimic toggle should farm",
+	items = sortedMimicNames(),
+	default = AutoFarmState.SelectedMimics,
+	placeholder = "All Mimics",
+	flag = "mainAutoFarmMimics",
+
+	callback = function(values)
+		AutoFarmState.SelectedMimics =
+			type(values) == "table"
+			and table.clone(values)
+			or {}
+
+		PersistentFarmState.SelectedMimics =
+			table.clone(
+				AutoFarmState.SelectedMimics
+			)
+	end,
+})
+
+EnemyFarmToggle = MainTab:Toggle({
+	name = "Auto Farm Enemies",
+	description = "Farms regular enemies selected in the Enemies dropdown",
+	default = false,
+	flag = "mainAutoFarmEnemiesEnabled",
+
+	callback = function(state)
+		setEnemyFarmEnabled(state, false)
+	end,
+})
+
+MimicFarmToggle = MainTab:Toggle({
+	name = "Auto Farm Mimics",
+	description = "Farms Mimics selected in the Mimics dropdown",
+	default = false,
+	flag = "mainAutoFarmMimicsEnabled",
+
+	callback = function(state)
+		setMimicFarmEnabled(state, false)
+	end,
+})
+
+MainTab:Info({
+	text = "Enemy and Mimic farming have separate toggles and can run together. "
+		.. "Names and selections stay saved after despawning. "
+		.. "Target Dummy is always blacklisted.",
+})
+
+--==================================================
+-- MOVEMENT TAB UI
+--==================================================
+MovementTab:Section({
+	name = "Fly",
+	subtitle = "Simple character flight",
+})
+
+FlyToggle = MovementTab:Toggle({
+	name = "Fly",
+	description = "WASD to move, Space up, Left Control down",
+	default = false,
+	flag = "movementFlyEnabled",
+
+	callback = function(state)
+		setFlyEnabled(state, false)
+	end,
+})
+
+MovementTab:ControlHint({
+	name = "Toggle Fly",
+	key = "X",
+	description = "Press X to turn Fly on or off",
+})
+
+MovementTab:Slider({
+	name = "Fly Speed",
+	description = "Horizontal movement speed",
+	min = 10,
+	max = 500,
+	default = FlyState.Speed,
+	round = 1,
+	suffix = " studs",
+	flag = "movementFlySpeed",
+
+	callback = function(value)
+		FlyState.Speed = value
+	end,
+})
+
+MovementTab:Slider({
+	name = "Vertical Speed",
+	description = "Space and Left Control speed",
+	min = 10,
+	max = 300,
+	default = FlyState.VerticalSpeed,
+	round = 1,
+	suffix = " studs",
+	flag = "movementFlyVerticalSpeed",
+
+	callback = function(value)
+		FlyState.VerticalSpeed = value
+	end,
+})
+
+--==================================================
+-- CLEANUP
+--==================================================
+Library:RegisterGlobalCleanup(function()
+	AutoUseState.Enabled = false
+	AutoUseState.Generation += 1
+
+	AutoBlockState.Enabled = false
+	AutoBlockState.Generation += 1
+
+	AutoFarmState.EnemyEnabled = false
+	AutoFarmState.MimicEnabled = false
+	AutoFarmState.Generation += 1
+	AutoFarmState.CurrentTarget = nil
+	cancelFarmTween()
+
+	FlyState.Enabled = false
+	FlyState.YLevel = nil
+
+	restoreAllHitboxes()
+	removeAllHitboxVisuals()
+
+	disconnectAll()
+
+	table.clear(BoundContainers)
+end, "CrimsonHubMainMovementCleanup")
+
+print("Crimson Hub loaded")
+print("RightShift = UI | J = Auto Use | X = Fly | Enemy and Mimic Farm in Main")
